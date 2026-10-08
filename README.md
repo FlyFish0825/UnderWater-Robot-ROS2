@@ -5,6 +5,27 @@
 ROS 2 Humble / Jetson Orin NX / C++17。业务入口采用 fc_sensors_ros2 的包名和程序名，
 原有 underwater_* 实现放在 internal，原调试命令与原生消息继续可用。
 
+## 文档索引
+
+**完整使用教程从 [教程总目录](docs/usage/README.md) 开始。** 新机器按安装、传感器、控制、维护的顺序阅读；
+已有 Jetson 工作空间可直接进入传感器与记录篇。各篇均带章节索引、上一篇和下一篇链接。
+
+| 需要了解的内容 | 入口 |
+|---|---|
+| 完整使用教程、日常操作顺序 | [教程总目录与快速开始](docs/usage/README.md) |
+| 新机器准备、源码获取、编译、终端环境 | [01 安装与编译](docs/usage/01-installation.md) |
+| 串口检查、IMU、深度归零、CSV、ROS bag | [02 传感器与数据记录](docs/usage/02-sensors-recording.md) |
+| 隔离预览、键盘档位、实际控制、停机与反馈 | [03 手动控制](docs/usage/03-manual-control.md) |
+| 配置修改、重新编译、测试、更新与故障排查 | [04 维护与故障排查](docs/usage/04-maintenance.md) |
+| 编译与运行命令 | [编译和环境](#编译和环境)、[沿用原命令](#沿用原命令) |
+| 键盘按键、档位与启停 | [键盘控制](#键盘控制)、[动力分配与手动转速控制](docs/deployment/thrust-allocation.md) |
+| 如何分析 CAN CSV 中的力与转速指令 | [抓包分析教程](docs/deployment/can-command-analysis.md) |
+| 111.csv、112.csv 的方向、时间线与曲线 | [2026-10-08 抓包实例记录](docs/experiments/2026-10-08-can-command-analysis.md) |
+| ROS 话题与串口协议 | [话题接口](docs/interfaces/topics.md)、[MCU 线协议](docs/protocols/mcu-wire.md) |
+| 深度归零与硬件范围 | [深度归零](docs/deployment/depth-zero.md)、[当前硬件](docs/hardware/current-hardware.md) |
+| 验证方法与兼容入口 | [验证说明](docs/deployment/validation.md)、[兼容入口验证](docs/deployment/entry-compatibility.md) |
+| 软件结构与发布范围 | [架构说明](docs/architecture/architecture.md)、[发布说明](CHANGELOG.md) |
+
 ## 当前目录
 
 ```text
@@ -79,6 +100,8 @@ Windows 保存同一份源码，编译和设备验证在 Nano 完成；build/ins
 serial_port（自动后台的 USB CDC 路径）、duration_s（0 表示持续运行；激励默认 100 秒）。
 例如 --ros-args -p duration_s:=5.0。测试接入已有后台时可设 auto_start:=false。
 手动和激励入口支持 preview:=true：发布预览请求，不调用启用服务。
+preview 不是全局禁止发送开关；预览应使用隔离环境或确认 motor_tx=false，
+具体步骤见 [隔离预览](docs/usage/03-manual-control.md#preview)。
 
 原生 /underwater_robot/... 话题不变。外部 /imu_data、/depth_temp、/forces 使用
 src/msg_pkg/msg 中的新消息定义；命令名兼容不等于旧消息二进制 ABI 兼容。
@@ -97,6 +120,7 @@ src/msg_pkg/msg 中的新消息定义；命令名兼容不等于旧消息二进�
 | Q / Ctrl+C | 发送零请求、尝试禁用并退出 |
 
 各轴手动档位范围为 -100 到 100：0 停机，1 档起步，100 档为上限；档位不是 N 或 N·m。
+按键累加档位，松开按键不会自动归零；长按可能连续加档。结束操作使用 Q 或 Ctrl+C。
 0～7 的 control_flag 含义未从旧 MCU 核实，
 会明确提示不支持，不猜测或发送模式字节。半自动 P/O 等功能尚未实现。
 手动程序等待首个方向键才请求启用；forces_pub 是主动激励命令，启动后请求启用。
@@ -114,6 +138,8 @@ src/msg_pkg/msg 中的新消息定义；命令名兼容不等于旧消息二进�
 不套用手动起步增益。手动与物理力输入合计只允许一个发布者。
 以上是目标转速；实际推力曲线和实机响应仍需要标定。
 详见 [动力分配说明](docs/deployment/thrust-allocation.md)。
+对照 CAN 抓包检查实际下发值，见 [抓包分析教程](docs/deployment/can-command-analysis.md)；
+包括水平推进、偏航、横滚、俯仰及组合指令的 [111/112 实例](docs/experiments/2026-10-08-can-command-analysis.md)。
 
 ## 共享后台
 
