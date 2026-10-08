@@ -73,6 +73,7 @@ ros2 node list
 | `serial_port` | 新建自动后台时使用的串口；不改变已存在后台的配置 |
 | `duration_s` | 传感器/记录入口默认 0，表示持续运行；必须非负 |
 | `output_dir` | CSV 记录入口的保存目录 |
+| `imu_source` | `raw`（默认）或 `calibrated`；校正源需先显式采集基准 |
 
 改变 `robot_namespace` 不会改变兼容输出 `/imu_data`、`/depth_temp` 和 `/forces` 的绝对名称；
 多机器人部署还需规划这些兼容话题的重映射。
@@ -129,6 +130,8 @@ ros2 run sensors_cpp sensors_sub --ros-args -p serial_port:=/dev/ttyACM0
 | 姿态欧拉角 | ° | 内部 `euler_rpy_rad` 为 rad |
 
 命令名称兼容不代表旧消息 ABI 兼容；消息定义见 [msg_pkg](../../src/msg_pkg/msg)。
+平放、水平和朝向的初始姿态校正见 [第 5 篇](05-imu-calibration.md)。
+该功能保留原始数据，不需要 IMU 位置偏移，并支持主机保存与重启加载。
 
 <a id="validity"></a>
 ## 数据有效性与网关状态
@@ -238,6 +241,7 @@ ls -lh /home/lamost/robot_data/csv/
 | `gyro_x_deg_s`、`gyro_y_deg_s`、`gyro_z_deg_s` | 角速度，°/s |
 | `roll_deg`、`pitch_deg`、`yaw_deg` | 欧拉角，° |
 | `raw_valid`、`attitude_valid`、`depth_valid` | 对应分组有效状态 |
+| `imu_source`、`imu_reference_saved_at` | 新增末尾列：姿态数据源及校正基准保存时间；原始源的保存时间为空 |
 
 记录器定时保存当时缓存的各组数据，一行不代表所有传感器严格同步采样。
 缺测字段保留 NaN；没有相机假数据。记录器本身不要求其他兼容发布入口先启动。

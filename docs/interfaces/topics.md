@@ -9,6 +9,8 @@
 | gateway/raw_rx | underwater_interfaces/RawSerial | 可选原始 RX 块，默认不发布；包含启动积压和不完整帧 |
 | gateway/status | underwater_interfaces/GatewayStatus | 连接、接收/错误统计、心跳年龄、五个队列占用率，约 1 Hz |
 | sensors/imu/state | underwater_interfaces/ImuState | 原始0x80、姿态0x81、气压0x85分组发布；各组独立有效 |
+| sensors/imu/calibrated | underwater_interfaces/ImuState | 新增：0x81 为已保存基准的相对姿态；其他分组保持原始传感器数据；无基准时姿态无效 |
+| sensors/imu/calibration_status | underwater_interfaces/ImuCalibrationStatus | 新增：基准、采样进度、新鲜度、保存路径及失败原因；可靠、transient local |
 | sensors/imu/barometer | underwater_interfaces/ImuState | 仅0x85及其失效通知，含气压/温度/高度/参考气压 |
 | sensors/imu/fluid_pressure | sensor_msgs/FluidPressure | 仅有效IMU气压，Pa；不是MS5837压力 |
 | sensors/imu/temperature | sensor_msgs/Temperature | 仅有效IMU气压计温度，°C |
@@ -33,6 +35,10 @@ MotorState 中 heartbeat_valid 与 feedback_valid 独立，只有后者为真时
 ROS 输入帧话题是可信机器人内部接口，不是鉴权命令服务；部署到外部网络前需明确网络边界。
 
 `control/enable`（std_srvs/SetBool）为显式启停服务，需 manual.launch.xml。
+`sensors/imu/calibrate`（underwater_interfaces/CalibrateImu）采集已知静止基准，保存成功后才返回成功；
+`sensors/imu/clear_calibration`（std_srvs/Trigger）清除当前基准。
+这两项只修改主机上的姿态参考，不向 MCU 发送标定或电机命令。
+数学约定、文件位置和 `imu_source` 选择见 [IMU 校正教程](../usage/05-imu-calibration.md)。
 `sensors/depth/zero`（std_srvs/Trigger）把当前空气/水面处记录为深度零点，自动处理必要的 02BA 配置；
 只有读回零点并收到新的有效深度测量后才 success=true。详见部署说明 depth-zero.md。
 MotorSetpoint 由分配节点生成，外部物理力请求使用 wrench_request，键盘档位使用 manual_request；

@@ -15,6 +15,7 @@ ROS 2 Humble / Jetson Orin NX / C++17。业务入口采用 fc_sensors_ros2 的�
 | 完整使用教程、日常操作顺序 | [教程总目录与快速开始](docs/usage/README.md) |
 | 新机器准备、源码获取、编译、终端环境 | [01 安装与编译](docs/usage/01-installation.md) |
 | 串口检查、IMU、深度归零、CSV、ROS bag | [02 传感器与数据记录](docs/usage/02-sensors-recording.md) |
+| 平放/朝向基准采样、姿态校正、保存与重启加载 | [05 IMU 基准姿态校正](docs/usage/05-imu-calibration.md) |
 | 隔离预览、键盘档位、实际控制、停机与反馈 | [03 手动控制](docs/usage/03-manual-control.md) |
 | 配置修改、重新编译、测试、更新与故障排查 | [04 维护与故障排查](docs/usage/04-maintenance.md) |
 | 编译与运行命令 | [编译和环境](#编译和环境)、[沿用原命令](#沿用原命令) |
@@ -102,6 +103,14 @@ serial_port（自动后台的 USB CDC 路径）、duration_s（0 表示持续运
 手动和激励入口支持 preview:=true：发布预览请求，不调用启用服务。
 preview 不是全局禁止发送开关；预览应使用隔离环境或确认 motor_tx=false，
 具体步骤见 [隔离预览](docs/usage/03-manual-control.md#preview)。
+
+### IMU 基准姿态校正（v1.0.0 之后新增）
+
+把机器人固定在已知水平和朝向状态，调用 `sensors/imu/calibrate` 采集并保存基准。
+兼容查看与记录入口使用 `--ros-args -p imu_source:=calibrated` 选择校正姿态，默认仍为 `raw`。
+基准在主机保存并在重启时加载；原始话题、加速度和角速度不改动，不需要位置 XYZ。
+完整步骤、已知非零姿态、状态与清除命令见 [IMU 校正教程](docs/usage/05-imu-calibration.md)。
+该功能是初始姿态参考校正，不是机械外参、陀螺零偏或机器人中心加速度标定。
 
 原生 /underwater_robot/... 话题不变。外部 /imu_data、/depth_temp、/forces 使用
 src/msg_pkg/msg 中的新消息定义；命令名兼容不等于旧消息二进制 ABI 兼容。

@@ -39,14 +39,17 @@ int main(int argc,char **argv) {
   rclcpp::init(argc,argv);
   auto n=std::make_shared<rclcpp::Node>("compat_contract_probe");
   bool publish=true,armed=false,expired=false,converted=false,depth_ok=false;
+  bool calibrated_selected=false;
   int enables=0,disables=0,wrenches=0;
   std::array<double,6> last{};
   auto ip=n->create_publisher<underwater_interfaces::msg::ImuState>("/compat_fixture/sensors/imu/state",rclcpp::SensorDataQoS());
+  auto cp=n->create_publisher<underwater_interfaces::msg::ImuState>("/compat_fixture/sensors/imu/calibrated",rclcpp::SensorDataQoS());
   auto dp=n->create_publisher<underwater_interfaces::msg::DepthState>("/compat_fixture/sensors/depth/state",rclcpp::SensorDataQoS());
   auto ap=n->create_publisher<underwater_interfaces::msg::AllocationStatus>("/compat_fixture/control/allocation",10);
   auto is=n->create_subscription<msg_pkg::msg::ImuData>("/imu_data",10,[&](msg_pkg::msg::ImuData::ConstSharedPtr m){
     if(m->raw_valid&&m->attitude_valid&&std::abs(m->angle_z-90)<1e-6&&std::abs(m->gyro_z-180)<1e-6)converted=true;
     if(converted&&!m->raw_valid&&!m->attitude_valid&&std::isnan(m->angle_z)&&std::isnan(m->acc_x))expired=true;
+    if(m->raw_valid&&m->attitude_valid&&std::abs(m->angle_z-30)<1e-6&&std::abs(m->gyro_z-90)<1e-6)calibrated_selected=true;
   });
   auto ds=n->create_subscription<msg_pkg::msg::DepthSensor>("/depth_temp",10,[&](msg_pkg::msg::DepthSensor::ConstSharedPtr m){
     if(m->depth_valid&&std::abs(m->depth-0.75)<1e-9&&m->temperature_valid)depth_ok=true;
@@ -64,6 +67,8 @@ int main(int argc,char **argv) {
       underwater_interfaces::msg::ImuState m;m.header.stamp=n->now();m.connection_id=42;m.fresh=true;m.group=0x80;m.raw_valid=true;
       m.acceleration_m_s2={1,2,3};m.angular_velocity_rad_s={0,0,3.14159265358979323846};ip->publish(m);
       m.group=0x81;m.raw_valid=false;m.euler_valid=true;m.euler_rpy_rad={0,0,1.57079632679489661923};ip->publish(m);
+      m.group=0x80;m.raw_valid=true;m.euler_valid=false;m.angular_velocity_rad_s={0,0,1.57079632679489661923};cp->publish(m);
+      m.group=0x81;m.raw_valid=false;m.euler_valid=true;m.euler_rpy_rad={0,0,0.52359877559829887308};cp->publish(m);
       underwater_interfaces::msg::DepthState d;d.header.stamp=n->now();d.connection_id=42;d.fresh=d.depth_valid=d.temperature_valid=d.pressure_valid=true;
       d.filtered_depth_m=0.75;d.temperature_c=25;d.pressure_pa=108000;dp->publish(d);
     }
@@ -95,6 +100,18 @@ int main(int argc,char **argv) {
     std::ifstream in(p.path());std::string line;int lines=0;while(std::getline(in,line))++lines;recorded|=lines>10;
   }
   ok&=recorded;
+  publish=true;
+  const auto corrected_out=out/"calibrated";
+  children.push_back(launch("imu_py","imu_publisher",{"duration_s:=2.0","imu_source:=calibrated"}));
+  children.push_back(launch("sensors_cpp","sensors_sub_jilushuju",{"duration_s:=2.0","imu_source:=calibrated","output_dir:="+corrected_out.string()}));
+  spin(3);
+  ok=finish(children[children.size()-2])&&ok;ok=finish(children.back())&&ok;
+  bool calibrated_recorded=false;
+  if(std::filesystem::exists(corrected_out))for(const auto &p:std::filesystem::directory_iterator(corrected_out)){
+    std::ifstream in(p.path());std::string line;
+    while(std::getline(in,line))if(line.find(",calibrated,")!=std::string::npos)calibrated_recorded=true;
+  }
+  ok=calibrated_selected&&calibrated_recorded&&ok;publish=false;
   children.push_back(launch("manual_control","manual_control",{"duration_s:=10.0"},true));
   auto &manual=children.back();spin(2);const bool no_start_enable=enables==0;
   ok=(write(manual.terminal,"WATI",4)==4)&&ok;spin(1.5);
@@ -112,6 +129,7 @@ int main(int argc,char **argv) {
   spin(3);ok=finish(children.back())&&ok;
   const bool waveform=wrenches>before_wave&&enables==1;ok&=waveform;
   std::cout<<"converted="<<converted<<" expired="<<expired<<" depth="<<depth_ok<<" recorded="<<recorded
+           <<" calibrated_selected="<<calibrated_selected<<" calibrated_recorded="<<calibrated_recorded
            <<" no_start_enable="<<no_start_enable<<" keys="<<keys<<" stopped="<<stopped<<" waveform="<<waveform<<" enables="<<enables<<" result="<<(ok?"PASS":"FAIL")<<" output="<<out<<"\n";
   rclcpp::shutdown();return ok?0:1;
 }

@@ -19,6 +19,7 @@ int run(const std::string &entry, int argc, char **argv) {
     std::cout << entry << ": " << (unavailable?"entry registered; implementation unavailable":"available") << "\n";
     if(std::string(argv[i])=="--help") {
       std::cout << "C++ compatibility entry. ROS parameters: robot_namespace=/underwater_robot, auto_start=true, duration_s=0.\n";
+      std::cout << "Telemetry: imu_source=raw (default) or calibrated; calibrated selects the saved attitude reference.\n";
       if(entry=="manual_control") std::cout << "W/S Fx, A/D yaw, I/J Fz, T/F Fy, Y/G roll, U/H pitch. Values are levels: 0=stop, 1=start, 100=max. Q or Ctrl+C stops and exits. preview=true disables enable requests.\n";
       if(entry=="sensors_sub_jilushuju") std::cout << "CSV is saved under " << DEFAULT_RECORD_DIR << "; override output_dir.\n";
       return 0;
@@ -38,6 +39,8 @@ int run(const std::string &entry, int argc, char **argv) {
     node->declare_parameter<bool>("auto_start",true);
     node->declare_parameter<std::string>("serial_port","/dev/serial/by-id/usb-STMicroelectronics_Lamost_UnderWater_Robot_ComPort_3588346E3134-if00");
     node->declare_parameter<double>("duration_s",0.0);
+    const auto imu_source=node->declare_parameter<std::string>("imu_source","raw");
+    if(imu_source!="raw" && imu_source!="calibrated") throw std::invalid_argument("imu_source must be raw or calibrated");
     if(entry=="manual_control"||entry=="forces_pub")node->declare_parameter<bool>("preview",false);
     if(entry=="time_read_test") {
       std::cout << "ROS time: " << node->now().seconds() << "\n";

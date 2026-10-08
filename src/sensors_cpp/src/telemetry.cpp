@@ -1,6 +1,7 @@
 #include "sensors_cpp/entry.hpp"
 #include <rclcpp/rclcpp.hpp>
 #include <underwater_interfaces/msg/imu_state.hpp>
+#include <underwater_interfaces/msg/imu_calibration_status.hpp>
 #include <underwater_interfaces/msg/depth_state.hpp>
 #include <msg_pkg/msg/imu_data.hpp>
 #include <msg_pkg/msg/depth_sensor.hpp>
@@ -48,7 +49,15 @@ int telemetry(const std::string &entry,const std::shared_ptr<rclcpp::Node> &node
     connection=id; acc.fill(nan);gyro.fill(nan);angle.fill(nan);
     depth=temp=pressure=nan;raw_valid=attitude_valid=depth_valid=temp_valid=depth_fresh=false;
   };
-  auto imu_sub=node->create_subscription<ui::ImuState>(ns+"/sensors/imu/state",rclcpp::SensorDataQoS(),
+  const auto imu_source=node->get_parameter("imu_source").as_string();
+  const auto imu_topic=ns+(imu_source=="calibrated"?"/sensors/imu/calibrated":"/sensors/imu/state");
+  std::string reference_saved_at;
+  auto reference_status=node->create_subscription<ui::ImuCalibrationStatus>(ns+"/sensors/imu/calibration_status",
+    rclcpp::QoS(1).transient_local(),[&](ui::ImuCalibrationStatus::ConstSharedPtr m) {
+      reference_saved_at=(imu_source=="calibrated"&&m->calibrated)?m->saved_at:"";
+    });
+  RCLCPP_INFO(node->get_logger(),"IMU source: %s (acceleration/gyro remain in sensor axes)",imu_topic.c_str());
+  auto imu_sub=node->create_subscription<ui::ImuState>(imu_topic,rclcpp::SensorDataQoS(),
     [&](ui::ImuState::ConstSharedPtr m){
       reset(m->connection_id);
       if(m->group==0x80) {
@@ -73,7 +82,7 @@ int telemetry(const std::string &entry,const std::shared_ptr<rclcpp::Node> &node
     const auto stamp=std::chrono::system_clock::now().time_since_epoch();
     const auto filename=std::filesystem::path(out)/("sensors_"+std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(stamp).count())+"_"+std::to_string(getpid())+".csv");
     file.open(filename); if(!file)throw std::runtime_error("Cannot create recording file");
-    file<<"receipt_time_s,depth_m,temp_c,pressure_pa,acc_x,acc_y,acc_z,gyro_x_deg_s,gyro_y_deg_s,gyro_z_deg_s,roll_deg,pitch_deg,yaw_deg,raw_valid,attitude_valid,depth_valid\n";
+    file<<"receipt_time_s,depth_m,temp_c,pressure_pa,acc_x,acc_y,acc_z,gyro_x_deg_s,gyro_y_deg_s,gyro_z_deg_s,roll_deg,pitch_deg,yaw_deg,raw_valid,attitude_valid,depth_valid,imu_source,imu_reference_saved_at\n";
     RCLCPP_INFO(node->get_logger(),"Recording CSV at 10 Hz: %s",filename.c_str());
   }
   const auto start=Clock::now();
@@ -99,7 +108,7 @@ int telemetry(const std::string &entry,const std::shared_ptr<rclcpp::Node> &node
     if(file.is_open()) {
       file<<std::setprecision(15)<<node->now().seconds()<<','<<depth<<','<<temp<<','<<pressure;
       for(const auto &a:{acc,gyro,angle})for(double v:a)file<<','<<v;
-      file<<','<<raw_valid<<','<<attitude_valid<<','<<depth_valid<<'\n';
+      file<<','<<raw_valid<<','<<attitude_valid<<','<<depth_valid<<','<<imu_source<<','<<reference_saved_at<<'\n';
       if(++rows%10==0)file.flush();
       if(!file)throw std::runtime_error("Recording write failed");
     }

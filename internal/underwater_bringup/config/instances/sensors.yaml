@@ -3,3 +3,9 @@
     imu_frame_id: imu_sensor
     depth_frame_id: pressure_sensor
     measurement_timeout_ms: 500
+    # Empty: $ROS_HOME/<namespace>/imu_reference.txt (root namespace: underwater_robot)
+    # ROS_HOME defaults to ~/.ros. Calibrate only on an explicit service request.
+    imu_calibration_file: ""
+    imu_calibration_max_gyro_rad_s: 0.05
+    imu_calibration_max_spread_deg: 1.0
+    imu_calibration_min_duration_s: 1.0

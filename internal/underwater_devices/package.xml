@@ -8,6 +8,7 @@
   <depend>rclcpp</depend>
   <depend>rcl_interfaces</depend>
   <depend>sensor_msgs</depend>
+  <depend>std_srvs</depend>
   <depend>underwater_interfaces</depend>
   <depend>underwater_mcu_gateway</depend>
 

@@ -1,6 +1,7 @@
 # 04 维护与故障排查
 
 [教程总目录](README.md) · 上一篇：[手动控制](03-manual-control.md) · [项目 README](../../README.md)
+下一篇：[IMU 基准姿态校正](05-imu-calibration.md)
 
 ## 本页索引
 
@@ -65,6 +66,7 @@ bash tools/validate.sh offline
 ```
 
 包含 5 个 CTest：协议、电机命令、深度归零、设备有效性和动力分配。
+后续 IMU 校正实现新增第 6 个 CTest，覆盖基准旋转、采样条件和文件持久化。
 
 合成遥测：
 
@@ -88,6 +90,12 @@ ros2 run sensors_cpp compat_probe
 这些测试不打开真实机器人串口。合成遥测使用域 189，伪串口控制使用域 190，
 兼容入口示例使用域 185；避免在这些域同时运行其他同类测试。
 `tools/validate.sh live` 属于真实设备读取路径，不包含在上述离线测试流程中。
+
+IMU 校正专项测试使用域 184，只注入合成数据：
+
+```bash
+bash tools/validate.sh imu-calibration
+```
 
 `v1.0.0` 发布前，上述测试均通过。日志中的 `PASS` 证明对应软件测试通过，不是实机带载或转动证据。
 详细验证记录见 [兼容入口验证](../deployment/entry-compatibility.md) 和 [发布说明](../../CHANGELOG.md)。
@@ -196,3 +204,4 @@ printenv ROS_LOCALHOST_ONLY
 遇到物理链路故障时使用独立急停/断电措施，不把停止主机进程当成电机已停的证明。
 
 [返回教程总目录](README.md) · 上一篇：[03 手动控制](03-manual-control.md) · [返回项目 README](../../README.md)
+下一篇：[05 IMU 基准姿态校正](05-imu-calibration.md)

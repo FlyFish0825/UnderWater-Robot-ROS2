@@ -1,0 +1,12 @@
+# The robot must already be resting in the user's known reference pose.
+# Degrees, ZYX roll/pitch/yaw. Zero means label this pose as level, heading zero.
+float64[3] reference_rpy_deg [0.0, 0.0, 0.0]
+uint32 samples 100
+float64 timeout_s 15.0
+---
+# True only after a stationary capture has been atomically saved and activated.
+bool success
+string message
+float64[3] captured_rpy_deg
+uint32 samples_collected
+string calibration_file

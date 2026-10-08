@@ -8,6 +8,8 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/RawSerial.msg"
   "msg/GatewayStatus.msg"
   "msg/ImuState.msg"
+  "msg/ImuCalibrationStatus.msg"
+  "srv/CalibrateImu.srv"
   "msg/DepthState.msg"
   "msg/SensorStatus.msg"
   "msg/MotorState.msg"

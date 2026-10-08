@@ -1,0 +1,11 @@
+std_msgs/Header header
+bool calibrated
+bool collecting
+bool attitude_fresh
+uint32 samples_collected
+uint32 samples_requested
+float64[3] captured_rpy_deg
+float64[3] reference_rpy_deg
+string saved_at
+string calibration_file
+string detail

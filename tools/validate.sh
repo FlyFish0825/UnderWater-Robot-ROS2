@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Usage: bash tools/validate.sh offline|synthetic|allocation|live [serial_port]
+# Usage: bash tools/validate.sh offline|synthetic|allocation|imu-calibration|live [serial_port]
 set -eo pipefail
 workspace="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$workspace"
@@ -16,8 +16,12 @@ if [[ "$mode" == allocation ]]; then
   ros2 run underwater_bringup serial_control_probe
   exit 0
 fi
+if [[ "$mode" == imu-calibration ]]; then
+  ros2 run underwater_bringup imu_calibration_probe
+  exit 0
+fi
 if [[ "$mode" != synthetic && "$mode" != live ]]; then
-  echo "Usage: bash tools/validate.sh offline|synthetic|allocation|live [serial_port]" >&2
+  echo "Usage: bash tools/validate.sh offline|synthetic|allocation|imu-calibration|live [serial_port]" >&2
   exit 2
 fi
 export ROS_LOCALHOST_ONLY=1

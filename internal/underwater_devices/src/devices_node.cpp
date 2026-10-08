@@ -1,4 +1,5 @@
 #include "underwater_devices/adapters.hpp"
+#include "underwater_devices/imu_calibration.hpp"
 #include "underwater_mcu_gateway/protocol.hpp"
 #include <algorithm>
 #include <array>
@@ -35,6 +36,7 @@ public:
     temperature_=create_publisher<sensor_msgs::msg::Temperature>("sensors/pressure/temperature",q);
     motor_=create_publisher<ui::MotorState>("actuators/thrusters/state",q);
     status_=create_publisher<ui::SensorStatus>("sensors/status",10);
+    calibration_=std::make_unique<adapt::ImuCalibration>(*this,imu_frame_,timeout_);
     sub_=create_subscription<ui::GatewayFrame>("gateway/frames",rclcpp::SensorDataQoS().keep_last(100),
       [this](ui::GatewayFrame::ConstSharedPtr f){ receive(*f); });
     watchdog_=create_wall_timer(100ms,[this]{ expire(); });
@@ -42,7 +44,7 @@ public:
 private:
   void receive(const ui::GatewayFrame & f) {
     const auto age=(now()-rclcpp::Time(f.header.stamp)).nanoseconds();
-    if(age>timeout_.count()*1000000LL) return;
+    if(age>timeout_.count()*1000000LL || age< -100000000LL) return;
     if(f.connection_id!=connection_) {
       invalidate(); connection_=f.connection_id; sequences_.clear(); motors_.clear();
       imu_cache_.clear(); depth_cache_.reset(); statuses_.clear();
@@ -59,6 +61,7 @@ private:
     ui::ImuState im;
     if(adapt::imu(f,im)) {
       im.header.frame_id=imu_frame_; imu_->publish(im); imu_cache_[im.group]={im,t};
+      calibration_->process(im);
       if(im.group==0x80 && im.raw_valid) {
         sensor_msgs::msg::Imu m; m.header=im.header;
         // Device world convention/extrinsics are unknown: do not invent ROS orientation.
@@ -131,6 +134,7 @@ private:
     m.acceleration_m_s2.fill(adapt::invalid()); m.angular_velocity_rad_s.fill(adapt::invalid());
     m.magnetic_protocol_units.fill(adapt::invalid()); m.quaternion_wxyz.fill(adapt::invalid());
     m.euler_rpy_rad.fill(adapt::invalid()); imu_->publish(m);
+    calibration_->process(m);
     if(m.group==0x85) imu_baro_->publish(m);
   }
   void invalidate_depth(ui::DepthState & m) {
@@ -165,6 +169,7 @@ private:
   }
   struct MotorCache { ui::MotorState message; std::optional<Clock::time_point> feedback,heartbeat; };
   std::string imu_frame_,depth_frame_;
+  std::unique_ptr<adapt::ImuCalibration> calibration_;
   std::chrono::milliseconds timeout_{500};
   std::uint64_t connection_=0;
   std::map<std::uint8_t,std::uint32_t> sequences_;
