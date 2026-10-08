@@ -1,0 +1,20 @@
+std_msgs/Header header
+uint64 connection_id
+uint32 device_timestamp_us
+uint32 sequence
+uint32 device_status
+bool fresh
+bool raw_valid
+bool pressure_valid
+bool temperature_valid
+bool depth_valid
+bool zero_valid
+bool model_confirmed
+# Invalid floating-point quantities are NaN, not placeholder zero.
+float64 pressure_pa
+float64 temperature_c
+float64 raw_depth_m
+float64 filtered_depth_m
+float64 surface_pressure_pa
+uint32 d1
+uint32 d2

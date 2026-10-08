@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="underwater_robot"
+       description="ROS namespace for this robot"/>
+  <arg name="params_file"
+       default="$(find-pkg-share underwater_robot)/config/robot.yaml"
+       description="Absolute path to the node parameter YAML file"/>
+  <node pkg="underwater_robot" exec="robot_node" name="robot_node"
+        namespace="$(var namespace)" output="screen">
+    <param from="$(var params_file)"/>
+  </node>
+</launch>

@@ -1,0 +1,4 @@
+/**:
+  ros__parameters:
+    # Software heartbeat interval in milliseconds; restart after changing.
+    status_period_ms: 1000

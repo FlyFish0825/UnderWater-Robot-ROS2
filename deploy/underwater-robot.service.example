@@ -1,0 +1,15 @@
+# Template only; not installed or enabled by this project.
+[Unit]
+Description=UnderWater-Robot-ROS2 receive-only telemetry
+After=network.target
+[Service]
+Type=simple
+User=lamost
+WorkingDirectory=/home/lamost/UnderWater-Robot-ROS2
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && source install/setup.bash && exec ros2 launch underwater_bringup robot.launch.xml'
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGINT
+TimeoutStopSec=15
+[Install]
+WantedBy=multi-user.target

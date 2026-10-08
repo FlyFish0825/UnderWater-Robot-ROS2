@@ -1,0 +1,15 @@
+# ROS 2 build products and local recordings
+build/
+install/
+log/
+Recodes/
+/artifacts/
+
+# Local editor, Python cache and credentials
+.vscode/
+.idea/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example

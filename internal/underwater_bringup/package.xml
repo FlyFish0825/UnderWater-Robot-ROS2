@@ -1,0 +1,23 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>underwater_bringup</name><version>1.0.0</version>
+  <description>UnderWater-Robot-ROS2 underwater_bringup module.</description>
+  <maintainer email="lamost@example.com">lamost</maintainer>
+  <license>Proprietary</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>launch</depend>
+  <depend>launch_ros</depend>
+  <depend>launch_xml</depend>
+  <depend>underwater_mcu_gateway</depend>
+  <depend>underwater_devices</depend>
+  <exec_depend>underwater_control</exec_depend>
+  <depend>underwater_robot</depend>
+  <depend>underwater_description</depend>
+
+  <test_depend>rclcpp</test_depend>
+  <test_depend>sensor_msgs</test_depend>
+  <test_depend>underwater_interfaces</test_depend>
+  <test_depend>geometry_msgs</test_depend>
+  <test_depend>std_srvs</test_depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

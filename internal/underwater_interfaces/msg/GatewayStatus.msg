@@ -1,0 +1,23 @@
+std_msgs/Header header
+string port
+bool connected
+bool settling
+bool tx_enabled
+uint64 connection_id
+uint64 rx_bytes
+uint64 valid_frames
+uint64 crc_errors
+uint64 shape_errors
+uint64 discarded_bytes
+uint64 stale_frames
+int64 heartbeat_age_ms
+bool buffer_status_valid
+uint8[5] buffers_percent
+string detail
+# Written to the serial FD, not an acknowledgement from a motor.
+uint64 tx_bytes
+uint64 tx_frames
+uint64 motor_session_id
+bool motor_command_active
+bool motor_rearm_required
+string motor_command_detail

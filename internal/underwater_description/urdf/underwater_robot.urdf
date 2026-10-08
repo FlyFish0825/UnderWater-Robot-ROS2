@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<!-- Only a named root link. No invented geometry, mass, inertia or sensor extrinsics. -->
+<robot name="UnderWater-Robot-ROS2">
+  <link name="base_link"/>
+</robot>

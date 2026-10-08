@@ -1,0 +1,11 @@
+# Recording manifest; use the ros2 bag command in README.md.
+topics:
+  - /underwater_robot/gateway/status
+  - /underwater_robot/sensors/imu/state
+  - /underwater_robot/sensors/imu/data_raw
+  - /underwater_robot/sensors/imu/barometer
+  - /underwater_robot/sensors/imu/fluid_pressure
+  - /underwater_robot/sensors/imu/temperature
+  - /underwater_robot/sensors/depth/state
+  - /underwater_robot/sensors/status
+  - /underwater_robot/actuators/thrusters/state

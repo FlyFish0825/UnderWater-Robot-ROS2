@@ -1,0 +1,5 @@
+/**:
+  ros__parameters:
+    imu_frame_id: imu_sensor
+    depth_frame_id: pressure_sensor
+    measurement_timeout_ms: 500

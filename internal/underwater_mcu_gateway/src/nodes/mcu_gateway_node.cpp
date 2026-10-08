@@ -1,0 +1,206 @@
+#include "underwater_mcu_gateway/protocol.hpp"
+#include "underwater_mcu_gateway/serial_io.hpp"
+#include "underwater_mcu_gateway/motor_commands.hpp"
+#include "underwater_mcu_gateway/depth_zero.hpp"
+#include <chrono>
+#include <optional>
+#include <rclcpp/rclcpp.hpp>
+#include <rcl_interfaces/msg/parameter_descriptor.hpp>
+#include <underwater_interfaces/msg/gateway_frame.hpp>
+#include <underwater_interfaces/msg/gateway_status.hpp>
+#include <underwater_interfaces/msg/raw_serial.hpp>
+#include <underwater_interfaces/msg/motor_setpoint.hpp>
+#include <std_srvs/srv/trigger.hpp>
+using Clock=std::chrono::steady_clock;
+using namespace std::chrono_literals;
+namespace ui=underwater_interfaces::msg;
+class GatewayNode final : public rclcpp::Node {
+public:
+  GatewayNode(): Node("mcu_gateway") {
+    rcl_interfaces::msg::ParameterDescriptor d; d.read_only=true;
+    port_=declare_parameter<std::string>("port",
+      "/dev/serial/by-id/usb-STMicroelectronics_Lamost_UnderWater_Robot_ComPort_3588346E3134-if00",d);
+    settle_ms_=declare_parameter<int>("settle_ms",1000,d);
+    max_lag_us_=declare_parameter<int>("max_device_lag_ms",500,d)*1000LL;
+    raw_enabled_=declare_parameter<bool>("publish_raw",false,d);
+    motor_tx_=declare_parameter<bool>("enable_motor_tx",false,d);
+    depth_commands_=declare_parameter<bool>("enable_depth_commands",true,d);
+    command_timeout_ms_=declare_parameter<int>("motor_command_timeout_ms",500,d);
+    if(command_timeout_ms_<100 || command_timeout_ms_>1000)
+      throw std::invalid_argument("motor command timeout must be 100..1000 ms");
+    if(settle_ms_<0 || settle_ms_>10000 || max_lag_us_<=0 || max_lag_us_>10000000)
+      throw std::invalid_argument("Invalid settling or freshness parameter");
+    auto q=rclcpp::SensorDataQoS().keep_last(100);
+    frames_=create_publisher<ui::GatewayFrame>("gateway/frames",q);
+    raw_=create_publisher<ui::RawSerial>("gateway/raw_rx",rclcpp::SensorDataQoS().keep_last(10));
+    status_=create_publisher<ui::GatewayStatus>("gateway/status",10);
+    commands_=create_subscription<ui::MotorSetpoint>("actuators/thrusters/setpoint",rclcpp::QoS(1),
+      [this](ui::MotorSetpoint::ConstSharedPtr m){ command(*m); });
+    zero_service_=create_service<std_srvs::srv::Trigger>("sensors/depth/zero",
+      [this](std::shared_ptr<rmw_request_id_t> header,std_srvs::srv::Trigger::Request::SharedPtr){
+        if(!depth_commands_ || !serial_.connected() ||
+           Clock::now()-opened_<std::chrono::milliseconds(settle_ms_)) {
+          zero_reply(header,false,"Depth commands disabled, disconnected, or gateway still settling"); return;
+        }
+        if(zero_request_ || depth_zero_.busy()) { zero_reply(header,false,"Depth zero is already in progress"); return; }
+        zero_request_=header; depth_zero_.start(monotonic_ms());
+        try { process_depth_zero(); } catch(const std::exception & e) { serial_failure(e.what()); }
+      });
+    tick_=create_wall_timer(10ms,[this]{ poll(); });
+    report_=create_wall_timer(1s,[this]{ publish_status(); });
+  }
+  ~GatewayNode() override {
+    try { if(motor_tx_ && serial_.connected()) send_motor({},0); } catch(...) {}
+  }
+private:
+  void zero_reply(const std::shared_ptr<rmw_request_id_t> & header,bool success,const std::string & message) {
+    std_srvs::srv::Trigger::Response response; response.success=success; response.message=message;
+    try { zero_service_->send_response(*header,response); }
+    catch(const std::exception & e) { RCLCPP_WARN(get_logger(),"Depth zero response: %s",e.what()); }
+  }
+  void process_depth_zero() {
+    depth_zero_.tick(monotonic_ms());
+    if(auto bytes=depth_zero_.take_request()) {
+      serial_.write_all(*bytes); tx_bytes_+=bytes->size(); ++tx_frames_;
+    }
+    if(auto result=depth_zero_.take_result()) {
+      if(zero_request_) { zero_reply(zero_request_,result->success,result->message); zero_request_.reset(); }
+      RCLCPP_INFO(get_logger(),"Depth reference: %s",result->message.c_str());
+    }
+  }
+  static std::uint64_t monotonic_ms() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count();
+  }
+  void send_motor(const underwater::wire::MotorRpm & rpm,std::uint8_t run) {
+    for(const auto & bytes:underwater::wire::motor_transaction(rpm,run,tx_sequence_)) {
+      serial_.write_all(bytes); tx_bytes_+=bytes.size(); ++tx_frames_;
+    }
+  }
+  void command(const ui::MotorSetpoint & m) {
+    if(!motor_tx_ || !serial_.connected() || m.connection_id!=connection_ ||
+       Clock::now()-opened_<std::chrono::milliseconds(settle_ms_)) return;
+    const auto age=(this->now()-rclcpp::Time(m.header.stamp)).nanoseconds();
+    if(age< -100000000LL || age>250000000LL) return;
+    const auto previous_session=gate_.session();
+    if(!gate_.accept(m.session_id,m.sequence,m.armed,m.node_mask,m.run_mask,m.rpm,monotonic_ms())) return;
+    try {
+      send_motor(m.rpm,m.run_mask);
+      command_detail_=m.run_mask?"motor vectors written; feedback must confirm motion":"RUN_VECTOR stop written";
+      if(previous_session!=gate_.session()) publish_status();
+    } catch(const std::exception & e) { serial_failure(e.what()); }
+  }
+  void serial_failure(const std::string & reason) {
+    detail_=reason; RCLCPP_WARN(get_logger(),"%s",detail_.c_str());
+    serial_.close(); parser_.reset(); heartbeat_.reset(); buffers_valid_=false;
+    depth_zero_.cancel("Serial disconnected during depth zero; not retried");
+    process_depth_zero();
+    gate_.reset(); command_detail_="disconnected; explicit rearm required"; publish_status();
+  }
+  void poll() {
+    const auto now=Clock::now();
+    if(!serial_.connected()) {
+      if(now<next_open_) return;
+      next_open_=now+1s;
+      try {
+        serial_.open(port_,motor_tx_ || depth_commands_); parser_.reset(); high_water_.reset(); heartbeat_.reset();
+        gate_.reset();
+        opened_=now; ++connection_; detail_="connected, settling";
+        if(motor_tx_) { send_motor({},0); command_detail_="startup stop written; awaiting enable"; }
+        RCLCPP_INFO(get_logger(),"Serial opened: %s; motor TX=%s",port_.c_str(),motor_tx_?"enabled":"disabled");
+      } catch(const std::exception & e) { detail_=e.what(); serial_.close(); gate_.reset(); return; }
+    }
+    try {
+      auto bytes=serial_.read_available(); rx_+=bytes.size();
+      auto stamp=this->now();
+      if(raw_enabled_ && !bytes.empty()) {
+        ui::RawSerial raw; raw.header.stamp=stamp; raw.connection_id=connection_;
+        raw.data=bytes; raw_->publish(raw);
+      }
+      const auto ms=std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+      for(auto & f:parser_.feed(bytes,ms)) {
+        // Discard startup backlog before anchoring the device clock.
+        if(now-opened_<std::chrono::milliseconds(settle_ms_)) { ++stale_; high_water_.reset(); continue; }
+        bool stale=false;
+        if(f.timestamp_valid) {
+          if(!high_water_) high_water_=f.timestamp_us;
+          else {
+            const auto delta=std::uint32_t(f.timestamp_us-*high_water_);
+            if(delta==0x80000000u) stale=true;
+            else if(delta<0x80000000u) *high_water_=f.timestamp_us;
+            else stale=(std::uint32_t(*high_water_-f.timestamp_us)>max_lag_us_);
+          }
+        }
+        if(stale) {
+          ++stale_; continue;
+        }
+        depth_zero_.observe(f,ms);
+        ui::GatewayFrame m;
+        m.header.stamp=stamp; m.header.frame_id="mcu_gateway"; m.connection_id=connection_;
+        m.family=f.family; m.command=f.command; m.flags=f.flags; m.target=f.target;
+        m.sequence=f.sequence; m.can_id=f.can_id; m.device_timestamp_valid=f.timestamp_valid;
+        m.device_timestamp_us=f.timestamp_us; m.payload=std::move(f.payload);
+        frames_->publish(m);
+        if(m.family==0x58) {
+          heartbeat_=now; buffers_valid_=m.payload.size()==5;
+          if(buffers_valid_) std::copy(m.payload.begin(),m.payload.end(),buffers_.begin());
+        }
+      }
+      process_depth_zero();
+      if(motor_tx_ && gate_.expired(monotonic_ms(),command_timeout_ms_)) {
+        send_motor({},0); command_detail_="command timeout: stopped; new enable session required";
+        publish_status();
+      }
+      detail_=motor_tx_?"motor TX enabled, bounded setpoints only":"RX-only; motor TX disabled";
+    } catch(const std::exception & e) {
+      serial_failure(e.what());
+    }
+  }
+  void publish_status() {
+    ui::GatewayStatus s; s.header.stamp=now(); s.port=port_; s.connected=serial_.connected();
+    s.settling=s.connected && Clock::now()-opened_<std::chrono::milliseconds(settle_ms_);
+    s.tx_enabled=motor_tx_; s.connection_id=connection_; s.rx_bytes=rx_; s.stale_frames=stale_;
+    s.tx_bytes=tx_bytes_; s.tx_frames=tx_frames_; s.motor_session_id=gate_.session();
+    s.motor_command_active=gate_.active(); s.motor_rearm_required=gate_.blocked();
+    s.motor_command_detail=command_detail_;
+    const auto & c=parser_.counters(); s.valid_frames=c.valid; s.crc_errors=c.crc_errors;
+    s.shape_errors=c.shape_errors; s.discarded_bytes=c.discarded;
+    s.heartbeat_age_ms=heartbeat_?std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now()-*heartbeat_).count():-1;
+    s.buffer_status_valid=buffers_valid_ && s.heartbeat_age_ms>=0 && s.heartbeat_age_ms<2500;
+    s.buffers_percent=buffers_; s.detail=detail_; status_->publish(s);
+  }
+  underwater::SerialIo serial_;
+  underwater::wire::Parser parser_;
+  std::string port_,detail_="not connected";
+  int settle_ms_=1000;
+  std::int64_t max_lag_us_=500000;
+  bool raw_enabled_=false,buffers_valid_=false;
+  bool motor_tx_=false;
+  bool depth_commands_=true;
+  underwater::wire::DepthZero depth_zero_{static_cast<std::uint32_t>(
+    std::chrono::duration_cast<std::chrono::microseconds>(Clock::now().time_since_epoch()).count())};
+  std::shared_ptr<rmw_request_id_t> zero_request_;
+  rclcpp::Service<std_srvs::srv::Trigger>::SharedPtr zero_service_;
+  int command_timeout_ms_=500;
+  std::uint16_t tx_sequence_=0;
+  std::uint64_t tx_bytes_=0,tx_frames_=0;
+  std::string command_detail_="motor TX disabled";
+  underwater::wire::MotorGate gate_;
+  std::uint64_t connection_=std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count(),rx_=0,stale_=0;
+  std::array<std::uint8_t,5> buffers_{};
+  std::optional<std::uint32_t> high_water_;
+  std::optional<Clock::time_point> heartbeat_;
+  Clock::time_point opened_{},next_open_{};
+  rclcpp::Publisher<ui::GatewayFrame>::SharedPtr frames_;
+  rclcpp::Publisher<ui::RawSerial>::SharedPtr raw_;
+  rclcpp::Publisher<ui::GatewayStatus>::SharedPtr status_;
+  rclcpp::Subscription<ui::MotorSetpoint>::SharedPtr commands_;
+  rclcpp::TimerBase::SharedPtr tick_,report_;
+};
+int main(int argc,char ** argv) {
+  rclcpp::init(argc,argv);
+  try { rclcpp::spin(std::make_shared<GatewayNode>()); }
+  catch(const std::exception & e) {
+    RCLCPP_ERROR(rclcpp::get_logger("mcu_gateway"),"%s",e.what()); rclcpp::shutdown(); return 1;
+  }
+  rclcpp::shutdown(); return 0;
+}

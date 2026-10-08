@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>global_camera</name><version>1.0.0</version>
+  <description>Original fc_sensors_ros2 command names backed by C++.</description>
+  <maintainer email="lamost@example.com">lamost</maintainer><license>Proprietary</license>
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>sensors_cpp</depend>
+  <export><build_type>ament_cmake</build_type></export>
+</package>

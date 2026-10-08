@@ -1,0 +1,7 @@
+/**:
+  ros__parameters:
+    settle_ms: 1000
+    max_device_lag_ms: 500
+    publish_raw: false
+    # Only an explicit depth/zero service call sends sensor commands. No auto-zero.
+    enable_depth_commands: true

@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="underwater_robot"/>
+  <arg name="serial_port" default="/dev/serial/by-id/usb-STMicroelectronics_Lamost_UnderWater_Robot_ComPort_3588346E3134-if00"/>
+  <arg name="motor_tx" default="false" description="Explicitly enable motor command writes"/>
+  <include file="$(find-pkg-share underwater_bringup)/launch/base.launch.xml">
+    <arg name="namespace" value="$(var namespace)"/>
+    <arg name="serial_port" value="$(var serial_port)"/>
+    <arg name="motor_tx" value="$(var motor_tx)"/>
+  </include>
+  <node pkg="underwater_control" exec="control_node" name="thrust_allocator"
+        namespace="$(var namespace)" output="screen">
+    <param from="$(find-pkg-share underwater_control)/config/allocation.yaml"/>
+  </node>
+</launch>
