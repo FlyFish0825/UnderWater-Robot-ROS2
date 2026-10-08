@@ -1,5 +1,7 @@
 # 动力分配与手动转速控制
 
+[返回 README 文档索引](../../README.md#文档索引) · [CAN 抓包分析教程](can-command-analysis.md) · [111/112 实例](../experiments/2026-10-08-can-command-analysis.md)
+
 项目仍为 /home/lamost/UnderWater-Robot-ROS2；所有协议、分配和发送实现均为 C++。
 输入顺序是 **Fx Fy Fz Mx My Mz**，分别为模型中的 N 和 N·m，坐标系是布局使用的 base_link。
 当前标尺没有经过真实推力标定，不能声称产生了输入所指定的真实六轴力。
