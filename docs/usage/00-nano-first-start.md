@@ -68,7 +68,7 @@ ros2 topic echo /underwater_robot/sensors/imu/state --qos-reliability best_effor
 ros2 topic echo /underwater_robot/sensors/depth/state --qos-reliability best_effort
 ```
 
-深度状态应关注 `pressure_valid`、`temperature_valid`、`depth_valid`、`zero_valid`、`model_confirmed` 和 `filtered_depth_m`。`d1`、`d2` 是传感器原始 ADC 读数，不是深度值。若探头在空气中而深度尚未归零，可显式设置空气/水面参考：
+深度状态应关注 `pressure_valid`、`temperature_valid`、`depth_valid`、`zero_valid` 和 `filtered_depth_m`。`d1`、`d2` 是传感器原始 ADC 读数，不是深度值。系统使用固定的 MS5837-02BA，不需要型号确认；只按设备有效位读取压力和水深。只有在空气/水面参考确实需要重设时，才显式调用：
 
 ```bash
 ros2 service call /underwater_robot/sensors/depth/zero std_srvs/srv/Trigger "{}"

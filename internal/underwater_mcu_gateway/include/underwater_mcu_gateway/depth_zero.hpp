@@ -15,7 +15,7 @@ public:
   std::optional<Bytes> take_request();
   std::optional<DepthZeroResult> take_result();
 private:
-  enum class Stage { Idle,Info,SetModel,ReadModel,Pressure,Zero,ReadReference,Verify };
+  enum class Stage { Idle,Status,Pressure,Zero,ReadReference,Verify };
   void request(Stage,std::uint8_t,const Bytes &,std::uint64_t);
   void wait_sample(Stage,std::uint32_t device_time,std::uint64_t);
   void finish(bool,const std::string &);

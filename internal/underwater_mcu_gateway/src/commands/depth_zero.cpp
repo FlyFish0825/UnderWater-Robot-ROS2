@@ -2,6 +2,7 @@
 #include <cmath>
 #include <iomanip>
 #include <sstream>
+
 namespace underwater::wire {
 static void append32(Bytes & b,std::uint32_t n) {
   for(int i=0;i<4;++i) b.push_back((n>>(8*i))&255);
@@ -9,7 +10,7 @@ static void append32(Bytes & b,std::uint32_t n) {
 bool DepthZero::start(std::uint64_t now) {
   if(busy()) return false;
   result_.reset(); outgoing_.reset(); last_sample_.reset(); overall_deadline_=now+15000;
-  request(Stage::Info,1,{},now); return true;
+  request(Stage::Status,2,{},now); return true;
 }
 void DepthZero::request(Stage s,std::uint8_t cmd,const Bytes & payload,std::uint64_t now) {
   stage_=s; expected_command_=cmd+0x40; expected_sequence_=++sequence_; deadline_=now+2000;
@@ -49,13 +50,17 @@ void DepthZero::observe(const Frame & f,std::uint64_t now) {
     if(!f.timestamp_valid || std::uint32_t(f.timestamp_us-minimum_time_)>=0x80000000u) return;
     const auto state=u32(b,0);
     const float pressure=f32(b,4);
-    if((state&0x811)!=0x811 || !std::isfinite(pressure) || pressure<10000 || pressure>200000) return;
+    constexpr std::uint32_t kValidPressure = 0x00000113U; // ONLINE, RAW, PROM and compensated pressure.
+    if((state&kValidPressure)!=kValidPressure || !std::isfinite(pressure)
+       || pressure<10000 || pressure>200000) return;
     if(stage_==Stage::Pressure) { request(Stage::Zero,0x0c,{},now); return; }
+    constexpr std::uint32_t kValidDepthAndZero = 0x000001d3U;
     const float raw=f32(b,12),filtered=f32(b,16),p0=f32(b,20);
-    if((state&0xc0)!=0xc0 || !std::isfinite(raw)||!std::isfinite(filtered)||!std::isfinite(p0)) return;
+    if((state&kValidDepthAndZero)!=kValidDepthAndZero || !std::isfinite(raw)
+       || !std::isfinite(filtered) || !std::isfinite(p0)) return;
     if(std::abs(p0-reference_)>0.02f) { finish(false,"Depth reference changed before verification"); return; }
     std::ostringstream message;
-    message<<std::fixed<<std::setprecision(3)<<"Surface zero verified: model=02BA, P0="
+    message<<std::fixed<<std::setprecision(3)<<"Surface zero verified, P0="
       <<reference_<<" Pa, pressure="<<pressure<<" Pa, raw_depth="<<raw
       <<" m, filtered_depth="<<filtered<<" m. Reference is stored in MCU RAM.";
     finish(true,message.str()); return;
@@ -66,16 +71,9 @@ void DepthZero::observe(const Frame & f,std::uint64_t now) {
     finish(false,"Depth command rejected, result="+(b.empty()?std::string("missing"):std::to_string(b[0]))); return;
   }
   const auto stage=stage_;
-  if(stage==Stage::Info) {
-    if(b.size()!=31 || (u32(b,3)&0x400)==0) { finish(false,"Depth device has no zero capability"); return; }
-    if(b[2]!=2) {
-      if((u32(b,3)&0x800)==0) { finish(false,"Depth device cannot configure the 02BA model"); return; }
-      request(Stage::SetModel,4,{0x05,0x01,0x02,0x01,0x02},now);
-    } else wait_sample(Stage::Pressure,f.timestamp_us,now);
-  } else if(stage==Stage::SetModel || stage==Stage::ReadModel) {
-    if(b!=Bytes({0,0x05,0x01,0x02,0x01,0x02})) { finish(false,"02BA model echo/readback mismatch"); return; }
-    if(stage==Stage::SetModel) request(Stage::ReadModel,3,{0x05,0x01},now);
-    else wait_sample(Stage::Pressure,f.timestamp_us,now);
+  if(stage==Stage::Status) {
+    if(b.size()!=21 || !f.timestamp_valid) { finish(false,"Invalid depth status reply"); return; }
+    wait_sample(Stage::Pressure,f.timestamp_us,now);
   } else if(stage==Stage::Zero) {
     if(b.size()!=1) { finish(false,"Invalid ZERO_DEPTH reply"); return; }
     request(Stage::ReadReference,3,{0x03,0x01},now);

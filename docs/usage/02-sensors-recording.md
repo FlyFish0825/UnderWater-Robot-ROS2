@@ -136,7 +136,7 @@ ros2 run sensors_cpp sensors_sub --ros-args -p serial_port:=/dev/ttyACM0
 <a id="validity"></a>
 ## 数据有效性与网关状态
 
-`NaN` 表示缺少可用测量。刚启动、数据过期、型号或零点未准备好时都可能出现，不能当作 0。
+`NaN` 表示缺少可用测量。刚启动、数据过期、固件未提供有效压力或零点时都可能出现，不能当作 0。深度计型号固定为 MS5837-02BA，无需确认或写入型号。
 原始 IMU 和姿态分组独立：加速度有效不代表姿态也有效。
 深度计原始 ADC 有值，也不代表压力、温度和水深已完成有效换算。
 
@@ -148,7 +148,7 @@ ros2 topic echo /underwater_robot/sensors/depth/state \
 ```
 
 重点查看 `fresh`、`pressure_valid`、`temperature_valid`、`depth_valid`、`zero_valid`、
-`model_confirmed`、`filtered_depth_m` 和 `surface_pressure_pa`。
+`filtered_depth_m` 和 `surface_pressure_pa`。压力和深度按设备上报有效位判断，不要求型号确认状态位。
 
 网关状态：
 
@@ -186,8 +186,8 @@ ros2 service call /underwater_robot/sensors/depth/zero \
   std_srvs/srv/Trigger "{}"
 ```
 
-成功应返回 `success: true`。服务会核对型号、设置必要的 02BA 配置、记录参考压力，
-并等待零点读回和新的有效测量，不把 ACK 单独当作归零成功。
+成功应返回 `success: true`。服务只等待新的有效压力，发送一次 `ZERO_DEPTH`，读取设备实际 P0，
+再等待零点后的有效深度；不会读取、确认或写入型号，也不会在启动或重连时自动归零。
 
 随后检查：
 
@@ -195,9 +195,9 @@ ros2 service call /underwater_robot/sensors/depth/zero \
 ros2 topic echo /underwater_robot/sensors/depth/state --once
 ```
 
-确认深度和零点有效，再观察是否接近零。当前能力面向已确认的 02BA，不应把同一配置盲目用于其他探头型号。
+检查深度和零点有效，再观察是否接近零。此入口只在操作者明确调用时采集当前空气/水面压力。
 
-- MCU 掉电后，当前固件中的型号/参考压力需要重新设置。
+- 机器人现有深度基准优先沿用设备上报的 P0；上位机不会用固定大气压覆盖它。当前固件把 P0 保存在 MCU RAM，掉电后若设备报告零点无效，再由操作者决定是否手动重采。
 - 启动和断线重连不会自动归零。
 - 水下归零会把当时位置定义为新的参考面。
 - 此服务不会启用电机，也不是完整传感器标定。

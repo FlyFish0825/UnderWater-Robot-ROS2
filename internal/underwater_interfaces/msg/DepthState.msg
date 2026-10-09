@@ -9,7 +9,6 @@ bool pressure_valid
 bool temperature_valid
 bool depth_valid
 bool zero_valid
-bool model_confirmed
 # Invalid floating-point quantities are NaN, not placeholder zero.
 float64 pressure_pa
 float64 temperature_c

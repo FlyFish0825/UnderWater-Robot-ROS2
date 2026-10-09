@@ -31,7 +31,7 @@ IMU 磁场保持协议单位，不标记 Tesla；电机电流是固件估算母�
 IMU 气压计字段、有效位、帧布局和固件要求见 [imu-barometer.md](imu-barometer.md)。
 气压高度不用于替代水深，两个传感器的温度和参考压力也各自独立。
 MotorState 中 heartbeat_valid 与 feedback_valid 独立，只有后者为真时四个数值字段有效。
-模型未确认时深度计仍可能上报有效 D1/D2，但压力/温度/水深不因此有效。
+设备固定使用 MS5837-02BA，无需型号确认；D1/D2、压力、温度和水深各自仍必须满足设备上报的有效位。
 ROS 输入帧话题是可信机器人内部接口，不是鉴权命令服务；部署到外部网络前需明确网络边界。
 
 `control/enable`（std_srvs/SetBool）为显式启停服务，需 manual.launch.xml。

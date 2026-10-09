@@ -17,9 +17,9 @@ int main() {
     f.payload.resize(32); f.payload[0]=3; f.payload[1]=5;
     ui::DepthState d; check(depth(f,d)); check(d.raw_valid && !d.pressure_valid && !d.depth_valid);
     check(std::isnan(d.pressure_pa) && std::isnan(d.raw_depth_m));
-    f.payload[0]=0xf3; f.payload[1]=9;
+    f.payload[0]=0xf3; f.payload[1]=1; // Fixed sensor data is valid without a model-confirmation bit.
     put(f,4,101325); put(f,8,20); put(f,12,1.2f); put(f,16,1.1f); put(f,20,100000);
-    check(depth(f,d) && d.pressure_valid && d.depth_valid && d.zero_valid && d.model_confirmed);
+    check(depth(f,d) && d.pressure_valid && d.depth_valid && d.zero_valid);
     put(f,4,std::numeric_limits<float>::quiet_NaN()); check(depth(f,d) && !d.pressure_valid);
     f.target=1; f.command=0x80; f.payload.assign(40,0); f.payload[0]=3;
     put(f,4,1.0f); put(f,16,-0.2f);
