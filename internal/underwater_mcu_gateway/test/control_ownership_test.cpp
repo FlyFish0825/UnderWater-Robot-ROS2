@@ -1,4 +1,5 @@
 #include "underwater_mcu_gateway/control_ownership.hpp"
+#include "underwater_mcu_gateway/tcp_serial_bridge.hpp"
 #include "underwater_mcu_gateway/tcp_control_server.hpp"
 
 #include <arpa/inet.h>
@@ -97,6 +98,59 @@ int main() {
     ::close(gui1);
     ::close(gui2);
     server.close();
+
+    // End-to-end localhost path: 9002 grants a token that 9000 consumes before
+    // forwarding the unwrapped bytes, then a Nano takeover revokes the session.
+    ControlOwnership integration;
+    TcpControlServer control_port(integration);
+    control_port.open("127.0.0.1", 0);
+    TcpSerialBridge serial_port;
+    serial_port.open("127.0.0.1", 0);
+    serial_port.set_serial_ready(true);
+    const int manager = connect_client(control_port.port());
+    const auto grant = request(control_port, manager, "TAKEOVER GUI\n");
+    check(grant.rfind("OK GUI ", 0) == 0, "management port grants GUI ownership");
+    const auto token_start = std::string("OK GUI ").size();
+    const auto token_end = grant.find(' ', token_start);
+    const auto lease = grant.substr(token_start, token_end - token_start);
+    check(lease.size() == 32, "management response includes the active lease token");
+    serial_port.set_controller(integration.owner(), integration.gui_token());
+    const int data = connect_client(serial_port.port());
+    const std::string hello = "OWNER " + lease + "\n";
+    check(::send(data, hello.data(), hello.size(), MSG_NOSIGNAL)
+            == static_cast<ssize_t>(hello.size()), "GUI presents the granted token on 9000");
+    serial_port.poll();
+    char bytes[256]{};
+    auto received = ::recv(data, bytes, sizeof(bytes), 0);
+    check(received == 7 && std::string(bytes, static_cast<std::size_t>(received)) == "OK GUI\n"
+          && serial_port.write_authorized(), "9000 authenticates the management lease");
+    const wire::Bytes command{0x00, 0xaa, 0x55, 0x10, 0xff};
+    check(::send(data, command.data(), command.size(), MSG_NOSIGNAL)
+            == static_cast<ssize_t>(command.size()), "GUI sends raw MCU bytes");
+    wire::Bytes to_uart;
+    for (int i = 0; i < 10 && to_uart.empty(); ++i) {
+      auto next = serial_port.poll();
+      to_uart.insert(to_uart.end(), next.begin(), next.end());
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    check(to_uart == command, "Nano forwards GUI bytes unchanged to the sole UART owner");
+    const wire::Bytes from_uart{0x58, 0x00, 0xaa, 0x5b};
+    serial_port.forward_rx(from_uart);
+    received = ::recv(data, bytes, sizeof(bytes), 0);
+    check(received == static_cast<ssize_t>(from_uart.size())
+          && wire::Bytes(bytes, bytes + received) == from_uart,
+          "raw MCU data remains readable in the owned GUI session");
+    result = integration.claim_nano(true);
+    serial_port.set_controller(integration.owner(), integration.gui_token());
+    check(result.success && integration.owner() == ControllerOwner::Nano
+          && !serial_port.write_authorized(), "Nano takeover revokes UART write authorization");
+    check(::recv(data, bytes, sizeof(bytes), 0) == 0, "revoked raw session is closed");
+    check(request(control_port, manager, "PING " + lease + "\n").rfind("REVOKED NANO", 0) == 0,
+          "the old GUI management session sees its revoked lease");
+    ::close(data);
+    ::close(manager);
+    serial_port.close();
+    control_port.close();
     std::cout << "PASS " << checks << " ownership arbitration checks\n";
     return 0;
   } catch (const std::exception &error) {
