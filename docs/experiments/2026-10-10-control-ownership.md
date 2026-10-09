@@ -32,8 +32,8 @@ pressure/depth 无效，上位机显示 -- 并继续显示有效的 D1/D2，不�
 
 2026-10-10 在隔离临时构建目录完成的结果：
 
-- Nano underwater_interfaces 与 underwater_mcu_gateway 构建通过。
-- 网关 CTest 5/5 通过：协议 1,292 项、电机事务 25 项、深度零点 47 项、TCP 原始桥 43 项、控制权仲裁 30 项。
+- Nano 临时 overlay 的 underwater_interfaces、underwater_mcu_gateway、global_camera 与 underwater_bringup 共 4 包构建通过。
+- ROS CTest 7/7 通过：网关 5 项（协议 1,292 项、电机事务 25 项、深度零点 47 项、TCP 原始桥 43 项、控制权/原始串口联合测试 46 项），双目相机 2 项。
 - 上位机 Debug 构建通过，完整 CTest 21/21 通过；其中只读传感器时钟锚定与深度基准重连测试通过。
 - 所有控制发送测试使用 localhost 合成服务；未将新版本部署到机器人，未发送实际电机控制帧，也未清除或重写当前设备的 P0。
 
