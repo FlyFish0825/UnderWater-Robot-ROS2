@@ -11,7 +11,7 @@
 namespace underwater {
 namespace {constexpr std::size_t max_pending=256*1024;}
 TcpSerialBridge::~TcpSerialBridge(){close();}
-void TcpSerialBridge::open(const std::string &address,std::uint16_t port,bool allow_tx) {
+void TcpSerialBridge::open(const std::string &address,std::uint16_t port) {
   close();sockaddr_in endpoint{};endpoint.sin_family=AF_INET;endpoint.sin_port=htons(port);
   if(inet_pton(AF_INET,address.c_str(),&endpoint.sin_addr)!=1)throw std::invalid_argument("tcp_bind_address must be an IPv4 address");
   listener_=::socket(AF_INET,SOCK_STREAM|SOCK_NONBLOCK|SOCK_CLOEXEC,0);
@@ -22,22 +22,29 @@ void TcpSerialBridge::open(const std::string &address,std::uint16_t port,bool al
   }
   socklen_t length=sizeof(endpoint);
   if(getsockname(listener_,reinterpret_cast<sockaddr *>(&endpoint),&length)!=0){close();throw std::runtime_error("TCP bound port unavailable");}
-  port_=ntohs(endpoint.sin_port);allow_tx_=allow_tx;disconnected_=false;detail_="listening; waiting for serial";
+  port_=ntohs(endpoint.sin_port);disconnected_=false;detail_="listening; waiting for serial";
 }
 void TcpSerialBridge::close() noexcept {
   if(client_>=0)::close(client_);
   if(listener_>=0)::close(listener_);
   client_=listener_=-1;outgoing_.clear();offset_=0;ready_=false;port_=0;disconnected_=false;
+  authenticated_=false;handshake_.clear();token_.clear();owner_=ControllerOwner::Nano;write_disconnected_=false;
 }
 void TcpSerialBridge::drop(const std::string &reason) {
-  if(client_>=0){::close(client_);client_=-1;disconnected_=true;}
-  outgoing_.clear();offset_=0;detail_=reason;
+  if(client_>=0){write_disconnected_|=authenticated_ && owner_==ControllerOwner::Gui;::close(client_);client_=-1;disconnected_=true;}
+  outgoing_.clear();offset_=0;authenticated_=false;handshake_.clear();detail_=reason;
+}
+void TcpSerialBridge::set_controller(const ControllerOwner owner,const std::string &token) {
+  if(owner_==owner && token_==token)return;
+  owner_=owner;token_=owner==ControllerOwner::Gui?token:std::string{};
+  if(client_>=0)drop("Control owner changed; reconnect to apply the new ownership");
 }
 void TcpSerialBridge::set_serial_ready(bool ready) {
   ready_=ready;
   if(!ready)drop("serial unavailable; client must reconnect");
 }
 bool TcpSerialBridge::take_disconnect(){return std::exchange(disconnected_,false);}
+bool TcpSerialBridge::take_write_disconnect(){return std::exchange(write_disconnected_,false);}
 void TcpSerialBridge::flush() {
   if(client_<0)return;
   std::size_t budget=65536;
@@ -66,7 +73,8 @@ wire::Bytes TcpSerialBridge::poll() {
     setsockopt(client_,IPPROTO_TCP,TCP_KEEPCNT,&count,sizeof(count));
     int timeout_ms=5000;setsockopt(client_,IPPROTO_TCP,TCP_USER_TIMEOUT,&timeout_ms,sizeof(timeout_ms));
     int buffer=65536;setsockopt(client_,SOL_SOCKET,SO_SNDBUF,&buffer,sizeof(buffer));
-    detail_=allow_tx_?"TCP connected; exclusive remote TX":"TCP connected; receive-only";
+    authenticated_=false;handshake_.clear();
+    detail_=owner_==ControllerOwner::Gui?"TCP connected; waiting for GUI ownership token":"TCP connected; receive-only";
   }
   if(client_<0)return incoming;
   std::uint8_t chunk[4096];
@@ -74,7 +82,36 @@ wire::Bytes TcpSerialBridge::poll() {
     const auto n=::recv(client_,chunk,sizeof(chunk),0);
     if(n>0) {
       rx_bytes_+=n;
-      if(allow_tx_)incoming.insert(incoming.end(),chunk,chunk+n);else rejected_bytes_+=n;
+      if(owner_==ControllerOwner::Gui) {
+        if(!authenticated_) {
+          handshake_.append(reinterpret_cast<const char *>(chunk),static_cast<std::size_t>(n));
+          if(handshake_.size()>128 && handshake_.find('\n')==std::string::npos) {
+            incoming.clear();drop("GUI ownership token missing or too long");return incoming;
+          }
+          const std::string expected="OWNER "+token_+"\n";
+          if(handshake_.find('\n')==std::string::npos
+             && (handshake_.size()>expected.size()
+                 || expected.compare(0,handshake_.size(),handshake_)!=0)) {
+            rejected_bytes_+=handshake_.size();incoming.clear();drop("TCP control is owned by another client");return incoming;
+          }
+          const auto newline=handshake_.find('\n');
+          if(newline!=std::string::npos) {
+            std::string line=handshake_.substr(0,newline);
+            if(!line.empty() && line.back()=='\r')line.pop_back();
+            if(line!="OWNER "+token_) {
+              rejected_bytes_+=handshake_.size();incoming.clear();drop("TCP control is owned by another client");return incoming;
+            }
+            authenticated_=true;detail_="TCP connected; GUI owns exclusive serial TX";
+            static constexpr char accepted[]="OK GUI\n";
+            if(::send(client_,accepted,sizeof(accepted)-1,MSG_NOSIGNAL)!=static_cast<ssize_t>(sizeof(accepted)-1)) {
+              incoming.clear();drop("TCP control handshake reply failed");return incoming;
+            }
+            handshake_.erase(0,newline+1);
+            incoming.insert(incoming.end(),handshake_.begin(),handshake_.end());
+            handshake_.clear();
+          }
+        } else incoming.insert(incoming.end(),chunk,chunk+n);
+      } else rejected_bytes_+=n;
       continue;
     }
     if(n<0 && errno==EINTR){--i;continue;}
@@ -87,7 +124,7 @@ wire::Bytes TcpSerialBridge::poll() {
   return incoming;
 }
 void TcpSerialBridge::forward_rx(const wire::Bytes &bytes) {
-  if(client_<0 || bytes.empty())return;
+  if(client_<0 || bytes.empty() || (owner_==ControllerOwner::Gui && !authenticated_))return;
   if(outgoing_.size()-offset_+bytes.size()>max_pending){drop("TCP client too slow; pending data discarded");return;}
   if(offset_){outgoing_.erase(outgoing_.begin(),outgoing_.begin()+offset_);offset_=0;}
   outgoing_.insert(outgoing_.end(),bytes.begin(),bytes.end());flush();

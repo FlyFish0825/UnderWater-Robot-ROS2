@@ -10,6 +10,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ImuState.msg"
   "msg/ImuCalibrationStatus.msg"
   "srv/CalibrateImu.srv"
+  "srv/ControlOwnership.srv"
   "msg/DepthState.msg"
   "msg/SensorStatus.msg"
   "msg/MotorState.msg"

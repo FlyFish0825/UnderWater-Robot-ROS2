@@ -4,9 +4,13 @@
   <arg name="serial_port" default="/dev/serial/by-id/usb-STMicroelectronics_Lamost_UnderWater_Robot_ComPort_3588346E3134-if00"/>
   <arg name="gateway_enabled" default="true"/>
   <arg name="motor_tx" default="false"/>
-  <arg name="tcp_port" default="0"/>
+  <arg name="tcp_port" default="9000"/>
+  <arg name="tcp_control_port" default="9002"/>
   <arg name="tcp_bind_address" default="0.0.0.0"/>
   <arg name="tcp_allow_tx" default="false"/>
+  <arg name="camera_enabled" default="true"/>
+  <arg name="camera_device" default="/dev/video0"/>
+  <arg name="camera_tcp_port" default="9001"/>
   <group>
     <push-ros-namespace namespace="$(var namespace)"/>
     <node pkg="underwater_mcu_gateway" exec="mcu_gateway_node" name="mcu_gateway"
@@ -15,6 +19,7 @@
       <param name="port" value="$(var serial_port)"/>
       <param name="enable_motor_tx" value="$(var motor_tx)"/>
       <param name="tcp_port" value="$(var tcp_port)"/>
+      <param name="tcp_control_port" value="$(var tcp_control_port)"/>
       <param name="tcp_bind_address" value="$(var tcp_bind_address)"/>
       <param name="tcp_allow_tx" value="$(var tcp_allow_tx)"/>
     </node>
@@ -22,4 +27,9 @@
       <param from="$(find-pkg-share underwater_bringup)/config/instances/sensors.yaml"/>
     </node>
   </group>
+  <include file="$(find-pkg-share global_camera)/launch/stereo.launch.xml" if="$(var camera_enabled)">
+    <arg name="namespace" value="$(var namespace)"/>
+    <arg name="device" value="$(var camera_device)"/>
+    <arg name="tcp_port" value="$(var camera_tcp_port)"/>
+  </include>
 </launch>

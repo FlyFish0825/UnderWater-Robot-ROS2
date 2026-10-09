@@ -21,3 +21,5 @@ uint64 motor_session_id
 bool motor_command_active
 bool motor_rearm_required
 string motor_command_detail
+string control_owner
+uint16 tcp_control_port

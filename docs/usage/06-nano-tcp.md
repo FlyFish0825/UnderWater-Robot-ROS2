@@ -16,13 +16,17 @@
 ## 连接方式
 
 ```text
-MCU USB CDC ↔ Nano 现有 mcu_gateway ↔ 原始字节 TCP ↔ 上位机 TcpTransport
-                    ↓                                  ↓
-              原有 ROS 解析                       原有协议/数据/界面
+MCU USB CDC ↔ Nano mcu_gateway ↔ TCP 9000 原始串口 ↔ 上位机 TcpTransport
+                    ↕
+             TCP 9002 控制权管理
+                    ↕
+          Nano ROS 服务 / 上位机设置
 ```
 
 Nano 是服务器，上位机是客户端。只配置 Nano 固定地址和端口，不记录客户端电脑的 IP；
-电脑 IP 变化后重新连接即可。当前现场 Nano 为 `192.168.20.70`，示例端口 `9000`。
+电脑 IP 变化后重新连接即可。Nano 目标地址为 `192.168.20.70`，示例端口 `9000`。
+地址是否已经持久固定必须核对机器人的实际网络配置；本次连接检查与固定地址流程见
+[固定局域网地址与两条转发恢复](08-lan-recovery.md)。
 Windows 上位机不需要安装 ROS。
 
 只在现有网关包中增加一个 TCP 字节模块，不增加第二个串口读取进程，也不增加 ROS 包。
@@ -56,9 +60,8 @@ source install/setup.bash
 ros2 run underwater_mcu_gateway mcu_gateway_node --ros-args \
   -r __ns:=/underwater_robot \
   -p tcp_port:=9000 \
+  -p tcp_control_port:=9002 \
   -p tcp_bind_address:=0.0.0.0 \
-  -p tcp_allow_tx:=false \
-  -p enable_depth_commands:=false \
   -p enable_motor_tx:=false
 ```
 
@@ -69,7 +72,7 @@ ros2 run underwater_mcu_gateway mcu_gateway_node --ros-args \
 
 ```bash
 ros2 launch underwater_bringup tcp.launch.xml \
-  tcp_port:=9000 tcp_allow_tx:=false serial_port:=/dev/ttyACM0
+  tcp_port:=9000 tcp_control_port:=9002 serial_port:=/dev/ttyACM0
 ```
 
 此 launch 沿用原网关配置，深度归零服务仍是独立、显式调用的能力；默认不允许电机发送。
@@ -78,22 +81,23 @@ ros2 launch underwater_bringup tcp.launch.xml \
 |---|---|
 | `tcp_port` | 网关节点默认 0，关闭网络；TCP launch 默认 9000 |
 | `tcp_bind_address` | `0.0.0.0`；可以改成 Nano 的具体局域网 IPv4 地址 |
-| `tcp_allow_tx` | false；true 时允许客户端原始字节写入串口 |
+| `tcp_control_port` | 9002；控制权申请、接管、释放与存活确认端口；设为 0 可关闭 |
+| `tcp_allow_tx` | 兼容旧命令的弃用参数，不授予串口控制权；应使用所有权管理操作 |
 
 这是可信局域网内的明文字节服务，不包含公网身份认证或加密，不应通过路由器映射到公网。
 
 <a id="client"></a>
 ## 上位机连接
 
-使用已包含 `TcpTransport` 的 Underwater_GUI：
+使用已包含原始字节传输和控制权客户端的 Underwater_GUI：
 
 1. 打开“设置”页的连接栏。
 2. 将连接方式从 `USB CDC` 改为 `Nano TCP`。
 3. 填入 Nano 地址 `192.168.20.70`，端口 `9000`。
-4. 首次测试保持“允许发送”未勾选，点击“连接”。
+4. 初次只看数据时保持“上位机控制”未勾选，点击“连接”。
 5. 等待显示 TCP 已连接及下位机心跳。
 
-地址、端口和连接方式会保存；发送权限不会保存为下次自动开启。
+地址、端口和连接方式会保存；控制权在 GUI 退出或网络断线时释放，下次连接默认只读。
 首次启动或重新打开程序后点击连接即可；网络意外断开时当前连接请求会自动重试。
 点击“断开”会取消自动重连。切回 USB 模式恢复原有 USB 扫描和连接行为。
 
@@ -103,31 +107,43 @@ ros2 launch underwater_bringup tcp.launch.xml \
 <a id="duplex"></a>
 ## 双向模式与串口归属
 
-只读模式已经满足查看原始串口数据。需要发送配置、控制或升级命令时：
+查看数据时只需连接 9000，Nano 保留控制权，GUI 只收不发。要在 GUI 中发送配置、
+控制或升级命令，在“设置”中申请控制权。若 Nano 正持有控制权，GUI 会报告占用并
+提示使用“接管控制权”。接管后，GUI 使用已认证的 9000 会话发送原始串口字节。
+控制权占用包含 ROS 电机指令、深度归零、CAN 配置、固件升级及所有直接串口字节，
+因此不会出现 Nano ROS 控制与 GUI 下行字节同时写串口的情况。
 
-1. 正常停止只读服务。
-2. Nano 以 `tcp_allow_tx=true` 启动。
-3. 上位机重新连接前勾选“允许发送”。
+Nano 上使用 ROS 服务申请、接管和释放控制权：
 
 ```bash
-ros2 launch underwater_bringup tcp.launch.xml \
-  tcp_port:=9000 tcp_allow_tx:=true serial_port:=/dev/ttyACM0
+ros2 service call /underwater_robot/gateway/control \
+  underwater_interfaces/srv/ControlOwnership "{action: 0}"   # 申请（有人占用时失败）
+ros2 service call /underwater_robot/gateway/control \
+  underwater_interfaces/srv/ControlOwnership "{action: 1}"   # 明确接管
+ros2 service call /underwater_robot/gateway/control \
+  underwater_interfaces/srv/ControlOwnership "{action: 2}"   # Nano 释放后由任何一方重新申请
 ```
 
-双向模式将串口命令归客户端独占：禁止同时设置 `enable_motor_tx=true`，
-并禁用本地深度归零命令写入，避免两个控制来源交错。原始接收和 ROS 遥测解析仍继续。
-上位机与 Nano 两端都必须允许发送；上位机单独勾选不会改变 Nano 配置。
+Nano 的 ROS 电机发送仍由 `enable_motor_tx` 参数单独保护，默认关闭；只有在明确需要
+Nano ROS 控制时，才在启动配置中设置 `motor_tx:=true`。该参数不会给远程 GUI 下发权限。
+GUI 的串口控制权通过 9002 申请，9000 在握手期间校验本次会话令牌；握手头由 Nano
+移除，之后的串口数据保持原始字节格式。GUI 取消选项后控制权返回 Nano；Nano 执行
+action 2 时进入无人持有状态，后续可由任一方重新申请。
 
 允许远端写入时，实际控制/升级使用上位机原有操作流程。Nano 不重新解释这些原始请求为 ROS 控制请求，
 也不把现有 ROS `control/enable` 门禁当作远端字节流的门禁。
 不要同时运行 ROS 手动控制和上位机控制。
 
-双向模式在串口打开、网络断开和正常退出时，会尽力发送明确的全节点停止命令。
-网络故障检测和主机停机仍依赖进程及通信链路，不能替代 MCU 看门狗和独立急停。
-重连不恢复旧命令，升级中断应重新发起，不能把 TCP 重连当作断点续传。
+任一侧显式接管时，Nano 会先写入全节点停止事务，再切换唯一所有者。GUI 控制会话
+断开、管理心跳超时或控制权被 Nano 接管时，会撤销 GUI 令牌、关闭对应原始串口会话，
+并将控制权返回 Nano、写入停止事务。停止事务属于尽力执行，不能替代 MCU 看门狗与急停。
+GUI 必须重新获取控制权才会继续发送；重连不恢复旧命令，升级中断必须重新发起。
 
 <a id="service"></a>
 ## 用户服务
+
+当前机器人采用[随 ROS 2 同启两条转发](08-lan-recovery.md#随-ros-2-启动两条转发)，
+不设置开机转发服务。以下只保留可选用户服务的历史操作；与 ROS 2 后台不可同时占用串口。
 
 [用户服务模板](../../deploy/underwater-tcp.service.example) 仅启动原始网关，默认只读，且关闭本地深度/电机写入。
 先结束手动网关，再安装并启动：
@@ -160,7 +176,9 @@ systemctl --user enable underwater-tcp.service
 <a id="recovery"></a>
 ## 重连与故障排查
 
-- 单个服务只允许一个 TCP 客户端；第二个连接会被关闭，不抢占原客户端。
+- 原始串口端口一次只接纳一个客户端；第二个客户端被关闭，不抢占现有会话。
+- Nano 默认拥有控制权；普通 `CLAIM` 不会抢占。只有明确的 `TAKEOVER` 动作会转移所有者。
+- GUI 需持续向 9002 发送令牌心跳；心跳断开后最迟 3 秒撤销令牌并关闭写入会话。
 - 接收缓存上限 256 KiB，慢客户端会断开，避免无限占用内存或堵住串口处理。
 - USB 丢失会断开网络会话，重新枚举后由上位机重连，避免不同串口会话混合。
 - 上位机连接超时 3 秒，连续 5 秒未收到数据会重连，重试间隔从 1 秒增长到最多 5 秒。
@@ -172,7 +190,7 @@ systemctl --user enable underwater-tcp.service
 | 连接被拒绝 | Nano 服务是否启动、地址和端口是否正确 |
 | 连上立即断开 | 串口是否可用/稳定，是否已有另一客户端 |
 | 心跳正常但没有传感器/电机数据 | 现场设备是否实际连接并上报；转发不能生成缺失测量 |
-| 能接收但不能发送 | 两端发送开关是否都已开启，服务是否仍是只读 |
+| 能接收但不能发送 | 检查 `ros2 topic echo /underwater_robot/gateway/status --once` 的 `control_owner`；GUI 使用“接管控制权”，Nano 使用服务 action 1 |
 | 频繁重连 | 网络是否稳定、MCU 是否持续上报、客户端是否处理过慢 |
 | ROS 控制启用失败 | 当前是否为远端独占模式；不要同时控制 |
 | GUI 提示缺 Qt5Network.dll | 运行上位机的 `tools/deploy-tcp-runtime.ps1` |
@@ -181,6 +199,7 @@ Nano 检查监听、占用和数据状态：
 
 ```bash
 ss -lntp | grep ':9000'
+ss -lntp | grep ':9002'
 fuser -v /dev/ttyACM0
 ros2 topic echo /underwater_robot/gateway/status --once
 ```
@@ -194,10 +213,12 @@ ros2 topic echo /underwater_robot/gateway/status --once
 ctest --test-dir build/underwater_mcu_gateway --output-on-failure
 ```
 
-覆盖字节一致性、分片、单客户端、只读拒绝、断线、慢客户端和会话清理。
+覆盖字节一致性、分片、只读拒绝、会话令牌、独占所有权、占用拒绝、明确接管、Nano/GUI
+释放、客户端断线和心跳超时。上位机测试覆盖控制界面、管理连接及原有协议解析。
 上位机测试包括 TCP transport/service、原协议回归和连接栏交互。
 跨机器验证先使用 Nano 伪串口回环，再对实际 USB 网关做只读测试；均不需要真实传感器在线。
 测试中收到网关心跳只证明网关链路可用，不是电机动作或传感器有效测量证明。
 本轮结果、恢复点与部署状态见 [2026-10-08 验证记录](../experiments/2026-10-08-tcp-validation.md)。
+控制权仲裁、固定型号/保留 P0 的最新实现与测试范围见 [2026-10-10 控制权交接记录](../experiments/2026-10-10-control-ownership.md)。
 
 [返回教程总目录](README.md) · 上一篇：[05 IMU 基准姿态校正](05-imu-calibration.md)

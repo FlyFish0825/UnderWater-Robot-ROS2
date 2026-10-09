@@ -3,10 +3,20 @@
   <arg name="namespace" default="underwater_robot"/>
   <arg name="serial_port" default="/dev/serial/by-id/usb-STMicroelectronics_Lamost_UnderWater_Robot_ComPort_3588346E3134-if00"/>
   <arg name="gateway_enabled" default="true"/>
+  <arg name="tcp_port" default="9000"/>
+  <arg name="tcp_control_port" default="9002"/>
+  <arg name="camera_enabled" default="true"/>
+  <arg name="camera_device" default="/dev/video0"/>
+  <arg name="camera_tcp_port" default="9001"/>
   <include file="$(find-pkg-share underwater_bringup)/launch/base.launch.xml">
     <arg name="namespace" value="$(var namespace)"/>
     <arg name="serial_port" value="$(var serial_port)"/>
     <arg name="gateway_enabled" value="$(var gateway_enabled)"/>
+    <arg name="tcp_port" value="$(var tcp_port)"/>
+    <arg name="tcp_control_port" value="$(var tcp_control_port)"/>
+    <arg name="camera_enabled" value="$(var camera_enabled)"/>
+    <arg name="camera_device" value="$(var camera_device)"/>
+    <arg name="camera_tcp_port" value="$(var camera_tcp_port)"/>
   </include>
   <node pkg="underwater_robot" exec="robot_node" name="robot_node"
         namespace="$(var namespace)" output="screen"/>

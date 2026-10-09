@@ -17,7 +17,7 @@ ROS 2 Humble / Jetson Orin NX / C++17。业务入口采用 fc_sensors_ros2 的�
 | 新机器准备、源码获取、编译、终端环境 | [01 安装与编译](docs/usage/01-installation.md) |
 | 串口检查、IMU、深度归零、CSV、ROS bag | [02 传感器与数据记录](docs/usage/02-sensors-recording.md) |
 | 平放/朝向基准采样、姿态校正、保存与重启加载 | [05 IMU 基准姿态校正](docs/usage/05-imu-calibration.md) |
-| Nano 固定地址服务器、上位机 TCP 接入、原始串口双向通道 | [06 Nano TCP 服务](docs/usage/06-nano-tcp.md) |
+| Nano 固定地址服务器、上位机 TCP 接入、Nano/上位机互斥接管、原始串口双向通道 | [06 Nano TCP 服务](docs/usage/06-nano-tcp.md) |
 | 固定局域网 IP、随 ROS 2 同启两条转发、远程回退与同时接收验收 | [08 局域网与 TCP 恢复](docs/usage/08-lan-recovery.md) |
 | 双目相机采集、左右图、JPEG 转发与上位机接口 | [07 双目相机](docs/usage/07-stereo-camera.md)、[上位机接入报告](docs/architecture/deployment/stereo-camera-host-report.md) |
 | 隔离预览、键盘档位、实际控制、停机与反馈 | [03 手动控制](docs/usage/03-manual-control.md) |

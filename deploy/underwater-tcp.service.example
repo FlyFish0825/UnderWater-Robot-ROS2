@@ -1,13 +1,13 @@
 # User service: copy to ~/.config/systemd/user/underwater-tcp.service.
 # One serial owner. Stop other gateways before starting this service.
 [Unit]
-Description=Underwater raw serial TCP server (receive-only)
+Description=Underwater serial TCP server with exclusive controller ownership
 After=network.target
 
 [Service]
 Type=simple
 WorkingDirectory=%h/UnderWater-Robot-ROS2
-ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && source install/setup.bash && exec ros2 run underwater_mcu_gateway mcu_gateway_node --ros-args -r __ns:=/underwater_robot -p tcp_port:=9000 -p tcp_bind_address:=0.0.0.0 -p tcp_allow_tx:=false -p enable_depth_commands:=false -p enable_motor_tx:=false'
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && source install/setup.bash && exec ros2 run underwater_mcu_gateway mcu_gateway_node --ros-args -r __ns:=/underwater_robot -p tcp_port:=9000 -p tcp_control_port:=9002 -p tcp_bind_address:=0.0.0.0 -p enable_depth_commands:=true -p enable_motor_tx:=false'
 Restart=on-failure
 RestartSec=2
 KillSignal=SIGINT

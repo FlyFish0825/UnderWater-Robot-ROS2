@@ -3,6 +3,8 @@
 #include "underwater_mcu_gateway/tcp_serial_bridge.hpp"
 #include "underwater_mcu_gateway/motor_commands.hpp"
 #include "underwater_mcu_gateway/depth_zero.hpp"
+#include "underwater_mcu_gateway/control_ownership.hpp"
+#include "underwater_mcu_gateway/tcp_control_server.hpp"
 #include <chrono>
 #include <optional>
 #include <rclcpp/rclcpp.hpp>
@@ -11,10 +13,15 @@
 #include <underwater_interfaces/msg/gateway_status.hpp>
 #include <underwater_interfaces/msg/raw_serial.hpp>
 #include <underwater_interfaces/msg/motor_setpoint.hpp>
+#include <underwater_interfaces/srv/control_ownership.hpp>
 #include <std_srvs/srv/trigger.hpp>
 using Clock=std::chrono::steady_clock;
+using underwater::ControllerOwner;
+using underwater::OwnershipResult;
+using underwater::controller_name;
 using namespace std::chrono_literals;
 namespace ui=underwater_interfaces::msg;
+namespace srv=underwater_interfaces::srv;
 class GatewayNode final : public rclcpp::Node {
 public:
   GatewayNode(): Node("mcu_gateway") {
@@ -27,14 +34,21 @@ public:
     motor_tx_=declare_parameter<bool>("enable_motor_tx",false,d);
     depth_commands_=declare_parameter<bool>("enable_depth_commands",true,d);
     tcp_port_=declare_parameter<int>("tcp_port",0,d);
+    tcp_control_port_=declare_parameter<int>("tcp_control_port",9002,d);
     const auto tcp_bind=declare_parameter<std::string>("tcp_bind_address","0.0.0.0",d);
     tcp_allow_tx_=declare_parameter<bool>("tcp_allow_tx",false,d);
-    if(tcp_port_<0 || tcp_port_>65535 || (tcp_allow_tx_ && (tcp_port_==0 || motor_tx_)))
-      throw std::invalid_argument("TCP port must be 0..65535; remote TX requires a TCP port and enable_motor_tx=false");
-    if(tcp_allow_tx_)depth_commands_=false; // One writer: remote raw commands or local ROS commands.
+    if(tcp_port_<0 || tcp_port_>65535 || tcp_control_port_<0 || tcp_control_port_>65535
+       || (tcp_port_ && tcp_control_port_ && tcp_port_==tcp_control_port_))
+      throw std::invalid_argument("TCP data/control ports must be distinct values in 0..65535");
+    if(tcp_allow_tx_)
+      RCLCPP_WARN(get_logger(),"tcp_allow_tx is deprecated and does not grant control; use an explicit ownership takeover");
     if(tcp_port_){
-      tcp_.open(tcp_bind,static_cast<std::uint16_t>(tcp_port_),tcp_allow_tx_);
-      RCLCPP_INFO(get_logger(),"Raw serial TCP server %s:%d (%s)",tcp_bind.c_str(),tcp_port_,tcp_allow_tx_?"exclusive remote TX":"receive-only");
+      tcp_.open(tcp_bind,static_cast<std::uint16_t>(tcp_port_));
+      if(tcp_control_port_){
+        control_server_.open(tcp_bind,static_cast<std::uint16_t>(tcp_control_port_));
+        RCLCPP_INFO(get_logger(),"Control ownership server %s:%d",tcp_bind.c_str(),tcp_control_port_);
+      }
+      RCLCPP_INFO(get_logger(),"Raw serial TCP server %s:%d (Nano initially owns; GUI writes require an explicit takeover and session token)",tcp_bind.c_str(),tcp_port_);
     }
     command_timeout_ms_=declare_parameter<int>("motor_command_timeout_ms",500,d);
     if(command_timeout_ms_<100 || command_timeout_ms_>1000)
@@ -47,11 +61,25 @@ public:
     status_=create_publisher<ui::GatewayStatus>("gateway/status",10);
     commands_=create_subscription<ui::MotorSetpoint>("actuators/thrusters/setpoint",rclcpp::QoS(1),
       [this](ui::MotorSetpoint::ConstSharedPtr m){ command(*m); });
+    ownership_service_=create_service<srv::ControlOwnership>("gateway/control",
+      [this](const std::shared_ptr<srv::ControlOwnership::Request> request,
+             std::shared_ptr<srv::ControlOwnership::Response> response){
+        OwnershipResult result;
+        if(request->action==srv::ControlOwnership::Request::CLAIM) result=ownership_.claim_nano(false);
+        else if(request->action==srv::ControlOwnership::Request::TAKEOVER) result=ownership_.claim_nano(true);
+        else if(request->action==srv::ControlOwnership::Request::RELEASE) result=ownership_.release_nano();
+        else { result={false,ownership_.owner(),{},"Unknown control action"}; }
+        response->success=result.success;
+        response->owner=static_cast<std::uint8_t>(result.owner);
+        response->message=result.message;
+      });
     zero_service_=create_service<std_srvs::srv::Trigger>("sensors/depth/zero",
       [this](std::shared_ptr<rmw_request_id_t> header,std_srvs::srv::Trigger::Request::SharedPtr){
-        if(!depth_commands_ || !serial_.connected() ||
+        if(ownership_.owner()!=ControllerOwner::Nano || !depth_commands_ || !serial_.connected() ||
            Clock::now()-opened_<std::chrono::milliseconds(settle_ms_)) {
-          zero_reply(header,false,"Depth commands disabled, disconnected, or gateway still settling"); return;
+          zero_reply(header,false,ownership_.owner()==ControllerOwner::Gui
+            ? "GUI owns robot control; use TAKEOVER to return control to Nano"
+            : "Depth commands disabled, disconnected, or gateway still settling"); return;
         }
         if(zero_request_ || depth_zero_.busy()) { zero_reply(header,false,"Depth zero is already in progress"); return; }
         zero_request_=header; depth_zero_.start(monotonic_ms());
@@ -61,7 +89,7 @@ public:
     report_=create_wall_timer(1s,[this]{ publish_status(); });
   }
   ~GatewayNode() override {
-    try { if((motor_tx_ || tcp_allow_tx_) && serial_.connected()) send_motor({},0); } catch(...) {}
+    try { if(serial_.connected()) send_motor({},0); } catch(...) {}
   }
 private:
   void zero_reply(const std::shared_ptr<rmw_request_id_t> & header,bool success,const std::string & message) {
@@ -72,7 +100,11 @@ private:
   void process_depth_zero() {
     depth_zero_.tick(monotonic_ms());
     if(auto bytes=depth_zero_.take_request()) {
-      serial_.write_all(*bytes); tx_bytes_+=bytes->size(); ++tx_frames_;
+      if(ownership_.owner()!=ControllerOwner::Nano) {
+        depth_zero_.cancel("Control ownership changed before the depth request was sent");
+      } else {
+        serial_.write_all(*bytes); tx_bytes_+=bytes->size(); ++tx_frames_;
+      }
     }
     if(auto result=depth_zero_.take_result()) {
       if(zero_request_) { zero_reply(zero_request_,result->success,result->message); zero_request_.reset(); }
@@ -88,7 +120,7 @@ private:
     }
   }
   void command(const ui::MotorSetpoint & m) {
-    if(!motor_tx_ || !serial_.connected() || m.connection_id!=connection_ ||
+    if(ownership_.owner()!=ControllerOwner::Nano || !motor_tx_ || !serial_.connected() || m.connection_id!=connection_ ||
        Clock::now()-opened_<std::chrono::milliseconds(settle_ms_)) return;
     const auto age=(this->now()-rclcpp::Time(m.header.stamp)).nanoseconds();
     if(age< -100000000LL || age>250000000LL) return;
@@ -100,6 +132,25 @@ private:
       if(previous_session!=gate_.session()) publish_status();
     } catch(const std::exception & e) { serial_failure(e.what()); }
   }
+  void synchronize_owner() {
+    const auto owner=ownership_.owner();
+    const auto token=ownership_.gui_token();
+    if(owner==synced_owner_ && token==synced_token_) return;
+    if(serial_.connected()) {
+      try { send_motor({},0); command_detail_="control owner changed: stop transaction written"; }
+      catch(const std::exception & e) { detail_=e.what(); }
+    }
+    if(owner!=ControllerOwner::Nano && depth_zero_.busy()) {
+      depth_zero_.cancel("Control ownership changed; Nano will not continue the transaction");
+      process_depth_zero();
+    }
+    gate_.reset();
+    tcp_.set_controller(owner,token);
+    synced_owner_=owner;
+    synced_token_=token;
+    publish_status();
+    RCLCPP_INFO(get_logger(),"Robot control owner is now %s",controller_name(owner));
+  }
   void serial_failure(const std::string & reason) {
     detail_=reason; RCLCPP_WARN(get_logger(),"%s",detail_.c_str());
     tcp_.set_serial_ready(false);tcp_.take_disconnect();
@@ -110,29 +161,39 @@ private:
   }
   void poll() {
     const auto now=Clock::now();
+    control_server_.poll();
+    synchronize_owner();
     if(!serial_.connected()) {
       tcp_.set_serial_ready(false);tcp_.poll();tcp_.take_disconnect();
       if(now<next_open_) return;
       next_open_=now+1s;
       try {
-        serial_.open(port_,motor_tx_ || depth_commands_ || tcp_allow_tx_); parser_.reset(); high_water_.reset(); heartbeat_.reset();
+        serial_.open(port_,motor_tx_ || depth_commands_ || tcp_port_>0); parser_.reset(); high_water_.reset(); heartbeat_.reset();
         gate_.reset();
         opened_=now; ++connection_; detail_="connected, settling";
-        if(motor_tx_ || tcp_allow_tx_) { send_motor({},0); command_detail_="startup stop written; awaiting explicit commands"; }
+        if(motor_tx_ || tcp_port_>0) { send_motor({},0); command_detail_="startup stop written; awaiting explicit commands"; }
         RCLCPP_INFO(get_logger(),"Serial opened: %s; motor TX=%s",port_.c_str(),motor_tx_?"enabled":"disabled");
       } catch(const std::exception & e) { detail_=e.what(); serial_.close(); gate_.reset(); return; }
     }
     try {
       tcp_.set_serial_ready(now-opened_>=std::chrono::milliseconds(settle_ms_));
       const auto remote=tcp_.poll();
-      if(tcp_.take_disconnect() && tcp_allow_tx_) {
-        send_motor({},0);command_detail_="TCP disconnected: best-effort stop sent; no commands replayed";
+      tcp_.take_disconnect();
+      if(tcp_.take_write_disconnect() && ownership_.owner()==ControllerOwner::Gui) {
+        ownership_.claim_nano(true);synchronize_owner();
+        command_detail_="GUI serial session disconnected: control returned to Nano and stop sent";
       }
-      if(!remote.empty()) { serial_.write_all(remote);tx_bytes_+=remote.size(); }
+      if(!remote.empty()) {
+        if(tcp_.write_authorized() && ownership_.owner()==ControllerOwner::Gui) {
+          serial_.write_all(remote);tx_bytes_+=remote.size();
+        } else RCLCPP_ERROR_THROTTLE(get_logger(),*get_clock(),2000,"TCP write rejected; robot control is owned by %s. Use the explicit TAKEOVER action.",controller_name(ownership_.owner()));
+      }
       auto bytes=serial_.read_available(); rx_+=bytes.size();
       tcp_.forward_rx(bytes);
-      if(tcp_.take_disconnect() && tcp_allow_tx_) {
-        send_motor({},0);command_detail_="TCP backpressure/disconnect: best-effort stop sent";
+      tcp_.take_disconnect();
+      if(tcp_.take_write_disconnect() && ownership_.owner()==ControllerOwner::Gui) {
+        ownership_.claim_nano(true);synchronize_owner();
+        command_detail_="GUI serial backpressure/disconnect: control returned to Nano and stop sent";
       }
       auto stamp=this->now();
       if(raw_enabled_ && !bytes.empty()) {
@@ -185,6 +246,8 @@ private:
     s.tx_bytes=tx_bytes_; s.tx_frames=tx_frames_; s.motor_session_id=gate_.session();
     s.motor_command_active=gate_.active(); s.motor_rearm_required=gate_.blocked();
     s.motor_command_detail=command_detail_;
+    s.control_owner=controller_name(ownership_.owner());
+    s.tcp_control_port=control_server_.port();
     const auto & c=parser_.counters(); s.valid_frames=c.valid; s.crc_errors=c.crc_errors;
     s.shape_errors=c.shape_errors; s.discarded_bytes=c.discarded;
     s.heartbeat_age_ms=heartbeat_?std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now()-*heartbeat_).count():-1;
@@ -193,7 +256,10 @@ private:
   }
   underwater::SerialIo serial_;
   underwater::TcpSerialBridge tcp_;
+  underwater::ControlOwnership ownership_;
+  underwater::TcpControlServer control_server_{ownership_};
   int tcp_port_=0;
+  int tcp_control_port_=9002;
   bool tcp_allow_tx_=false;
   underwater::wire::Parser parser_;
   std::string port_,detail_="not connected";
@@ -211,6 +277,8 @@ private:
   std::uint64_t tx_bytes_=0,tx_frames_=0;
   std::string command_detail_="motor TX disabled";
   underwater::wire::MotorGate gate_;
+  underwater::ControllerOwner synced_owner_=underwater::ControllerOwner::Nano;
+  std::string synced_token_;
   std::uint64_t connection_=std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count(),rx_=0,stale_=0;
   std::array<std::uint8_t,5> buffers_{};
   std::optional<std::uint32_t> high_water_;
@@ -220,6 +288,7 @@ private:
   rclcpp::Publisher<ui::RawSerial>::SharedPtr raw_;
   rclcpp::Publisher<ui::GatewayStatus>::SharedPtr status_;
   rclcpp::Subscription<ui::MotorSetpoint>::SharedPtr commands_;
+  rclcpp::Service<srv::ControlOwnership>::SharedPtr ownership_service_;
   rclcpp::TimerBase::SharedPtr tick_,report_;
 };
 int main(int argc,char ** argv) {
