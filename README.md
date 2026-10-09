@@ -13,6 +13,7 @@ ROS 2 Humble / Jetson Orin NX / C++17。业务入口采用 fc_sensors_ros2 的�
 | 需要了解的内容 | 入口 |
 |---|---|
 | 完整使用教程、日常操作顺序 | [教程总目录与快速开始](docs/usage/README.md) |
+| Nano 开机后启动 ROS 2、查看 IMU/深度、进入手动控制 | [00 Nano 从开机到运行 ROS 2](docs/usage/00-nano-first-start.md) |
 | 新机器准备、源码获取、编译、终端环境 | [01 安装与编译](docs/usage/01-installation.md) |
 | 串口检查、IMU、深度归零、CSV、ROS bag | [02 传感器与数据记录](docs/usage/02-sensors-recording.md) |
 | 平放/朝向基准采样、姿态校正、保存与重启加载 | [05 IMU 基准姿态校正](docs/usage/05-imu-calibration.md) |
