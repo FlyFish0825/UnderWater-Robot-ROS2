@@ -1,5 +1,6 @@
 #include "underwater_mcu_gateway/protocol.hpp"
 #include "underwater_mcu_gateway/serial_io.hpp"
+#include "underwater_mcu_gateway/tcp_serial_bridge.hpp"
 #include "underwater_mcu_gateway/motor_commands.hpp"
 #include "underwater_mcu_gateway/depth_zero.hpp"
 #include <chrono>
@@ -25,6 +26,16 @@ public:
     raw_enabled_=declare_parameter<bool>("publish_raw",false,d);
     motor_tx_=declare_parameter<bool>("enable_motor_tx",false,d);
     depth_commands_=declare_parameter<bool>("enable_depth_commands",true,d);
+    tcp_port_=declare_parameter<int>("tcp_port",0,d);
+    const auto tcp_bind=declare_parameter<std::string>("tcp_bind_address","0.0.0.0",d);
+    tcp_allow_tx_=declare_parameter<bool>("tcp_allow_tx",false,d);
+    if(tcp_port_<0 || tcp_port_>65535 || (tcp_allow_tx_ && (tcp_port_==0 || motor_tx_)))
+      throw std::invalid_argument("TCP port must be 0..65535; remote TX requires a TCP port and enable_motor_tx=false");
+    if(tcp_allow_tx_)depth_commands_=false; // One writer: remote raw commands or local ROS commands.
+    if(tcp_port_){
+      tcp_.open(tcp_bind,static_cast<std::uint16_t>(tcp_port_),tcp_allow_tx_);
+      RCLCPP_INFO(get_logger(),"Raw serial TCP server %s:%d (%s)",tcp_bind.c_str(),tcp_port_,tcp_allow_tx_?"exclusive remote TX":"receive-only");
+    }
     command_timeout_ms_=declare_parameter<int>("motor_command_timeout_ms",500,d);
     if(command_timeout_ms_<100 || command_timeout_ms_>1000)
       throw std::invalid_argument("motor command timeout must be 100..1000 ms");
@@ -50,7 +61,7 @@ public:
     report_=create_wall_timer(1s,[this]{ publish_status(); });
   }
   ~GatewayNode() override {
-    try { if(motor_tx_ && serial_.connected()) send_motor({},0); } catch(...) {}
+    try { if((motor_tx_ || tcp_allow_tx_) && serial_.connected()) send_motor({},0); } catch(...) {}
   }
 private:
   void zero_reply(const std::shared_ptr<rmw_request_id_t> & header,bool success,const std::string & message) {
@@ -91,6 +102,7 @@ private:
   }
   void serial_failure(const std::string & reason) {
     detail_=reason; RCLCPP_WARN(get_logger(),"%s",detail_.c_str());
+    tcp_.set_serial_ready(false);tcp_.take_disconnect();
     serial_.close(); parser_.reset(); heartbeat_.reset(); buffers_valid_=false;
     depth_zero_.cancel("Serial disconnected during depth zero; not retried");
     process_depth_zero();
@@ -99,18 +111,29 @@ private:
   void poll() {
     const auto now=Clock::now();
     if(!serial_.connected()) {
+      tcp_.set_serial_ready(false);tcp_.poll();tcp_.take_disconnect();
       if(now<next_open_) return;
       next_open_=now+1s;
       try {
-        serial_.open(port_,motor_tx_ || depth_commands_); parser_.reset(); high_water_.reset(); heartbeat_.reset();
+        serial_.open(port_,motor_tx_ || depth_commands_ || tcp_allow_tx_); parser_.reset(); high_water_.reset(); heartbeat_.reset();
         gate_.reset();
         opened_=now; ++connection_; detail_="connected, settling";
-        if(motor_tx_) { send_motor({},0); command_detail_="startup stop written; awaiting enable"; }
+        if(motor_tx_ || tcp_allow_tx_) { send_motor({},0); command_detail_="startup stop written; awaiting explicit commands"; }
         RCLCPP_INFO(get_logger(),"Serial opened: %s; motor TX=%s",port_.c_str(),motor_tx_?"enabled":"disabled");
       } catch(const std::exception & e) { detail_=e.what(); serial_.close(); gate_.reset(); return; }
     }
     try {
+      tcp_.set_serial_ready(now-opened_>=std::chrono::milliseconds(settle_ms_));
+      const auto remote=tcp_.poll();
+      if(tcp_.take_disconnect() && tcp_allow_tx_) {
+        send_motor({},0);command_detail_="TCP disconnected: best-effort stop sent; no commands replayed";
+      }
+      if(!remote.empty()) { serial_.write_all(remote);tx_bytes_+=remote.size(); }
       auto bytes=serial_.read_available(); rx_+=bytes.size();
+      tcp_.forward_rx(bytes);
+      if(tcp_.take_disconnect() && tcp_allow_tx_) {
+        send_motor({},0);command_detail_="TCP backpressure/disconnect: best-effort stop sent";
+      }
       auto stamp=this->now();
       if(raw_enabled_ && !bytes.empty()) {
         ui::RawSerial raw; raw.header.stamp=stamp; raw.connection_id=connection_;
@@ -150,7 +173,7 @@ private:
         send_motor({},0); command_detail_="command timeout: stopped; new enable session required";
         publish_status();
       }
-      detail_=motor_tx_?"motor TX enabled, bounded setpoints only":"RX-only; motor TX disabled";
+      detail_=tcp_port_?tcp_.detail():(motor_tx_?"motor TX enabled, bounded setpoints only":"RX-only; motor TX disabled");
     } catch(const std::exception & e) {
       serial_failure(e.what());
     }
@@ -169,6 +192,9 @@ private:
     s.buffers_percent=buffers_; s.detail=detail_; status_->publish(s);
   }
   underwater::SerialIo serial_;
+  underwater::TcpSerialBridge tcp_;
+  int tcp_port_=0;
+  bool tcp_allow_tx_=false;
   underwater::wire::Parser parser_;
   std::string port_,detail_="not connected";
   int settle_ms_=1000;

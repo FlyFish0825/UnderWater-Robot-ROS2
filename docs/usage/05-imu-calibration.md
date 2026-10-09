@@ -324,3 +324,4 @@ bash tools/validate.sh imu-calibration
 | 重启后方向不一致 | 固件世界/航向参考是否改变；重新摆放基准并校正 |
 
 [返回教程总目录](README.md) · 上一篇：[04 维护与故障排查](04-maintenance.md)
+下一篇：[06 Nano TCP 服务](06-nano-tcp.md)

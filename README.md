@@ -16,6 +16,7 @@ ROS 2 Humble / Jetson Orin NX / C++17。业务入口采用 fc_sensors_ros2 的�
 | 新机器准备、源码获取、编译、终端环境 | [01 安装与编译](docs/usage/01-installation.md) |
 | 串口检查、IMU、深度归零、CSV、ROS bag | [02 传感器与数据记录](docs/usage/02-sensors-recording.md) |
 | 平放/朝向基准采样、姿态校正、保存与重启加载 | [05 IMU 基准姿态校正](docs/usage/05-imu-calibration.md) |
+| Nano 固定地址服务器、上位机 TCP 接入、原始串口双向通道 | [06 Nano TCP 服务](docs/usage/06-nano-tcp.md) |
 | 隔离预览、键盘档位、实际控制、停机与反馈 | [03 手动控制](docs/usage/03-manual-control.md) |
 | 配置修改、重新编译、测试、更新与故障排查 | [04 维护与故障排查](docs/usage/04-maintenance.md) |
 | 编译与运行命令 | [编译和环境](#编译和环境)、[沿用原命令](#沿用原命令) |
