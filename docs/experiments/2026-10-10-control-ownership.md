@@ -54,3 +54,16 @@ pressure/depth 无效，上位机显示 -- 并继续显示有效的 D1/D2，不�
 - Underwater_GUI Debug 构建通过，完整 CTest **21/21** 通过。
 - `depth_zero_test` 在本机用独立 C++ 编译运行，**42 项**检查通过，包括无型号查询/写入、无效压力不校零、读回原 P0、后续样本不自动重新校零。
 - 当前 Windows 检查环境没有可用的 ROS 2/colcon Linux 运行环境，因此这次 ROS 接口消息生成和整包构建未重跑；也没有把新版本部署到机器人或重启现有后台。
+
+## 机器人只读实测补充（2026-10-10）
+
+通过 SSH 和 ROS topic 只读检查，没有发 USB/串口命令：
+
+- `underwater-robot-session` 为 active；`mcu_gateway_node`（PID 4751）是 `/dev/ttyACM0` 的唯一占用者。
+- 当前监听 `0.0.0.0:9000`（原始串口）与 `0.0.0.0:9001`（双目相机）；`9002` 控制管理端口未监听。电脑侧 TCP 检查中 22 可达、9002 不可达。
+- `GatewayStatus`：`connected=true`、`tx_enabled=false`、`tx_bytes=0`、`tx_frames=0`、`crc_errors=0`。本轮无串口写入。
+- IMU 真实 `group=0x80` 原始样本可用；按 `group=0x81` 过滤后可收到有效四元数和欧拉角。因此 IMU 原始与姿态两组都在现场上报。IMU 气压组当前没有有效数据。
+- 深度样本 `fresh=true`、`raw_valid=true`，`device_status=0x503`，D1=6622693、D2=7974421；pressure/temperature/depth/zero 均无效。当前运行的旧 H750 固件仍将唯一探头状态置为配置未知，证明只去掉上位机确认门槛不能产生补偿值。
+- H750 固件修正在 `CAN_To_Uart` 分支 `机器人中控` 提交 `16181b8`：编译期固定 02BA、移除型号选择/参数 `0x0105`、P0 通用参数只读并仅由显式 ZERO 更新；干净 ARM Debug 全量构建通过，FLASH 116704/131072 B（89.04%），HAL 存根主机回归 21 项通过，尚未烧录。现有 P0 在本次样本中无效，因此没有声称深度已实测恢复，也没有自动校零。
+
+此诊断没有连接 TCP 9000 客户端，以免抢占当前单客户端串口转发会话；没有停止后台、刷写固件或发送电机命令。
