@@ -29,7 +29,7 @@ mkdir -p "log/integration-$mode"
 if [[ "$mode" == synthetic ]]; then
   export ROS_DOMAIN_ID=189
   namespace=fixture
-  args=(base.launch.xml gateway_enabled:=false namespace:=fixture)
+  args=(base.launch.xml gateway_enabled:=false camera_enabled:=false tcp_port:=0 namespace:=fixture)
   probe=(-p synthetic:=true)
 else
   export ROS_DOMAIN_ID=188

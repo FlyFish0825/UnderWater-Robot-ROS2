@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<launch>
+  <arg name="namespace" default="underwater_robot"/>
+  <arg name="device" default="/dev/video0"/>
+  <arg name="tcp_port" default="9001"/>
+  <node pkg="global_camera" exec="global_cam_pub" name="global_cam_pub"
+        namespace="$(var namespace)" output="screen">
+    <param from="$(find-pkg-share global_camera)/config/stereo.yaml"/>
+    <param name="device" value="$(var device)"/>
+    <param name="tcp_port" value="$(var tcp_port)"/>
+  </node>
+</launch>

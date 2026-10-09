@@ -28,6 +28,8 @@
 | 4 | [维护与故障排查](04-maintenance.md) | 参数修改、测试、版本更新、日志、常见故障和启动服务 |
 | 5 | [IMU 基准姿态校正](05-imu-calibration.md) | 已知姿态采样、保存、加载、清除、校正显示与记录 |
 | 6 | [Nano 原始串口 TCP 服务](06-nano-tcp.md) | 固定地址服务器、上位机接入、单客户端、双向与重连 |
+| 7 | [双目相机](07-stereo-camera.md) | 拼接画面、左右图、独立 TCP 9001 转发、保存与状态 |
+| 8 | [局域网与 TCP 恢复](08-lan-recovery.md) | 持久静态 IPv4、随 ROS 2 同启转发、自动回退与同时接收验收 |
 
 新机器先看第 0 篇，然后按需阅读安装与编译。已经编译好的工作空间可直接用第 0 篇启动；之后也可从下面的传感器篇查阅详细用法。
 准备控制推进器前，应完整阅读第 3 篇。
@@ -44,6 +46,7 @@
 | 电机反馈 | 节点状态、转速、电压、估算母线电流、MCU 温度 |
 | 记录 | 10 Hz CSV、ROS bag 消息录制 |
 | 控制 | 键盘六轴档位、八推进器分配、启用与超时门禁 |
+| 双目相机 | global_camera 独立采集、左右 ROS 图像、拼接 JPEG TCP 转发和 PNG 记录 |
 | 验证 | 协议和设备测试、合成遥测、真实 ROS 节点加伪串口测试 |
 
 ```text
@@ -51,13 +54,13 @@ IMU / 深度计 / 电机反馈 → MCU → USB CDC → 网关 → 设备解析 �
 键盘 → 六轴档位 → 动力分配 → 连接、启用和超时检查 → MCU → 电机
 ```
 
-19 个兼容命令中，8 个接入现有能力。下列 11 个命令仅保留名称，正常执行和 `--check` 返回 69：
+19 个兼容命令中，10 个接入现有能力。下列 9 个命令仅保留名称，正常执行和 `--check` 返回 69：
 
 - `sensors_cpp`：`camera_display`、`camera_save`、`camera_ros`、`camera_parallel_ros`。
 - `sensors_cpp`：`auto_control`、`auto_control_new`、`semi_control`、`semi_control_fc`、`semi_control_fcadrc`。
-- `global_camera`：`global_cam_pub`、`data_sub`。
 
-未实现相机、定深、定向、自动航行等能力。`imu_py`、`depth_py` 保留旧名称，实际代码是 C++。
+`global_camera` 已实现双目采集与转发；双目标定加载、深度重建、视觉定位、定深、定向、自动航行尚未实现。
+`imu_py`、`depth_py` 保留旧名称，实际代码是 C++。双目相机功能需使用包含该功能的新源码，原 v1.0.0 标签不包含它。
 IMU 气压需要匹配 MCU 固件，气压高度不能替代水深。URDF 目前只有 `base_link`。
 
 <a id="quick-start"></a>

@@ -18,6 +18,8 @@ ROS 2 Humble / Jetson Orin NX / C++17。业务入口采用 fc_sensors_ros2 的�
 | 串口检查、IMU、深度归零、CSV、ROS bag | [02 传感器与数据记录](docs/usage/02-sensors-recording.md) |
 | 平放/朝向基准采样、姿态校正、保存与重启加载 | [05 IMU 基准姿态校正](docs/usage/05-imu-calibration.md) |
 | Nano 固定地址服务器、上位机 TCP 接入、原始串口双向通道 | [06 Nano TCP 服务](docs/usage/06-nano-tcp.md) |
+| 固定局域网 IP、随 ROS 2 同启两条转发、远程回退与同时接收验收 | [08 局域网与 TCP 恢复](docs/usage/08-lan-recovery.md) |
+| 双目相机采集、左右图、JPEG 转发与上位机接口 | [07 双目相机](docs/usage/07-stereo-camera.md)、[上位机接入报告](docs/architecture/deployment/stereo-camera-host-report.md) |
 | 隔离预览、键盘档位、实际控制、停机与反馈 | [03 手动控制](docs/usage/03-manual-control.md) |
 | 配置修改、重新编译、测试、更新与故障排查 | [04 维护与故障排查](docs/usage/04-maintenance.md) |
 | 编译与运行命令 | [编译和环境](#编译和环境)、[沿用原命令](#沿用原命令) |
@@ -38,7 +40,7 @@ src/
 ├── depth_py/         depth_publisher；实际为 C++
 ├── sensors_cpp/      深度、查看、记录入口及共享后台
 ├── manual_control/   键盘、实验激励和时间查看入口
-└── global_camera/    原命令的可用性检查入口，视觉尚未实现
+└── global_camera/    双目采集、左右图、JPEG TCP 转发与图片记录
 internal/
 ├── underwater_interfaces/    原内部消息
 ├── underwater_mcu_gateway/   串口、协议、命令及深度归零
@@ -172,13 +174,15 @@ Fz=1 为 `[0,0,0,0,1200,1200,-1200,-1200]` RPM；回到六轴全零立即请求�
 
 ## 仅保留名称的入口
 
-以下 11 个命令尚未实现，返回退出码 69，不启动后台或电机：
+以下 9 个命令尚未实现，返回退出码 69，不启动后台或电机：
 
 - sensors_cpp：camera_display、camera_save、camera_ros、camera_parallel_ros。
 - sensors_cpp：auto_control、auto_control_new、semi_control、semi_control_fc、semi_control_fcadrc。
-- global_camera：global_cam_pub、data_sub。
 
-19 个旧命令均可解析，其中 8 个接入已有能力。所有入口支持 --help 和 --check：
+19 个旧命令均可解析，其中 10 个接入已有能力。global_camera 的 global_cam_pub
+独立采集双目并在 TCP 9001 转发拼接 JPEG；data_sub 订阅检查并可保存左右 PNG。
+这两个入口不启动 MCU 后台；原 sensors_cpp 的四个相机入口暂不重定向。
+所有入口支持 --help 和 --check：
 --help 不操作硬件；--check 可用返回 0，未实现返回 69。
 
 ## 原调试入口
@@ -192,7 +196,7 @@ ros2 launch underwater_robot robot.launch.xml
 
 原 manual.launch.xml 仍默认 motor_tx=false。
 underwater_robot 的启动仅为软件心跳；不要对已占用串口另起网关。
-深度归零沿用 [原服务](docs/deployment/depth-zero.md)，不在启动或重连时自动归零。
+深度归零沿用 [原服务](docs/architecture/deployment/depth-zero.md)，不在启动或重连时自动归零；深度计型号固定只读，保留设备现有 P0。
 
 ## 测试与录包
 

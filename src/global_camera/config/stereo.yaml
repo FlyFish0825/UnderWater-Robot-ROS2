@@ -1,0 +1,13 @@
+/**:
+  ros__parameters:
+    device: /dev/video0
+    width: 2560
+    height: 720
+    fps: 30.0
+    capture_fps: 60.0
+    jpeg_quality: 80
+    rotate_180: true
+    tcp_bind_address: 0.0.0.0
+    tcp_port: 9001
+    publish_raw: false
+    reconnect_interval_s: 2.0

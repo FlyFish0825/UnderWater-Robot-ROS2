@@ -42,7 +42,7 @@ struct Fixture {
       if(log>=0) { dup2(log,STDOUT_FILENO); dup2(log,STDERR_FILENO); close(log); }
       const std::string arg_port="serial_port:="+port,arg_ns="namespace:="+ns;
       execlp("ros2","ros2","launch","underwater_bringup","manual.launch.xml",
-        arg_port.c_str(),arg_ns.c_str(),"motor_tx:=true",static_cast<char *>(nullptr));
+        arg_port.c_str(),arg_ns.c_str(),"motor_tx:=true","camera_enabled:=false","tcp_port:=0",static_cast<char *>(nullptr));
       _exit(127);
     }
   }

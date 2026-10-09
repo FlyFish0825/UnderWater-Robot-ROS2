@@ -9,6 +9,10 @@
 
 ## 隔离消息与键盘测试
 
+2026-10-09 的 `global_camera` 已实现独立采集/订阅入口；当前 19 个原命令中有 10 个可用、
+9 个尚未实现。下面的 2026-10-08 数量是历史验证结果。双目接口与实机验证见
+[上位机报告](stereo-camera-host-report.md) 和 [验证记录](../experiments/2026-10-09-stereo-camera-validation.md)。
+
 ```bash
 ROS_DOMAIN_ID=185 ROS_LOCALHOST_ONLY=1 ros2 run sensors_cpp compat_probe
 ```

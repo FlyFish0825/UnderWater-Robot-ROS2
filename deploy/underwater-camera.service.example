@@ -1,0 +1,16 @@
+[Unit]
+Description=Underwater side-by-side stereo camera and JPEG TCP forwarder
+After=network.target
+
+[Service]
+Type=simple
+User=lamost
+WorkingDirectory=/home/lamost/UnderWater-Robot-ROS2
+ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && source /home/lamost/UnderWater-Robot-ROS2/install/setup.bash && exec ros2 launch global_camera stereo.launch.xml'
+Restart=on-failure
+RestartSec=3
+KillSignal=SIGINT
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

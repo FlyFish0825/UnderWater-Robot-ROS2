@@ -8,6 +8,7 @@
   <depend>launch</depend>
   <depend>launch_ros</depend>
   <depend>launch_xml</depend>
+  <exec_depend>global_camera</exec_depend>
   <depend>underwater_mcu_gateway</depend>
   <depend>underwater_devices</depend>
   <exec_depend>underwater_control</exec_depend>

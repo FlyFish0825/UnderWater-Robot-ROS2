@@ -1,9 +1,14 @@
 <?xml version="1.0"?>
 <package format="3">
   <name>global_camera</name><version>1.0.0</version>
-  <description>Original fc_sensors_ros2 command names backed by C++.</description>
+  <description>C++ side-by-side stereo capture, ROS images and bounded JPEG TCP forwarding.</description>
   <maintainer email="lamost@example.com">lamost</maintainer><license>Proprietary</license>
   <buildtool_depend>ament_cmake</buildtool_depend>
-  <depend>sensors_cpp</depend>
+  <depend>rclcpp</depend>
+  <depend>sensor_msgs</depend>
+  <depend>std_msgs</depend>
+  <depend>libopencv-dev</depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>launch_xml</exec_depend>
   <export><build_type>ament_cmake</build_type></export>
 </package>
