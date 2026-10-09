@@ -113,20 +113,18 @@ rosdep install \
 ```bash
 cd /home/lamost/UnderWater-Robot-ROS2
 source /opt/ros/humble/setup.bash
-CMAKE_BUILD_PARALLEL_LEVEL=2 colcon build \
-  --symlink-install \
-  --executor sequential \
-  --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo
+colcon build
 source install/setup.bash
 ```
 
 不要只对 `src/` 编译而漏掉内部包。检查包清单：
 
 ```bash
-colcon list --base-paths src internal
+colcon list
 ```
 
 应发现 13 个项目包：6 个兼容入口包和 7 个内部包。
+项目根目录的 `colcon_defaults.yaml` 自动提供构建默认值，命令无需附加参数。
 首次编译会从附带源码构建动力分配及相关依赖。构建成功时应显示 13 个包完成，且没有失败包。
 
 `v1.0.0` 发布前在独立 Jetson 工作空间全量编译通过，当次约 7 分 29 秒；这不是固定耗时承诺。

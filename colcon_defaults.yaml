@@ -1,0 +1,12 @@
+# Workspace-local defaults: run `colcon build` from this directory.
+build:
+  base-paths: [src, internal]
+  executor: sequential
+  symlink-install: true
+  cmake-args: [-DCMAKE_BUILD_TYPE=RelWithDebInfo]
+
+# Keep discovery consistent for inspection and testing; exclude vendor sources and backups.
+list:
+  base-paths: [src, internal]
+test:
+  base-paths: [src, internal]

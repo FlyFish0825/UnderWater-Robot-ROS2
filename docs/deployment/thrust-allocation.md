@@ -102,8 +102,7 @@ proposed_motor_rpm 是经过停机死区后的建议转速。它们不代表实�
 ```bash
 cd /home/lamost/UnderWater-Robot-ROS2
 source /opt/ros/humble/setup.bash
-CMAKE_BUILD_PARALLEL_LEVEL=2 colcon build --symlink-install --executor sequential \
-  --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo
+colcon build
 source install/setup.bash
 ```
 

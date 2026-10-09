@@ -70,13 +70,14 @@ cd UnderWater-Robot-ROS2
 ```bash
 cd /home/lamost/UnderWater-Robot-ROS2
 source /opt/ros/humble/setup.bash
-CMAKE_BUILD_PARALLEL_LEVEL=2 colcon build --symlink-install \
-  --executor sequential --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo
+colcon build
 source install/setup.bash
 ```
 
-在工作空间根目录执行 colcon build 会发现 src 和 internal。
-查看包列表使用 colcon list 或 colcon list --base-paths src internal。
+在工作空间根目录直接执行 `colcon build` 即可全量编译 13 个项目包。
+项目自带 `colcon_defaults.yaml`，自动设置 src/internal 包搜索范围、逐包构建、符号链接安装和 RelWithDebInfo，
+无需再手动添加构建参数；不会将 third_party、artifacts 或 tmp 中的源码/备份识别为额外包。
+查看包列表直接使用 `colcon list`。
 Windows 保存同一份源码，编译和设备验证在 Nano 完成；build/install/log 是生成目录。
 
 ## 沿用原命令

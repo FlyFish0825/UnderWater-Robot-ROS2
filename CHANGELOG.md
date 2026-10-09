@@ -1,5 +1,11 @@
 # 发布记录
 
+## 未发布 — 全量构建默认配置
+
+- 增加项目级 colcon_defaults.yaml，直接 `colcon build` 全量构建 src/internal 的 13 个包。
+- 默认逐包构建、符号链接安装和 RelWithDebInfo，排除第三方源码、临时目录与备份的独立包发现。
+- 简化安装、维护和功能教程的编译命令，保留现有构建缓存。
+
 ## 未发布 — 实际推进器布局与中心基准
 
 - 按实际 ROV_Product_FV.SLDASM URDF 修正安装位置，力矩基准移至八推进器几何中心 thruster_center。

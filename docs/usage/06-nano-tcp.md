@@ -44,14 +44,11 @@ fuser -v /dev/ttyACM0
 cd /home/lamost/UnderWater-Robot-ROS2
 source /opt/ros/humble/setup.bash
 source install/setup.bash
-CMAKE_BUILD_PARALLEL_LEVEL=2 colcon build \
-  --packages-select underwater_mcu_gateway underwater_bringup \
-  --symlink-install --executor sequential \
-  --cmake-args -DCMAKE_BUILD_TYPE=RelWithDebInfo
+colcon build
 source install/setup.bash
 ```
 
-已有工作空间可按上述选择包编译；新机器第一次需要先按 [安装教程](01-installation.md) 完整构建依赖。
+上述命令全量编译所有项目包；新机器按 [安装教程](01-installation.md) 准备依赖。
 
 只启用原始串口服务器、禁止所有主机命令的最小启动命令：
 
