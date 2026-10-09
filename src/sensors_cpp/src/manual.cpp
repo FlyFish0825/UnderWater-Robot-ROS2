@@ -60,7 +60,7 @@ int manual(const std::string &entry,const std::shared_ptr<rclcpp::Node> &node) {
       else if(seen_armed){active=false;seen_armed=false;desired.fill(0);RCLCPP_WARN(node->get_logger(),"Control disarmed: %s. Press a direction key to request a new session.",m->detail.c_str());}
     });
   auto send=[&](const std::array<double,6> &v) {
-    geometry_msgs::msg::WrenchStamped w;w.header.stamp=node->now();w.header.frame_id="base_link";
+    geometry_msgs::msg::WrenchStamped w;w.header.stamp=node->now();w.header.frame_id="thruster_center";
     w.wrench.force.x=v[0];w.wrench.force.y=v[1];w.wrench.force.z=v[2];
     w.wrench.torque.x=v[3];w.wrench.torque.y=v[4];w.wrench.torque.z=v[5];pub->publish(w);
     if(excitation){msg_pkg::msg::Forces f;f.header=w.header;f.fx=v[0];f.fy=v[1];f.fz=v[2];f.tyaw=v[5];force_pub->publish(f);}

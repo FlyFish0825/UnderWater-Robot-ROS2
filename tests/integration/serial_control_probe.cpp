@@ -98,7 +98,7 @@ public:
           } else {
             require(f.payload[1]==0x11,"unexpected motor command");
             last_mask=f.payload[3];
-            if(last_mask) { require(last_mask==expected_mask,"request enabled wrong nodes"); ++nonzero_runs; }
+            if(last_mask) { require(last_mask==0x0f || last_mask==0xf0 || last_mask==0xff,"request enabled wrong nodes"); ++nonzero_runs; }
             else ++stop_runs;
           }
         }
@@ -111,9 +111,12 @@ public:
       }
     }
     if(wrench && now-last_wrench_>=50ms) {
-      geometry_msgs::msg::WrenchStamped w; w.header.stamp=this->now(); w.header.frame_id="base_link";
-      if(manual_mode)w.wrench.force.x=zero_input?0:1;
-      else w.wrench.force.z=400;
+      geometry_msgs::msg::WrenchStamped w; w.header.stamp=this->now(); w.header.frame_id="thruster_center";
+      if(manual_mode && !zero_input) {
+        w.wrench.force.x=manual_levels[0];w.wrench.force.y=manual_levels[1];w.wrench.force.z=manual_levels[2];
+        w.wrench.torque.x=manual_levels[3];w.wrench.torque.y=manual_levels[4];w.wrench.torque.z=manual_levels[5];
+      }
+      else if(!manual_mode)w.wrench.force.z=500; // Actual URDF geometry: all four vertical nodes clear RPM deadband.
       pub_->publish(w); last_wrench_=now;
     }
     rclcpp::sleep_for(5ms);
@@ -144,10 +147,15 @@ public:
     pub_=create_publisher<geometry_msgs::msg::WrenchStamped>("control/manual_request",rclcpp::QoS(1));
     manual_mode=true;expected_mask=0x0f;
   }
+  void set_manual_axis(int axis,int sign) {
+    manual_levels.fill(0);manual_levels[axis]=sign;
+    expected_mask=(axis<2 || axis==5)?0x0f:0xf0;
+  }
   void add_conflicting_source() {
     conflict_=create_publisher<geometry_msgs::msg::WrenchStamped>("control/wrench_request",rclcpp::QoS(1));
   }
   bool manual_mode=false,zero_input=false;
+  std::array<double,6> manual_levels{1,0,0,0,0,0};
   unsigned expected_mask=0xf0;
   std::uint64_t tx_frames=0,nonzero_runs=0,stop_runs=0;
   unsigned last_mask=0;
@@ -184,7 +192,8 @@ int main(int argc,char ** argv) {
     node->enable(); node->run_for(2,true);
     require(node->nonzero_runs>10 && node->last_mask==0xf0,"enabled Fz did not reach serial");
     for(int i=0;i<4;++i) require(node->last_rpm[i]==0,"horizontal RPM must be zero");
-    for(int i=4;i<8;++i) require(node->last_rpm[i]>=1000,"vertical RPM missing");
+    for(int i=4;i<6;++i) require(node->last_rpm[i]>=1000,"front vertical positive RPM missing");
+    for(int i=6;i<8;++i) require(node->last_rpm[i]<=-1000,"rear vertical negative RPM missing");
     std::cout<<"Motor RPM:"; for(auto rpm:node->last_rpm) std::cout<<" "<<rpm; std::cout<<"\n";
     node->run_for(1.2,false);
     require(node->last_mask==0 && !node->allocation.armed,"input timeout did not stop and disarm");
@@ -200,9 +209,34 @@ int main(int argc,char ** argv) {
     require(node->allocation.solver_ok && node->nonzero_runs==prior,"manual preview changed motor output");
     node->enable();node->run_for(1.5,true);
     require(node->last_mask==0x0f,"first manual step did not start horizontal nodes");
-    for(int i=0;i<4;++i)require(std::abs(node->last_rpm[i])>=1000 && std::abs(node->last_rpm[i])<=1200,"manual startup RPM wrong");
-    for(int i=4;i<8;++i)require(node->last_rpm[i]==0,"small compensation was boosted");
+    for(int i=0;i<4;++i)require(std::abs(node->last_rpm[i])>=1000 && std::abs(node->last_rpm[i])<=6000,"manual startup RPM wrong");
+    for(int i=4;i<8;++i)require(node->last_rpm[i]==0,"horizontal translation needs no vertical compensation at the centroid");
+    require(node->last_rpm[0]>0 && node->last_rpm[1]<0 && node->last_rpm[2]>0 && node->last_rpm[3]<0,
+      "manual +Fx positive-RPM polarity does not match actual thrusters");
+    require(node->allocation.requested_wrench[0]<0 && node->allocation.modeled_rpm_wrench[0]<0,
+      "manual +Fx did not reverse the effective NED request and model output");
+    require(std::abs(node->allocation.modeled_rpm_wrench[4])<0.1,"manual Fx startup produced unintended pitch");
     std::cout<<"Manual Fx level 1 RPM:";for(auto rpm:node->last_rpm)std::cout<<" "<<rpm;std::cout<<"\n";
+    const std::array<int,6> axis_signs{-1,1,1,-1,1,-1};
+    const std::array<std::array<int,8>,6> motor_signs{{
+      {1,-1,1,-1,0,0,0,0},{-1,-1,1,1,0,0,0,0},{0,0,0,0,1,1,-1,-1},
+      {0,0,0,0,1,-1,-1,1},{0,0,0,0,-1,-1,-1,-1},{1,1,1,1,0,0,0,0}}};
+    for(int axis=0;axis<6;++axis)for(int sign:{-1,1}) {
+      node->set_manual_axis(axis,sign);node->run_for(0.5,true);
+      require(node->last_mask==node->expected_mask,"single-axis startup lost required nodes");
+      require(node->allocation.solver_ok && !node->allocation.rpm_deadband_applied,"single-axis startup lost compensation to deadband");
+      require(axis_signs[axis]*sign*node->allocation.modeled_rpm_wrench[axis]>0,"manual axis direction wrong");
+      for(int j=0;j<6;++j)if(j!=axis)
+        require(std::abs(node->allocation.modeled_rpm_wrench[j])<(j<3?0.5:0.1),"manual startup produced unintended force or torque");
+      for(int i=0;i<8;++i)if(motor_signs[axis][i])
+        require(sign*motor_signs[axis][i]*node->last_rpm[i]>0,"manual motor sign disagrees with operator table");
+      for(int i=0;i<8;++i) {
+        if(motor_signs[axis][i])require(std::abs(node->last_rpm[i])==1200,"centroid single-axis first step must reach nominal startup RPM");
+        else require(node->last_rpm[i]==0,"single-axis startup enabled an unrelated motor");
+      }
+      std::cout<<"Serial manual axis="<<axis<<" sign="<<sign<<" RPM:";
+      for(auto rpm:node->last_rpm)std::cout<<" "<<rpm;std::cout<<"\n";
+    }
     node->zero_input=true;node->run_for(0.5,true);
     require(node->last_mask==0,"manual zero did not stop");
     node->zero_input=false;node->run_for(0.5,true);node->run_for(1.2,false);

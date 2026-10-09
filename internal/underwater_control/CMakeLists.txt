@@ -28,5 +28,8 @@ if(BUILD_TESTING)
   add_executable(allocation_test test/allocation_test.cpp)
   target_link_libraries(allocation_test rov_allocation)
   add_test(NAME thrust_allocation_contract COMMAND allocation_test)
+  # Offline examples use the same allocator; never start ROS or open serial ports.
+  add_executable(allocation_examples test/allocation_examples.cpp)
+  target_link_libraries(allocation_examples rov_allocation)
 endif()
 ament_package()

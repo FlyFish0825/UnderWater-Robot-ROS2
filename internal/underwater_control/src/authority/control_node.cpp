@@ -31,7 +31,8 @@ public:
     auto force=numbers("nominal_max_thrust_n",cfg.nominal_max_thrust_n);
     auto weights=numbers("wrench_weights",cfg.weights);
     auto ids=declare_parameter<std::vector<std::int64_t>>("node_ids",{1,2,3,4,5,6,7,8},d);
-    auto dirs=declare_parameter<std::vector<std::int64_t>>("motor_direction",{1,1,1,1,1,1,1,1},d);
+    auto dirs=declare_parameter<std::vector<std::int64_t>>("motor_direction",
+      std::vector<std::int64_t>(cfg.motor_direction.begin(),cfg.motor_direction.end()),d);
     if(positions.size()!=24 || axes.size()!=24 || force.size()!=8 || weights.size()!=6 || ids.size()!=8 || dirs.size()!=8)
       throw std::invalid_argument("allocation configuration array size mismatch");
     for(std::size_t i=0;i<8;++i) {
@@ -43,10 +44,17 @@ public:
     cfg.min_rpm=declare_parameter<int>("min_rpm",1000,d);
     cfg.max_rpm=declare_parameter<int>("max_rpm",6000,d);
     cfg.manual_start_rpm=declare_parameter<int>("manual_start_rpm",1200,d);
+    const auto manual_signs=declare_parameter<std::vector<std::int64_t>>("manual_axis_signs",
+      std::vector<std::int64_t>(cfg.manual_axis_signs.begin(),cfg.manual_axis_signs.end()),d);
+    if(manual_signs.size()!=6) throw std::invalid_argument("manual_axis_signs must contain six signs");
+    for(std::size_t j=0;j<6;++j) {
+      if(manual_signs[j]!=1 && manual_signs[j]!=-1) throw std::invalid_argument("manual_axis_signs must be +/-1");
+      cfg.manual_axis_signs[j]=manual_signs[j];
+    }
     cfg.effort_weight=declare_parameter<double>("effort_weight",1e-6,d);
     timeout_=std::chrono::milliseconds(declare_parameter<int>("input_timeout_ms",500,d));
     if(timeout_.count()<100 || timeout_.count()>1000) throw std::invalid_argument("input timeout must be 100..1000 ms");
-    frame_id_=declare_parameter<std::string>("wrench_frame_id","base_link",d);
+    frame_id_=declare_parameter<std::string>("wrench_frame_id","thruster_center",d);
     allocator_=std::make_unique<uc::Allocator>(cfg);
     output_=create_publisher<ui::MotorSetpoint>("actuators/thrusters/setpoint",rclcpp::QoS(1));
     status_=create_publisher<ui::AllocationStatus>("control/allocation",10);
@@ -76,7 +84,10 @@ public:
         res->success=true; res->message=detail_;
       });
     timer_=create_wall_timer(20ms,[this]{ tick(); });
-    RCLCPP_INFO(get_logger(),"Allocator ready: main.cpp geometry, provisional linear RPM curve, disarmed");
+    RCLCPP_INFO(get_logger(),"Allocator ready: actual URDF geometry in NED, confirmed motor polarity, provisional linear RPM curve, disarmed");
+    RCLCPP_INFO(get_logger(),"Manual axes use configured signs and balanced startup; physical wrench remains NED");
+    const auto & center=allocator_->wrench_origin();
+    RCLCPP_INFO(get_logger(),"Wrench origin: thruster centroid [%.6f %.6f %.6f] m in base_link",center[0],center[1],center[2]);
   }
   ~ControlNode() override {
     try { disable("shutdown"); if(rclcpp::ok()) publish_command(); } catch(...) {}
@@ -108,7 +119,10 @@ private:
     if(solver_ok_)desired_=result_.effective_request;
     input_valid_=solver_ok_;
     input_at_=Clock::now()-std::chrono::nanoseconds(std::max<std::int64_t>(0,age));
-    if(!solver_ok_) { disable("invalid wrench or QP solve failed"); publish_command(); return; }
+    if(!solver_ok_) {
+      disable(manual?"invalid manual request or balanced startup infeasible within RPM bounds":"invalid wrench or QP solve failed");
+      publish_command(); return;
+    }
     if(armed_ && stamp>=enabled_stamp_) received_after_enable_=true;
     if(!armed_) detail_=manual?"manual preview; output is stopped":"wrench preview; output is stopped";
   }

@@ -1,5 +1,11 @@
 <?xml version="1.0"?>
-<!-- Only a named root link. No invented geometry, mass, inertia or sensor extrinsics. -->
+<!-- Minimal frames; centroid is derived from the actual eight-thruster URDF positions. -->
 <robot name="UnderWater-Robot-ROS2">
   <link name="base_link"/>
+  <link name="thruster_center"/>
+  <joint name="base_to_thruster_center" type="fixed">
+    <parent link="base_link"/>
+    <child link="thruster_center"/>
+    <origin xyz="-0.012873 0 -0.040532" rpy="0 0 0"/>
+  </joint>
 </robot>

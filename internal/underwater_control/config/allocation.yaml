@@ -1,22 +1,28 @@
 /**:
   ros__parameters:
-    # Geometry from OSQP/main.cpp; NOT the library's built-in CurrentROV preset.
+    # Actual ROV_Product_FV.SLDASM URDF geometry, in NED: +X north, +Y east, +Z down.
     positions_m: [0.23016, -0.18359, -0.040532, 0.23016, 0.18359, -0.040532,
                   -0.25591, -0.18359, -0.040532, -0.25591, 0.18359, -0.040532,
-                  0.25239, -0.26163, 0.0, 0.25239, 0.26163, 0.0,
-                  -0.27087, -0.26163, 0.0, -0.27087, 0.26163, 0.0]
+                  0.062129, -0.125, -0.040532, 0.062129, 0.125, -0.040532,
+                  -0.087871, -0.125, -0.040532, -0.087871, 0.125, -0.040532]
+    # Model-positive force axes; physical positive-RPM polarity is applied below.
     axes: [-0.70711, -0.70711, 0.0, -0.70711, 0.70711, 0.0,
            0.70711, -0.70711, 0.0, 0.70711, 0.70711, 0.0,
            0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 1.0]
     node_ids: [1, 2, 3, 4, 5, 6, 7, 8]
-    motor_direction: [1, 1, 1, 1, 1, 1, 1, 1]
+    # Positive RPM: 1 SW, 2 NW, 3 SE, 4 NE, 5/6 down, 7/8 up.
+    motor_direction: [1, -1, -1, 1, 1, 1, -1, -1]
     # Temporary scale only: 500 N <-> 6000 rpm. Not a measured rating.
     nominal_max_thrust_n: [500.0, 500.0, 500.0, 500.0, 500.0, 500.0, 500.0, 500.0]
     wrench_weights: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
     effort_weight: 0.000001
     min_rpm: 1000
     max_rpm: 6000
-    # Keyboard level 1 sets the strongest allocated channel to this RPM.
+    # Minimum peak at level 1; common scaling may raise it to keep compensation running.
     manual_start_rpm: 1200
+    # Fx, Fy, Fz, Mx, My, Mz, per the operator's confirmed motor-direction table.
+    # Applies only to control/manual_request, never to control/wrench_request.
+    manual_axis_signs: [-1, 1, 1, -1, 1, -1]
     input_timeout_ms: 500
-    wrench_frame_id: base_link
+    # Same NED axes, origin at the arithmetic centroid of the eight positions_m points.
+    wrench_frame_id: thruster_center

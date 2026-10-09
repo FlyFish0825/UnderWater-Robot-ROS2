@@ -16,7 +16,7 @@ int main(int argc,char ** argv) {
       if(used!=args[i+1].size() || !std::isfinite(values[i]) || std::abs(values[i])>1e6) throw std::invalid_argument("invalid wrench");
     }
     auto node=std::make_shared<rclcpp::Node>("wrench_command");
-    const auto frame=node->declare_parameter<std::string>("frame_id","base_link");
+    const auto frame=node->declare_parameter<std::string>("frame_id","thruster_center");
     const double duration=node->declare_parameter<double>("duration_s",5.0);
     if(!std::isfinite(duration)||duration<=0||duration>60) throw std::invalid_argument("duration_s must be 0..60");
     auto pub=node->create_publisher<geometry_msgs::msg::WrenchStamped>("control/wrench_request",rclcpp::QoS(1));
