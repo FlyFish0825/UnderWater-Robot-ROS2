@@ -23,13 +23,13 @@ ROS 2 Humble / Jetson Orin NX / C++17。业务入口采用 fc_sensors_ros2 的�
 | 隔离预览、键盘档位、实际控制、停机与反馈 | [03 手动控制](docs/usage/03-manual-control.md) |
 | 配置修改、重新编译、测试、更新与故障排查 | [04 维护与故障排查](docs/usage/04-maintenance.md) |
 | 编译与运行命令 | [编译和环境](#编译和环境)、[沿用原命令](#沿用原命令) |
-| 键盘按键、档位与启停 | [键盘控制](#键盘控制)、[动力分配与手动转速控制](docs/deployment/thrust-allocation.md) |
-| 如何分析 CAN CSV 中的力与转速指令 | [抓包分析教程](docs/deployment/can-command-analysis.md) |
+| 键盘按键、档位与启停 | [键盘控制](#键盘控制)、[动力分配与手动转速控制](docs/architecture/deployment/thrust-allocation.md) |
+| 如何分析 CAN CSV 中的力与转速指令 | [抓包分析教程](docs/architecture/deployment/can-command-analysis.md) |
 | 111.csv、112.csv 的方向、时间线与曲线 | [2026-10-08 抓包实例记录](docs/experiments/2026-10-08-can-command-analysis.md) |
-| TCP 控制权、H750 固件烧录及 WCH-Link 拔下后的 IMU/深度实测 | [2026-10-10 控制权与传感器实测记录](docs/experiments/2026-10-10-control-ownership.md) |
+| 传感器修复、真实 GUI/Nano 控制权与原始串口验收 | [2026-10-10 最终实机验收](docs/experiments/2026-10-10-sensor-fix-control-acceptance.md)、[排障阶段记录](docs/experiments/2026-10-10-control-ownership.md) |
 | ROS 话题与串口协议 | [话题接口](docs/interfaces/topics.md)、[MCU 线协议](docs/protocols/mcu-wire.md) |
-| 深度归零与硬件范围 | [深度归零](docs/deployment/depth-zero.md)、[当前硬件](docs/hardware/current-hardware.md) |
-| 验证方法与兼容入口 | [验证说明](docs/deployment/validation.md)、[兼容入口验证](docs/deployment/entry-compatibility.md) |
+| 深度归零与硬件范围 | [深度归零](docs/architecture/deployment/depth-zero.md)、[当前硬件](docs/hardware/current-hardware.md) |
+| 验证方法与兼容入口 | [验证说明](docs/architecture/deployment/validation.md)、[兼容入口验证](docs/architecture/deployment/entry-compatibility.md) |
 | 软件结构与发布范围 | [架构说明](docs/architecture/architecture.md)、[发布说明](CHANGELOG.md) |
 
 ## 当前目录
@@ -154,8 +154,8 @@ Fz=1 为 `[0,0,0,0,1200,1200,-1200,-1200]` RPM；回到六轴全零立即请求�
 物理力接口 control/wrench_request、wrench_command 和 forces_pub 保持原临时线性比例，
 不套用手动起步增益。手动与物理力输入合计只允许一个发布者。
 以上是目标转速；实际推力曲线和实机响应仍需要标定。
-详见 [动力分配说明](docs/deployment/thrust-allocation.md)。
-对照 CAN 抓包检查实际下发值，见 [抓包分析教程](docs/deployment/can-command-analysis.md)；
+详见 [动力分配说明](docs/architecture/deployment/thrust-allocation.md)。
+对照 CAN 抓包检查实际下发值，见 [抓包分析教程](docs/architecture/deployment/can-command-analysis.md)；
 包括水平推进、偏航、横滚、俯仰及组合指令的 [111/112 实例](docs/experiments/2026-10-08-can-command-analysis.md)。
 
 ## 共享后台
@@ -208,7 +208,7 @@ bash tools/validate.sh allocation
 ```
 
 协议、设备有效性和动力分配测试不代表实机试转。
-入口验证见 [兼容入口验证](docs/deployment/entry-compatibility.md)。
+入口验证见 [兼容入口验证](docs/architecture/deployment/entry-compatibility.md)。
 录包仍使用 ros2 bag；话题表在 internal/underwater_bringup/config/recording/topics.yaml。
 大型数据保存到仓库外，例如 ~/robot_data。
 

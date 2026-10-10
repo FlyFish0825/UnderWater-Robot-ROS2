@@ -54,7 +54,7 @@ source install/setup.bash
 
 上述命令全量编译所有项目包；新机器按 [安装教程](01-installation.md) 准备依赖。
 
-只启用原始串口服务器、禁止所有主机命令的最小启动命令：
+启用原始串口服务器、默认禁止 Nano ROS 电机发送的最小启动命令（GUI 初始只读，显式接管后可发送）：
 
 ```bash
 ros2 run underwater_mcu_gateway mcu_gateway_node --ros-args \
@@ -124,6 +124,8 @@ ros2 service call /underwater_robot/gateway/control \
   underwater_interfaces/srv/ControlOwnership "{action: 2}"   # Nano 释放后由任何一方重新申请
 ```
 
+回复必须同时看 `success` 与 `owner`：owner 0=无人持有、1=Nano、2=GUI。普通申请被占用时 `success=false`，原所有者保持；只有 action 1 明确接管才转移控制权。GUI 在设置页点击“释放控制权”会归还 Nano；Nano action 2 则释放到无人持有。
+
 Nano 的 ROS 电机发送仍由 `enable_motor_tx` 参数单独保护，默认关闭；只有在明确需要
 Nano ROS 控制时，才在启动配置中设置 `motor_tx:=true`。该参数不会给远程 GUI 下发权限。
 GUI 的串口控制权通过 9002 申请，9000 在握手期间校验本次会话令牌；握手头由 Nano
@@ -145,7 +147,7 @@ GUI 必须重新获取控制权才会继续发送；重连不恢复旧命令，�
 当前机器人采用[随 ROS 2 同启两条转发](08-lan-recovery.md#随-ros-2-启动两条转发)，
 不设置开机转发服务。以下只保留可选用户服务的历史操作；与 ROS 2 后台不可同时占用串口。
 
-[用户服务模板](../../deploy/underwater-tcp.service.example) 仅启动原始网关，默认只读，且关闭本地深度/电机写入。
+[用户服务模板](../../deploy/underwater-tcp.service.example) 仅启动原始网关，默认由 Nano 持有控制权且关闭 ROS 电机发送；GUI 初始只读，明确接管后可发送。深度命令另受控制权检查，不会自动校零。
 先结束手动网关，再安装并启动：
 
 ```bash
@@ -218,6 +220,8 @@ ctest --test-dir build/underwater_mcu_gateway --output-on-failure
 
 覆盖字节一致性、分片、只读拒绝、会话令牌、独占所有权、占用拒绝、明确接管、Nano/GUI
 释放、客户端断线和心跳超时。上位机测试覆盖控制界面、管理连接及原有协议解析。
+
+2026-10-10 已用真实机器人与 GUI 正式通信类验收：普通 GUI 申请被 Nano 拒绝；GUI 明确接管后发送原始 20 字节深度 GET_STATUS 并收到 MCU 匹配回复；GUI 释放成功；Nano 普通申请在 GUI 占用时被拒绝，明确接管成功并撤销 GUI 写权限；Nano 释放到 NONE 后重新申请回 NANO。测试未发送电机运行或校零命令，详见[实机验收](../experiments/2026-10-10-sensor-fix-control-acceptance.md)。
 上位机测试包括 TCP transport/service、原协议回归和连接栏交互。
 跨机器验证先使用 Nano 伪串口回环，再对实际 USB 网关做只读测试；均不需要真实传感器在线。
 测试中收到网关心跳只证明网关链路可用，不是电机动作或传感器有效测量证明。

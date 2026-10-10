@@ -10,12 +10,11 @@
 - 推进器布局自 2026-10-09 起采用实际 `ROV_Product_FV.SLDASM.urdf`，5～8 位于内侧。
   用户确认模型为北东地（+X 北、+Y 东、+Z 地），fan1..8 对应节点 1..8。
   正转速推力为 1 西南、2 西北、3 东南、4 东北、5/6 竖直向下、7/8 竖直向上；
-  `motor_direction=[1,-1,-1,1,1,1,-1,-1]`，详见 [动力分配配置](../deployment/thrust-allocation.md)。
+  `motor_direction=[1,-1,-1,1,1,1,-1,-1]`，详见 [动力分配配置](../architecture/deployment/thrust-allocation.md)。
 - 力矩基准为八台推进器安装点的算术平均中心：相对实际 URDF base_link 为
   `(-0.012873,0,-0.040532)` m，请求和分配状态使用 thruster_center。
 - 未确认：实际最大推力与 RPM 曲线、传感器安装外参、IMU 世界坐标约定、相机内外参。
-- 深度计此前实测状态 0x503：在线、RAW/PROM 有效，型号/压力/温度/水深尚未有效。
-  这是当时状态，不代表每次启动都如此；以实时 DepthState 为准。
+- 2026-10-10：MS5837-02BA 固定型号与空气参考 P0=100965 Pa；读启动时序修复烧录后真实采样约 25 Hz，压力/温度/水深/D1/D2 全有效、5838 个成功样本、设备错误 0。IMU 原始/姿态/气压也有效，WCH-Link 接在板上时需停止 IMU 验收，拔下后恢复。见[最终实机记录](../experiments/2026-10-10-sensor-fix-control-acceptance.md)。
 
 不要将示例设备坐标系名称当作已测量外参。ROS 简化 URDF 定义 base_link 和实际安装点推导的 thruster_center；
 分配几何取自用户提供的实际 CAD URDF，不能由此推定 IMU 外参或世界坐标转换已完成。
