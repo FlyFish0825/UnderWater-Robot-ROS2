@@ -2,7 +2,7 @@
 
 [项目 README](../../README.md) · [教程总目录](README.md) · [串口详细教程](06-nano-tcp.md) · [相机详细教程](07-stereo-camera.md)
 
-本手册用于现有机器人与 Windows 上位机的日常操作，工作空间为 `/home/lamost/UnderWater-Robot-ROS2`。命令对应当前 `codex/nano-tcp-stream` 分支；旧 `v1.0.0` 标签不包含当前相机转发、控制权及后续传感器修复。每次启动沿用设备配置，不自动校准深度或 IMU。
+本手册用于现有机器人与 Windows 上位机的日常操作，工作空间为 `/home/lamost/UnderWater-Robot-ROS2`。命令对应当前 `main` 主分支；旧 `v1.0.0` 标签不包含当前相机转发、控制权及后续传感器修复。每次启动沿用设备配置，不自动校准深度或 IMU。
 
 ## 目录
 
@@ -229,7 +229,7 @@ TCP 探测会短暂建立连接，`TcpTestSucceeded=True` 只证明端口可达�
 <a id="version"></a>
 ## 版本、同步与验证记录
 
-本机源码维护位置为 `G:/360MoveData/Users/Administered/Documents/ChatGPT/UnderWater-Robot-ROS2`，Nano 正式部署为 `/home/lamost/UnderWater-Robot-ROS2`。机器人现有目录为手工部署，未包含 `.git`，不要直接执行 `git pull`；维护时保留原源码、配置与记录备份，再按明确的提交同步，并检查对应文件 SHA-256。代码变化后在 Nano 编译，重新加载 `install/setup.bash`，在结束当前测试后再切换后台。仅文档变化无需重新编译或重启。
+本机源码维护位置为 `G:/360MoveData/Users/Administered/Documents/ChatGPT/UnderWater-Robot-ROS2`，Nano 正式部署为 `/home/lamost/UnderWater-Robot-ROS2`。2026-10-10 已为机器人现有目录建立 Git 管理，本地、GitHub 与 Nano 统一为 `main`，原开发分支已合入主分支。更新前检查 `git status -sb`、`git branch --show-current` 和 `git rev-parse HEAD`，保留原配置与记录备份；网络正常时使用 `git pull --ff-only origin main`。Nano 无法下载 GitHub 时，可从本地通过局域网传入已校验的 Git bundle 与对应文件，不强制覆盖现场修改。代码变化后在 Nano 编译，重新加载 `install/setup.bash`，在结束当前测试后再切换后台。仅文档变化无需重新编译或重启。
 
 - [传感器修复、GUI/Nano 控制权实机验收](../experiments/2026-10-10-sensor-fix-control-acceptance.md)
 - [固定地址、双路转发与帧率实测](../experiments/2026-10-09-tcp-repair.md)

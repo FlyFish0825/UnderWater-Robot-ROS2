@@ -2,7 +2,7 @@
 
 [返回项目 README](../../README.md) · [v1.0.0 发布说明](../../CHANGELOG.md)
 
-本教程面向当前 `codex/nano-tcp-stream` 开发分支与机器人部署，运行平台为 Jetson Orin NX、Ubuntu 22.04、ROS 2 Humble，业务实现为 C++17。
+本教程面向当前 `main` 主分支与机器人部署，运行平台为 Jetson Orin NX、Ubuntu 22.04、ROS 2 Humble，业务实现为 C++17。
 原 `v1.0.0` 是历史固定发布标签，不包含后续 IMU 基准姿态、相机转发、独占控制权及传感器修复。日常连接先看[串口与相机转发操作手册](09-forwarding-handbook.md)。
 命令默认在 Jetson 的 Bash 终端执行，示例部署位置为 `/home/lamost/UnderWater-Robot-ROS2`。
 其他用户或安装位置需要替换路径。Windows 侧用于源码维护，编译和设备运行在 Jetson 完成。

@@ -5,6 +5,25 @@ log/
 Recodes/
 /artifacts/
 
+# Local diagnostic scratch space and generated document output
+/tmp/
+/output/
+/gui.zip
+/Underwater-Robot-ROS2.zip
+
+# Deployment snapshots, recovery copies and validation evidence
+# Keep deploy/*.service.example tracked as source templates.
+/deploy/backup-*/
+/deploy/codex-*/
+/deploy/final-docs-*/
+/deploy/handbook-source-*/
+/deploy/*.tar
+/deploy/*.bundle
+/deploy/*.sha256
+/deploy/*.log
+/deploy/source-synced-*.txt
+/deploy/standard-backup-*.txt
+
 # Local editor, Python cache and credentials
 .vscode/
 .idea/

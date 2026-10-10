@@ -67,11 +67,11 @@ deploy/                       服务模板
 首次获取包含当前转发、控制权及传感器修复的源码（仅用于目标目录尚不存在时）：
 
 ```bash
-git clone --branch codex/nano-tcp-stream https://github.com/FlyFish0825/UnderWater-Robot-ROS2.git
+git clone --branch main https://github.com/FlyFish0825/UnderWater-Robot-ROS2.git
 cd UnderWater-Robot-ROS2
 ```
 
-`v1.0.0` 是历史固定发布标签，不包含后续相机转发与控制权功能。已有工作空间时进入原项目目录，按[维护教程](docs/usage/04-maintenance.md)检查 Git 或手工部署方式后再更新。以下命令以当前 Jetson 的部署路径为例：
+`main` 已包含相机转发、控制权和传感器修复，本地与 Nano 均统一使用这个主分支。`v1.0.0` 是历史固定发布标签，不包含上述后续功能。已有工作空间时进入原项目目录，按[维护教程](docs/usage/04-maintenance.md)核对版本和未提交内容后再更新。以下命令以当前 Jetson 的部署路径为例：
 
 ```bash
 cd /home/lamost/UnderWater-Robot-ROS2

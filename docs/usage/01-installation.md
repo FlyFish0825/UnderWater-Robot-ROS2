@@ -72,7 +72,7 @@ cmake --version
 
 ```bash
 cd ~
-git clone --branch codex/nano-tcp-stream \
+git clone --branch main \
   https://github.com/FlyFish0825/UnderWater-Robot-ROS2.git
 cd ~/UnderWater-Robot-ROS2
 ```

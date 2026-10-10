@@ -106,7 +106,7 @@ bash tools/validate.sh imu-calibration
 - GitHub 克隆目录有自己的 `.git`，可核对版本、分支和修改。
 - 手工部署的源码目录可能没有 `.git`，不能直接 `git pull`。
 
-2026-10-08 教程编写时，Jetson 的现有部署属于后者；以后按实际检查结果判断。
+2026-10-08 教程编写时，Jetson 的现有部署属于后者。2026-10-10 已在保留原源码、安装目录与运行后台的前提下建立 Git 管理，并与本地统一为 `main`；开发分支内容已完整合入，历史发布标签保留。其他部署以后按实际检查结果判断。
 Git 克隆工作空间可执行以下只读检查：
 
 ```bash
@@ -135,6 +135,24 @@ git tag --list
 
 然后选择实际存在的发布标签或开发分支，再编译和测试。不要使用 `reset --hard`、
 `clean -fd` 或覆盖复制来掩盖工作区差异；无 Git 的现有部署应先规划源码同步或独立克隆迁移。
+
+### 当前主分支同步与工作区整理
+
+本地与 Nano 都保留 `main`。正常网络下，先确认工作区干净再更新：
+
+```bash
+git status -sb
+git branch --show-current
+git fetch origin
+git merge --ff-only origin/main
+git rev-parse HEAD
+```
+
+双方最后一条命令的完整提交号应一致，`git status --porcelain` 应无输出。Nano 网络异常时，使用本地导出的 Git bundle 同步对象和分支引用，再校验对应源码文件；不要用强制重置掩盖修改。
+
+`build/`、`install/`、`log/`、`Recodes/`、`artifacts/`、`tmp/`、`output/` 和部署归档/日志属于本地生成或现场证据，按 `.gitignore` 保留，不作为源码提交。`deploy/*.service.example` 仍跟踪。旧诊断文件先归档、验证哈希再整理；不删除采集记录、恢复备份、第三方源码或当前后台使用的安装目录。
+
+2026-10-10 归档在 `artifacts/maintenance/20261010-workspace-cleanup/`：Windows 的 `local-tmp/` 保留 30 个原临时文件，Nano 的 `nano-tmp/` 保留 13 个原临时文件，Nano 原 `gui.zip` 也保留，均验证移动前后 SHA-256 相同。原部署恢复点继续保留在 `deploy/backup-*`，本地分支整理前的完整 Git bundle 在归档目录中。当前测试后台保持运行。
 
 <a id="troubleshooting"></a>
 ## 故障速查
