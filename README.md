@@ -26,6 +26,7 @@ ROS 2 Humble / Jetson Orin NX / C++17。业务入口采用 fc_sensors_ros2 的�
 | 键盘按键、档位与启停 | [键盘控制](#键盘控制)、[动力分配与手动转速控制](docs/deployment/thrust-allocation.md) |
 | 如何分析 CAN CSV 中的力与转速指令 | [抓包分析教程](docs/deployment/can-command-analysis.md) |
 | 111.csv、112.csv 的方向、时间线与曲线 | [2026-10-08 抓包实例记录](docs/experiments/2026-10-08-can-command-analysis.md) |
+| TCP 控制权、H750 固件烧录及 WCH-Link 拔下后的 IMU/深度实测 | [2026-10-10 控制权与传感器实测记录](docs/experiments/2026-10-10-control-ownership.md) |
 | ROS 话题与串口协议 | [话题接口](docs/interfaces/topics.md)、[MCU 线协议](docs/protocols/mcu-wire.md) |
 | 深度归零与硬件范围 | [深度归零](docs/deployment/depth-zero.md)、[当前硬件](docs/hardware/current-hardware.md) |
 | 验证方法与兼容入口 | [验证说明](docs/deployment/validation.md)、[兼容入口验证](docs/deployment/entry-compatibility.md) |
