@@ -149,7 +149,7 @@ ros2 topic echo /underwater_robot/sensors/depth/state \
 
 重点查看 `fresh`、`pressure_valid`、`temperature_valid`、`depth_valid`、`zero_valid`、
 `filtered_depth_m` 和 `surface_pressure_pa`。压力和深度按设备上报有效位判断，不要求型号确认状态位。
-若深度设备没有样本，烧录支持诊断扩展的固件后，可检查同一状态字的高位：`device_status[31:24]` 是固件最近错误码，`device_status[23:16]` 是总线相关错误的 I²C 命令上下文。上位机传感器面板会把两项解读成文字；错误码为 4 表示 I²C 超时、5 表示 I²C/设备未应答、6 表示 PROM CRC 失败。错误码是粘滞的最近错误，需同时看 `online`、`sample_age_ms` 和 `good_frames` 判断当前是否已恢复。字段定义见 [MCU 线协议](../protocols/mcu-wire.md)。截至 2026-10-10，这个诊断扩展已构建但尚未烧入现场固件。
+若深度设备没有样本，烧录支持诊断扩展的固件后，可检查同一状态字的高位：bit13 表示阶段字段有效，`device_status[12:10]` 是驱动阶段，`[15:14]` 是 I²C 阶段，`[23:16]` 是总线相关命令上下文，`[31:24]` 是最近错误码。上位机传感器面板会显示阶段和错误文本；错误码 4 表示 I²C 超时、5 表示 I²C/设备未应答、6 表示 PROM CRC 失败。错误码是粘滞的最近错误，需同时看 `online`、`sample_age_ms` 和 `good_frames` 判断当前是否已恢复。字段定义见 [MCU 线协议](../protocols/mcu-wire.md)。截至 2026-10-10，这个诊断扩展已构建但尚未烧入现场固件。
 
 网关状态：
 
