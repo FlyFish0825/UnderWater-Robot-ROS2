@@ -34,6 +34,8 @@ ls -l /dev/serial/by-id/
 fuser -v /dev/ttyACM0
 ```
 
+如果设备路径存在但网关仍显示 `connected: false`，查看 `/underwater_robot/gateway/status` 的 `detail` 和启动终端日志。`open/configure` 表示打开或配置串口失败；`startup stop TX` 表示串口已打开，但启动停止帧发送失败。修复后的网关退出时保留 raw/no-echo，并清除软件流控，避免持续上报的数据被终端自动回写。不要同时启动第二个后台来重试；先正常关闭旧后台，再启动一次。实机检查与修复记录见[串口启动修复验证](../experiments/2026-10-10-serial-startup-repair.md)。
+
 如果 `/dev/serial/by-id/` 没有 STM32 CDC 设备，先检查 USB 线和板卡是否上电，再查看 `lsusb` 与 `ls -l /dev/ttyACM*`；此时不要重复启动网关，也不要把 TCP 拒绝或无心跳误判成传感器解析问题。WCH-Link 接在控制板上时会占用 IMU 的 PA9/PA10，做 IMU 实机验收前必须拔掉下载器。
 
 ## 2. 只查看 IMU 和深度计

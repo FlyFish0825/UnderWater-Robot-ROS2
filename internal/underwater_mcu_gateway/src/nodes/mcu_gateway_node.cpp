@@ -1,7 +1,3 @@
-// 网关主节点：把 MCU 串口桥接为 ROS 2 话题/服务，并集中执行安全把关。
-// 数据流：SerialIo → Parser → gateway/frames；TCP 透传由 TcpSerialBridge 负责，两者共用同一条串口。
-// 安全约定：默认只收不发；电机 TX 需 enable_motor_tx、控制权属于 Nano、指令带显式 session/sequence；
-// 深度标定需 enable_depth_commands 且控制权属于 Nano；所有权变更、串口故障或指令超时都会补发停止帧。
 #include "underwater_mcu_gateway/protocol.hpp"
 #include "underwater_mcu_gateway/serial_io.hpp"
 #include "underwater_mcu_gateway/tcp_serial_bridge.hpp"
@@ -29,12 +25,11 @@ namespace srv=underwater_interfaces::srv;
 class GatewayNode final : public rclcpp::Node {
 public:
   GatewayNode(): Node("mcu_gateway") {
-    // 所有参数都声明为只读，运行期不可动态修改。
     rcl_interfaces::msg::ParameterDescriptor d; d.read_only=true;
     port_=declare_parameter<std::string>("port",
       "/dev/serial/by-id/usb-STMicroelectronics_Lamost_UnderWater_Robot_ComPort_3588346E3134-if00",d);
     settle_ms_=declare_parameter<int>("settle_ms",1000,d);
-    max_lag_us_=declare_parameter<int>("max_device_lag_ms",500,d)*1000LL; // 设备时间戳允许的最大滞后
+    max_lag_us_=declare_parameter<int>("max_device_lag_ms",500,d)*1000LL;
     raw_enabled_=declare_parameter<bool>("publish_raw",false,d);
     motor_tx_=declare_parameter<bool>("enable_motor_tx",false,d);
     depth_commands_=declare_parameter<bool>("enable_depth_commands",true,d);
@@ -42,7 +37,6 @@ public:
     tcp_control_port_=declare_parameter<int>("tcp_control_port",9002,d);
     const auto tcp_bind=declare_parameter<std::string>("tcp_bind_address","0.0.0.0",d);
     tcp_allow_tx_=declare_parameter<bool>("tcp_allow_tx",false,d);
-    // 端口 0 表示禁用对应服务；数据端口与控制端口必须不同。
     if(tcp_port_<0 || tcp_port_>65535 || tcp_control_port_<0 || tcp_control_port_>65535
        || (tcp_port_ && tcp_control_port_ && tcp_port_==tcp_control_port_))
       throw std::invalid_argument("TCP data/control ports must be distinct values in 0..65535");
@@ -57,19 +51,16 @@ public:
       RCLCPP_INFO(get_logger(),"Raw serial TCP server %s:%d (Nano initially owns; GUI writes require an explicit takeover and session token)",tcp_bind.c_str(),tcp_port_);
     }
     command_timeout_ms_=declare_parameter<int>("motor_command_timeout_ms",500,d);
-    // 电机指令超时太短会误停、太长会失去保护，限定 100..1000 ms。
     if(command_timeout_ms_<100 || command_timeout_ms_>1000)
       throw std::invalid_argument("motor command timeout must be 100..1000 ms");
     if(settle_ms_<0 || settle_ms_>10000 || max_lag_us_<=0 || max_lag_us_>10000000)
       throw std::invalid_argument("Invalid settling or freshness parameter");
-    auto q=rclcpp::SensorDataQoS().keep_last(100); // best-effort + 保留 100 帧
+    auto q=rclcpp::SensorDataQoS().keep_last(100);
     frames_=create_publisher<ui::GatewayFrame>("gateway/frames",q);
     raw_=create_publisher<ui::RawSerial>("gateway/raw_rx",rclcpp::SensorDataQoS().keep_last(10));
     status_=create_publisher<ui::GatewayStatus>("gateway/status",10);
-    // 电机设点：QoS 1（可靠、深度 1），回调内做全部安全校验。
     commands_=create_subscription<ui::MotorSetpoint>("actuators/thrusters/setpoint",rclcpp::QoS(1),
       [this](ui::MotorSetpoint::ConstSharedPtr m){ command(*m); });
-    // Nano 侧的控制权服务；GUI 侧走 TCP 控制端口（TcpControlServer）。
     ownership_service_=create_service<srv::ControlOwnership>("gateway/control",
       [this](const std::shared_ptr<srv::ControlOwnership::Request> request,
              std::shared_ptr<srv::ControlOwnership::Response> response){
@@ -82,7 +73,6 @@ public:
         response->owner=static_cast<std::uint8_t>(result.owner);
         response->message=result.message;
       });
-    // 深度零点标定：仅在 Nano 持有控制权、功能启用且串口完成 settling 后受理。
     zero_service_=create_service<std_srvs::srv::Trigger>("sensors/depth/zero",
       [this](std::shared_ptr<rmw_request_id_t> header,std_srvs::srv::Trigger::Request::SharedPtr){
         if(ownership_.owner()!=ControllerOwner::Nano || !depth_commands_ || !serial_.connected() ||
@@ -95,24 +85,22 @@ public:
         zero_request_=header; depth_zero_.start(monotonic_ms());
         try { process_depth_zero(); } catch(const std::exception & e) { serial_failure(e.what()); }
       });
-    tick_=create_wall_timer(10ms,[this]{ poll(); }); // 主轮询周期
-    report_=create_wall_timer(1s,[this]{ publish_status(); }); // 状态上报周期
+    tick_=create_wall_timer(10ms,[this]{ poll(); });
+    report_=create_wall_timer(1s,[this]{ publish_status(); });
   }
   ~GatewayNode() override {
-    try { if(serial_.connected()) send_motor({},0); } catch(...) {} // 退出前尽力补发停止帧
+    try { if(serial_.connected()) send_motor({},0); } catch(...) {}
   }
 private:
-  // 安全应答深度标定服务：即使客户端中途断开也不抛异常。
   void zero_reply(const std::shared_ptr<rmw_request_id_t> & header,bool success,const std::string & message) {
     std_srvs::srv::Trigger::Response response; response.success=success; response.message=message;
     try { zero_service_->send_response(*header,response); }
     catch(const std::exception & e) { RCLCPP_WARN(get_logger(),"Depth zero response: %s",e.what()); }
   }
-  // 发送深度状态机的待发请求并回收结果；每个轮询周期都会被调用。
   void process_depth_zero() {
     depth_zero_.tick(monotonic_ms());
     if(auto bytes=depth_zero_.take_request()) {
-      if(ownership_.owner()!=ControllerOwner::Nano) { // 发送前再次确认控制权仍在 Nano
+      if(ownership_.owner()!=ControllerOwner::Nano) {
         depth_zero_.cancel("Control ownership changed before the depth request was sent");
       } else {
         serial_.write_all(*bytes); tx_bytes_+=bytes->size(); ++tx_frames_;
@@ -123,24 +111,20 @@ private:
       RCLCPP_INFO(get_logger(),"Depth reference: %s",result->message.c_str());
     }
   }
-  // 所有超时判断都基于单调时钟，不受系统时间调整影响。
   static std::uint64_t monotonic_ms() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count();
   }
-  // 顺序写出成对的电机帧（先速度后运行掩码）并累计发送统计。
   void send_motor(const underwater::wire::MotorRpm & rpm,std::uint8_t run) {
     for(const auto & bytes:underwater::wire::motor_transaction(rpm,run,tx_sequence_)) {
       serial_.write_all(bytes); tx_bytes_+=bytes.size(); ++tx_frames_;
     }
   }
-  // 电机设点回调：控制权/使能/连接世代/settling/时间戳/MotorGate 逐层校验后下发。
   void command(const ui::MotorSetpoint & m) {
-    // 只接受当前连接、且串口已过 settling 的指令。
     if(ownership_.owner()!=ControllerOwner::Nano || !motor_tx_ || !serial_.connected() || m.connection_id!=connection_ ||
        Clock::now()-opened_<std::chrono::milliseconds(settle_ms_)) return;
     const auto age=(this->now()-rclcpp::Time(m.header.stamp)).nanoseconds();
-    if(age< -100000000LL || age>250000000LL) return; // 允许 -100ms..+250ms 的时间戳偏差
-    const auto previous_session=gate_.session(); // 用于判断是否需要上报会话变化
+    if(age< -100000000LL || age>250000000LL) return;
+    const auto previous_session=gate_.session();
     if(!gate_.accept(m.session_id,m.sequence,m.armed,m.node_mask,m.run_mask,m.rpm,monotonic_ms())) return;
     try {
       send_motor(m.rpm,m.run_mask);
@@ -148,27 +132,25 @@ private:
       if(previous_session!=gate_.session()) publish_status();
     } catch(const std::exception & e) { serial_failure(e.what()); }
   }
-  // 控制权/token 变化时的统一处理：补发停止帧、取消深度事务、复位闸门并同步给 TCP 层。
   void synchronize_owner() {
     const auto owner=ownership_.owner();
     const auto token=ownership_.gui_token();
     if(owner==synced_owner_ && token==synced_token_) return;
     if(serial_.connected()) {
-      try { send_motor({},0); command_detail_="control owner changed: stop transaction written"; } // 先停再交权
+      try { send_motor({},0); command_detail_="control owner changed: stop transaction written"; }
       catch(const std::exception & e) { detail_=e.what(); }
     }
-    if(owner!=ControllerOwner::Nano && depth_zero_.busy()) { // 控制权离开 Nano 则立即中止标定事务
+    if(owner!=ControllerOwner::Nano && depth_zero_.busy()) {
       depth_zero_.cancel("Control ownership changed; Nano will not continue the transaction");
       process_depth_zero();
     }
-    gate_.reset(); // 任何控制权变化都要求新的电机使能会话
+    gate_.reset();
     tcp_.set_controller(owner,token);
     synced_owner_=owner;
     synced_token_=token;
     publish_status();
     RCLCPP_INFO(get_logger(),"Robot control owner is now %s",controller_name(owner));
   }
-  // 串口异常的统一收尾：断开 TCP、复位解析器/心跳/闸门，并要求显式重新使能。
   void serial_failure(const std::string & reason) {
     detail_=reason; RCLCPP_WARN(get_logger(),"%s",detail_.c_str());
     tcp_.set_serial_ready(false);tcp_.take_disconnect();
@@ -177,26 +159,29 @@ private:
     process_depth_zero();
     gate_.reset(); command_detail_="disconnected; explicit rearm required"; publish_status();
   }
-  // 主轮询：先处理 TCP 控制面与所有权，再收发串口并解析。
   void poll() {
     const auto now=Clock::now();
     control_server_.poll();
     synchronize_owner();
-    if(!serial_.connected()) { // 未连接：按 1s 间隔节流重连
+    if(!serial_.connected()) {
       tcp_.set_serial_ready(false);tcp_.poll();tcp_.take_disconnect();
       if(now<next_open_) return;
       next_open_=now+1s;
+      const char * stage="open/configure";
       try {
-        // 只要可能写串口就以可写方式打开；重连后必须复位解析器与新鲜度状态。
         serial_.open(port_,motor_tx_ || depth_commands_ || tcp_port_>0); parser_.reset(); high_water_.reset(); heartbeat_.reset();
         gate_.reset();
-        opened_=now; ++connection_; detail_="connected, settling"; // connection_ 为连接世代号
-        if(motor_tx_ || tcp_port_>0) { send_motor({},0); command_detail_="startup stop written; awaiting explicit commands"; } // 开机先发全零停止
+        opened_=now; ++connection_; detail_="connected, settling";
+        if(motor_tx_ || tcp_port_>0) { stage="startup stop TX"; send_motor({},0); command_detail_="startup stop written; awaiting explicit commands"; }
         RCLCPP_INFO(get_logger(),"Serial opened: %s; motor TX=%s",port_.c_str(),motor_tx_?"enabled":"disabled");
-      } catch(const std::exception & e) { detail_=e.what(); serial_.close(); gate_.reset(); return; }
+      } catch(const std::exception & e) {
+        detail_=std::string(stage)+": "+e.what();
+        RCLCPP_WARN_THROTTLE(get_logger(),*get_clock(),5000,"Serial %s failed on %s: %s",stage,port_.c_str(),e.what());
+        serial_.close(); gate_.reset(); return;
+      }
     }
     try {
-      tcp_.set_serial_ready(now-opened_>=std::chrono::milliseconds(settle_ms_)); // settling 结束才允许 TCP 写入
+      tcp_.set_serial_ready(now-opened_>=std::chrono::milliseconds(settle_ms_));
       const auto remote=tcp_.poll();
       tcp_.take_disconnect();
       if(tcp_.take_write_disconnect() && ownership_.owner()==ControllerOwner::Gui) {
@@ -204,7 +189,7 @@ private:
         command_detail_="GUI serial session disconnected: control returned to Nano and stop sent";
       }
       if(!remote.empty()) {
-        if(tcp_.write_authorized() && ownership_.owner()==ControllerOwner::Gui) { // 双重校验：token 已认证且控制权仍在 GUI
+        if(tcp_.write_authorized() && ownership_.owner()==ControllerOwner::Gui) {
           serial_.write_all(remote);tx_bytes_+=remote.size();
         } else RCLCPP_ERROR_THROTTLE(get_logger(),*get_clock(),2000,"TCP write rejected; robot control is owned by %s. Use the explicit TAKEOVER action.",controller_name(ownership_.owner()));
       }
@@ -216,20 +201,20 @@ private:
         command_detail_="GUI serial backpressure/disconnect: control returned to Nano and stop sent";
       }
       auto stamp=this->now();
-      if(raw_enabled_ && !bytes.empty()) { // publish_raw 打开时原样发布原始字节（调试用）
+      if(raw_enabled_ && !bytes.empty()) {
         ui::RawSerial raw; raw.header.stamp=stamp; raw.connection_id=connection_;
         raw.data=bytes; raw_->publish(raw);
       }
       const auto ms=std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
       for(auto & f:parser_.feed(bytes,ms)) {
         // Discard startup backlog before anchoring the device clock.
-        if(now-opened_<std::chrono::milliseconds(settle_ms_)) { ++stale_; high_water_.reset(); continue; } // settling 期间的帧一律丢弃
+        if(now-opened_<std::chrono::milliseconds(settle_ms_)) { ++stale_; high_water_.reset(); continue; }
         bool stale=false;
         if(f.timestamp_valid) {
           if(!high_water_) high_water_=f.timestamp_us;
-          else { // 32 位回绕比较：判断新时间戳是前进、无法判定还是明显滞后
+          else {
             const auto delta=std::uint32_t(f.timestamp_us-*high_water_);
-            if(delta==0x80000000u) stale=true; // 正好差半个周期，无法判定方向
+            if(delta==0x80000000u) stale=true;
             else if(delta<0x80000000u) *high_water_=f.timestamp_us;
             else stale=(std::uint32_t(*high_water_-f.timestamp_us)>max_lag_us_);
           }
@@ -237,20 +222,20 @@ private:
         if(stale) {
           ++stale_; continue;
         }
-        depth_zero_.observe(f,ms); // 先给状态机消化，再转发给 ROS
+        depth_zero_.observe(f,ms);
         ui::GatewayFrame m;
         m.header.stamp=stamp; m.header.frame_id="mcu_gateway"; m.connection_id=connection_;
         m.family=f.family; m.command=f.command; m.flags=f.flags; m.target=f.target;
         m.sequence=f.sequence; m.can_id=f.can_id; m.device_timestamp_valid=f.timestamp_valid;
         m.device_timestamp_us=f.timestamp_us; m.payload=std::move(f.payload);
         frames_->publish(m);
-        if(m.family==0x58) { // 心跳/缓冲状态帧：载荷必须 5 字节才有效
+        if(m.family==0x58) {
           heartbeat_=now; buffers_valid_=m.payload.size()==5;
           if(buffers_valid_) std::copy(m.payload.begin(),m.payload.end(),buffers_.begin());
         }
       }
       process_depth_zero();
-      if(motor_tx_ && gate_.expired(monotonic_ms(),command_timeout_ms_)) { // 超时自动停止并要求新会话
+      if(motor_tx_ && gate_.expired(monotonic_ms(),command_timeout_ms_)) {
         send_motor({},0); command_detail_="command timeout: stopped; new enable session required";
         publish_status();
       }
@@ -259,7 +244,6 @@ private:
       serial_failure(e.what());
     }
   }
-  // 汇总串口、解析统计、电机闸门与所有权信息发布 gateway/status。
   void publish_status() {
     ui::GatewayStatus s; s.header.stamp=now(); s.port=port_; s.connected=serial_.connected();
     s.settling=s.connected && Clock::now()-opened_<std::chrono::milliseconds(settle_ms_);
@@ -272,7 +256,7 @@ private:
     const auto & c=parser_.counters(); s.valid_frames=c.valid; s.crc_errors=c.crc_errors;
     s.shape_errors=c.shape_errors; s.discarded_bytes=c.discarded;
     s.heartbeat_age_ms=heartbeat_?std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now()-*heartbeat_).count():-1;
-    s.buffer_status_valid=buffers_valid_ && s.heartbeat_age_ms>=0 && s.heartbeat_age_ms<2500; // 心跳超 2.5s 视为缓冲数据失效
+    s.buffer_status_valid=buffers_valid_ && s.heartbeat_age_ms>=0 && s.heartbeat_age_ms<2500;
     s.buffers_percent=buffers_; s.detail=detail_; status_->publish(s);
   }
   underwater::SerialIo serial_;
@@ -289,7 +273,6 @@ private:
   bool raw_enabled_=false,buffers_valid_=false;
   bool motor_tx_=false;
   bool depth_commands_=true;
-  // 深度事务序号以构造时刻的微秒数起算，避免与上次运行的序号重号。
   underwater::wire::DepthZero depth_zero_{static_cast<std::uint32_t>(
     std::chrono::duration_cast<std::chrono::microseconds>(Clock::now().time_since_epoch()).count())};
   std::shared_ptr<rmw_request_id_t> zero_request_;
@@ -301,7 +284,7 @@ private:
   underwater::wire::MotorGate gate_;
   underwater::ControllerOwner synced_owner_=underwater::ControllerOwner::Nano;
   std::string synced_token_;
-  std::uint64_t connection_=std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count(),rx_=0,stale_=0; // connection_ 为连接世代号，用于过滤跨连接的指令
+  std::uint64_t connection_=std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count(),rx_=0,stale_=0;
   std::array<std::uint8_t,5> buffers_{};
   std::optional<std::uint32_t> high_water_;
   std::optional<Clock::time_point> heartbeat_;
@@ -313,7 +296,6 @@ private:
   rclcpp::Service<srv::ControlOwnership>::SharedPtr ownership_service_;
   rclcpp::TimerBase::SharedPtr tick_,report_;
 };
-// 标准 ROS 2 入口：初始化、自旋，异常时记录日志并以非 0 退出。
 int main(int argc,char ** argv) {
   rclcpp::init(argc,argv);
   try { rclcpp::spin(std::make_shared<GatewayNode>()); }

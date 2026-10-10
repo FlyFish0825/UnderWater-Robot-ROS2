@@ -1,6 +1,3 @@
-// 串口底层实现（termios）：打开、配置、关闭与限时读写。
-// 打开失败的清理与 termios 恢复都在这里完成，调用方只需处理异常。
-// 读端不阻塞（poll 超时为 0），写端按 timeout_ms 限时并支持部分写重试。
 #include "underwater_mcu_gateway/serial_io.hpp"
 #include <cerrno>
 #include <chrono>
@@ -13,27 +10,25 @@
 namespace underwater {
 void SerialIo::open(const std::string & path, bool allow_write) {
   close();
-  // 非阻塞 + 非控制终端 + close-on-exec；默认只读，避免误向 MCU 发数据。
   fd_=::open(path.c_str(),(allow_write?O_RDWR:O_RDONLY)|O_NOCTTY|O_NONBLOCK|O_CLOEXEC);
   if(fd_<0) throw std::runtime_error(std::strerror(errno));
   writable_=allow_write;
-  if(tcgetattr(fd_,&saved_)!=0) { close(); throw std::runtime_error("tcgetattr failed"); }
-  saved_valid_=true;
-  if(ioctl(fd_,TIOCEXCL)!=0) { close(); throw std::runtime_error("exclusive serial open failed"); } // 独占打开，拒绝其他进程同时读写
-  auto cfg=saved_; // 以打开前的配置为基础，只改必要项
-  cfmakeraw(&cfg); cfsetispeed(&cfg,B115200); cfsetospeed(&cfg,B115200); // raw 模式 + 115200 波特率
+  termios cfg{};
+  if(tcgetattr(fd_,&cfg)!=0) { close(); throw std::runtime_error("tcgetattr failed"); }
+  if(ioctl(fd_,TIOCEXCL)!=0) { close(); throw std::runtime_error("exclusive serial open failed"); }
+  cfmakeraw(&cfg); cfsetispeed(&cfg,B115200); cfsetospeed(&cfg,B115200);
+  cfg.c_iflag&=~(IXOFF|IXANY);
   cfg.c_cflag=(cfg.c_cflag & ~(CSIZE|PARENB|CSTOPB|CRTSCTS|HUPCL))|CS8|CREAD|CLOCAL;
-  cfg.c_cc[VMIN]=0; cfg.c_cc[VTIME]=0; // 完全非阻塞：无数据时 read 立即返回
+  cfg.c_cc[VMIN]=0; cfg.c_cc[VTIME]=0;
   if(tcsetattr(fd_,TCSANOW,&cfg)!=0) { close(); throw std::runtime_error("tcsetattr failed"); }
 }
 void SerialIo::close() noexcept {
   if(fd_>=0) {
-    if(saved_valid_) tcsetattr(fd_,TCSANOW,&saved_);
+    // MCU 持续上报二进制数据，关闭后保留 raw/no-echo，避免自动回写。
     ioctl(fd_,TIOCNXCL); ::close(fd_);
   }
-  fd_=-1; saved_valid_=false; writable_=false;
+  fd_=-1; writable_=false;
 }
-// 最多一次读 64KiB，避免单轮轮询长时间占用线程。
 wire::Bytes SerialIo::read_available() {
   wire::Bytes bytes;
   if(fd_<0) return bytes;
@@ -53,7 +48,7 @@ wire::Bytes SerialIo::read_available() {
   return bytes;
 }
 void SerialIo::write_all(const wire::Bytes & bytes,int timeout_ms) {
-  if(fd_<0 || !writable_) throw std::runtime_error("serial TX is disabled"); // 未授权写则立即失败
+  if(fd_<0 || !writable_) throw std::runtime_error("serial TX is disabled");
   const auto deadline=std::chrono::steady_clock::now()+std::chrono::milliseconds(timeout_ms);
   std::size_t offset=0;
   while(offset<bytes.size()) {
@@ -61,7 +56,6 @@ void SerialIo::write_all(const wire::Bytes & bytes,int timeout_ms) {
     if(n>0) { offset+=n; continue; }
     if(n<0 && errno!=EAGAIN && errno!=EWOULDBLOCK && errno!=EINTR)
       throw std::runtime_error(std::strerror(errno));
-    // 部分写/EAGAIN：等到 POLLOUT 再续写，超时即抛错（调用方按串口故障处理）。
     auto left=std::chrono::duration_cast<std::chrono::milliseconds>(deadline-std::chrono::steady_clock::now()).count();
     if(left<=0) throw std::runtime_error("serial TX deadline exceeded");
     pollfd p{fd_,POLLOUT,0};
