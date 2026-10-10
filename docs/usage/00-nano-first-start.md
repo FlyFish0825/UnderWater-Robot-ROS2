@@ -68,13 +68,13 @@ ros2 topic echo /underwater_robot/sensors/imu/state --qos-reliability best_effor
 ros2 topic echo /underwater_robot/sensors/depth/state --qos-reliability best_effort
 ```
 
-深度状态应关注 `pressure_valid`、`temperature_valid`、`depth_valid`、`zero_valid` 和 `filtered_depth_m`。`d1`、`d2` 是传感器原始 ADC 读数，不是深度值。系统使用固定的 MS5837-02BA，不需要型号确认；只按设备有效位读取压力和水深。只有在空气/水面参考确实需要重设时，才显式调用：
+深度状态应关注 `pressure_valid`、`temperature_valid`、`depth_valid`、`zero_valid` 和 `filtered_depth_m`。`d1`、`d2` 是传感器原始 ADC 读数，不是深度值。系统使用固定的 MS5837-02BA，不需要型号确认；固件上电采用固定空气参考 `P0=100965 Pa`，只按设备有效位读取压力和水深。只有现场确需修正时，才在空气/水面显式调用：
 
 ```bash
 ros2 service call /underwater_robot/sensors/depth/zero std_srvs/srv/Trigger "{}"
 ```
 
-等待服务返回 `success: true`，再查看深度状态。MCU 掉电后参考值保存在 RAM 中，需要重新归零；机器人启动或重连不会自动归零。
+等待服务返回 `success: true`，再查看深度状态。现场修正保存在 MCU RAM，MCU 复位后恢复固定空气参考；机器人启动或重连不会自动采集压力。
 
 ## 3. 手动控制推进器
 

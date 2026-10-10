@@ -43,4 +43,4 @@ Release产物：
 - BIN SHA-256：7daa70dda8149256d2ea3adffe845ba6ee5e7998010ee13ebd0fac6662a97ef1
 
 产物位于 F:/file/BaiduSyncdisk/Project/CAN_To_Uart/CAN_To_Uart/build/Release/。
-烧录后需重新验证气压组，并在空气/水面调用深度计zero服务恢复掉电丢失的RAM参考。
+烧录后需重新验证 IMU 气压组和深度数据。深度计上电默认使用固定空气参考 P0=100965 Pa；只有实测显示有偏差时才在空气/水面调用 zero 服务修正当前运行基准。
