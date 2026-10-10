@@ -54,7 +54,8 @@ BackendLease::BackendLease(const std::shared_ptr<rclcpp::Node> &node) {
   auto status=node->create_subscription<underwater_interfaces::msg::GatewayStatus>(ns+"/gateway/status",10,
     [&](underwater_interfaces::msg::GatewayStatus::ConstSharedPtr m){tx_ready=m->tx_enabled;});
   const auto ready=[&]{return node->count_publishers(ns+"/gateway/status")>0;};
-  for(int i=0;i<15&&running()&&!ready();++i) {rclcpp::spin_some(node); std::this_thread::sleep_for(100ms);}
+  // Nano 上新进程的 DDS 发现可能超过 1.5 秒；先给已有 launch 足够的发现时间。
+  for(int i=0;i<50&&running()&&!ready();++i) {rclcpp::spin_some(node); std::this_thread::sleep_for(100ms);}
   if(ready()) {
     Fd owner(open_private(dir+"/owner.lock"));
     const bool owned=flock(owner.value,LOCK_EX|LOCK_NB)!=0;
