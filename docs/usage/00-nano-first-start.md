@@ -34,6 +34,8 @@ ls -l /dev/serial/by-id/
 fuser -v /dev/ttyACM0
 ```
 
+如果 `/dev/serial/by-id/` 没有 STM32 CDC 设备，先检查 USB 线和板卡是否上电，再查看 `lsusb` 与 `ls -l /dev/ttyACM*`；此时不要重复启动网关，也不要把 TCP 拒绝或无心跳误判成传感器解析问题。WCH-Link 接在控制板上时会占用 IMU 的 PA9/PA10，做 IMU 实机验收前必须拔掉下载器。
+
 ## 2. 只查看 IMU 和深度计
 
 在终端 A 启动传感器后台，并保持终端运行：

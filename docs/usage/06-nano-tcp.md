@@ -187,7 +187,8 @@ systemctl --user enable underwater-tcp.service
 
 | 现象 | 检查 |
 |---|---|
-| 连接被拒绝 | Nano 服务是否启动、地址和端口是否正确 |
+| SSH 22 能连，但 TCP 9000/9002 被拒绝 | SSH 只证明网络地址可达；检查 ROS 后台是否运行、网关是否成功启动并监听 9000/9002，见[分层诊断](08-lan-recovery.md#ssh-可达但-tcp-端口拒绝) |
+| TCP 9001 被拒绝 | 检查机器人后台是否启动相机节点；9001 与串口网关独立 |
 | 连上立即断开 | 串口是否可用/稳定，是否已有另一客户端 |
 | 心跳正常但没有传感器/电机数据 | 现场设备是否实际连接并上报；转发不能生成缺失测量 |
 | 能接收但不能发送 | 检查 `ros2 topic echo /underwater_robot/gateway/status --once` 的 `control_owner`；GUI 使用“接管控制权”，Nano 使用服务 action 1 |
@@ -195,11 +196,13 @@ systemctl --user enable underwater-tcp.service
 | ROS 控制启用失败 | 当前是否为远端独占模式；不要同时控制 |
 | GUI 提示缺 Qt5Network.dll | 运行上位机的 `tools/deploy-tcp-runtime.ps1` |
 
-Nano 检查监听、占用和数据状态：
+Nano 检查监听、进程、串口和数据状态：
 
 ```bash
 ss -lntp | grep ':9000'
 ss -lntp | grep ':9002'
+pgrep -af 'mcu_gateway_node|global_cam_pub'
+ls -l /dev/serial/by-id/ /dev/ttyACM* 2>/dev/null
 fuser -v /dev/ttyACM0
 ros2 topic echo /underwater_robot/gateway/status --once
 ```

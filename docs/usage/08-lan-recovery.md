@@ -50,6 +50,25 @@ fuser -v /dev/ttyACM0 /dev/video0
 端口监听只证明进程已启动，仍需下面的数据验收。
 只读原始串口目前只允许一个客户端，验收前应断开已有 GUI 的串口连接。
 
+<a id="ssh-可达但-tcp-端口拒绝"></a>
+## SSH 可达，但 TCP 端口拒绝
+
+SSH 的 22 端口可连接，只证明 Nano 的网络地址可达；它不表示 ROS 串口网关或相机转发已经启动。
+机器人后台未运行时，9000、9001、9002 都不会监听。通过 SSH 在 Nano 检查：
+
+```bash
+systemctl --user is-active underwater-robot-session
+ss -lntp | grep -E ':(9000|9001|9002)( |$)' || true
+pgrep -af 'mcu_gateway_node|global_cam_pub'
+ls -l /dev/serial/by-id/ /dev/ttyACM* 2>/dev/null
+fuser -v /dev/ttyACM0
+```
+
+若后台未运行，确认没有另一个终端或兼容入口已经持有串口后，再按上面的推荐命令启动一次 `robot.launch.xml`。
+如果 `/dev/serial/by-id/` 中没有 STM32 CDC 设备，先恢复控制板 USB 连接和上电状态；不要靠重复启动 ROS 网关来修复缺失的串口设备。
+9000/9002 已监听但客户端仍失败时，再核对监听地址是否为 `0.0.0.0`、Nano 实际地址和 Windows 防火墙规则。
+9000 可连接却无心跳时，检查串口设备与 `GatewayStatus`；9001 单独失败则检查相机节点与 `/dev/video0`。
+
 ## 固定 IPv4，并保留远程回退
 
 先检查机器人的实际以太网接口、当前连接配置、网关和 DNS：
