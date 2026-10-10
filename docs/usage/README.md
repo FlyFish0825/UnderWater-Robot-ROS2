@@ -137,5 +137,6 @@ ros2 run sensors_cpp sensors_sub_jilushuju
 - [兼容入口验证](../architecture/deployment/entry-compatibility.md)
 - [当前硬件](../hardware/current-hardware.md)
 - [软件架构](../architecture/architecture.md)
+- [2026-10-10 串口启动修复验证](../experiments/2026-10-10-serial-startup-repair.md)
 
 下一篇：[01 安装与编译](01-installation.md)

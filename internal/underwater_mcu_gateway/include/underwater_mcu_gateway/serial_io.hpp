@@ -16,8 +16,6 @@ public:
   void write_all(const wire::Bytes &, int timeout_ms=20);
 private:
   int fd_=-1;
-  termios saved_{};
-  bool saved_valid_=false;
   bool writable_=false;
 };
 }

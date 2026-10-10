@@ -167,13 +167,18 @@ private:
       tcp_.set_serial_ready(false);tcp_.poll();tcp_.take_disconnect();
       if(now<next_open_) return;
       next_open_=now+1s;
+      const char * stage="open/configure";
       try {
         serial_.open(port_,motor_tx_ || depth_commands_ || tcp_port_>0); parser_.reset(); high_water_.reset(); heartbeat_.reset();
         gate_.reset();
         opened_=now; ++connection_; detail_="connected, settling";
-        if(motor_tx_ || tcp_port_>0) { send_motor({},0); command_detail_="startup stop written; awaiting explicit commands"; }
+        if(motor_tx_ || tcp_port_>0) { stage="startup stop TX"; send_motor({},0); command_detail_="startup stop written; awaiting explicit commands"; }
         RCLCPP_INFO(get_logger(),"Serial opened: %s; motor TX=%s",port_.c_str(),motor_tx_?"enabled":"disabled");
-      } catch(const std::exception & e) { detail_=e.what(); serial_.close(); gate_.reset(); return; }
+      } catch(const std::exception & e) {
+        detail_=std::string(stage)+": "+e.what();
+        RCLCPP_WARN_THROTTLE(get_logger(),*get_clock(),5000,"Serial %s failed on %s: %s",stage,port_.c_str(),e.what());
+        serial_.close(); gate_.reset(); return;
+      }
     }
     try {
       tcp_.set_serial_ready(now-opened_>=std::chrono::milliseconds(settle_ms_));

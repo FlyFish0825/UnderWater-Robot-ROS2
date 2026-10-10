@@ -13,21 +13,21 @@ void SerialIo::open(const std::string & path, bool allow_write) {
   fd_=::open(path.c_str(),(allow_write?O_RDWR:O_RDONLY)|O_NOCTTY|O_NONBLOCK|O_CLOEXEC);
   if(fd_<0) throw std::runtime_error(std::strerror(errno));
   writable_=allow_write;
-  if(tcgetattr(fd_,&saved_)!=0) { close(); throw std::runtime_error("tcgetattr failed"); }
-  saved_valid_=true;
+  termios cfg{};
+  if(tcgetattr(fd_,&cfg)!=0) { close(); throw std::runtime_error("tcgetattr failed"); }
   if(ioctl(fd_,TIOCEXCL)!=0) { close(); throw std::runtime_error("exclusive serial open failed"); }
-  auto cfg=saved_;
   cfmakeraw(&cfg); cfsetispeed(&cfg,B115200); cfsetospeed(&cfg,B115200);
+  cfg.c_iflag&=~(IXOFF|IXANY);
   cfg.c_cflag=(cfg.c_cflag & ~(CSIZE|PARENB|CSTOPB|CRTSCTS|HUPCL))|CS8|CREAD|CLOCAL;
   cfg.c_cc[VMIN]=0; cfg.c_cc[VTIME]=0;
   if(tcsetattr(fd_,TCSANOW,&cfg)!=0) { close(); throw std::runtime_error("tcsetattr failed"); }
 }
 void SerialIo::close() noexcept {
   if(fd_>=0) {
-    if(saved_valid_) tcsetattr(fd_,TCSANOW,&saved_);
+    // MCU 持续上报二进制数据，关闭后保留 raw/no-echo，避免自动回写。
     ioctl(fd_,TIOCNXCL); ::close(fd_);
   }
-  fd_=-1; saved_valid_=false; writable_=false;
+  fd_=-1; writable_=false;
 }
 wire::Bytes SerialIo::read_available() {
   wire::Bytes bytes;
