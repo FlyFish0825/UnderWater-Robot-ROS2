@@ -11,12 +11,12 @@ depth_py、sensors_cpp、manual_control、global_camera；目前合计 13 个实
 
 | 分类 | 包 | 当前职责 |
 |---|---|---|
-| core | underwater_interfaces | 九种消息：串口原始块、校验后帧、网关状态、IMU、深度、传感器状态、电机反馈、电机目标、分配状态 |
-| hardware | underwater_mcu_gateway | C++17 Linux USB CDC 读取、独占打开、重连、分帧、CRC、时间戳和统计 |
+| core | underwater_interfaces | 十种消息：串口原始块、校验后帧、网关状态、IMU、IMU 基准状态、深度、传感器状态、电机反馈、电机目标、分配状态；控制权与 IMU 基准服务 |
+| hardware | underwater_mcu_gateway | C++17 Linux USB CDC 独占读写、重连、分帧、CRC、时间戳、原始 TCP 9000 与控制权 9002 |
 | hardware | underwater_devices | C++17 IMU/深度/推进器反馈解码、SI 换算、有效位、去重、过期失效 |
 | control | underwater_control | 用户库的六轴 QP 分配、临时比例 RPM、显式启停、单来源和输入超时 |
-| robot | underwater_description | 仅 base_link 的 URDF 起点；不虚构安装外参、惯量或机器人尺寸 |
-| robot | underwater_bringup | XML 整机/监测启动、实例参数、记录话题表、集成验证入口 |
+| robot | underwater_description | base_link、thruster_center 与固定变换；不虚构传感器安装外参或惯量 |
+| robot | underwater_bringup | XML 整机/监测启动、实例参数、记录话题表、集成验证入口；随 launch 管理串口和相机转发 |
 | robot | underwater_robot | 保留前一版 C++ 软件心跳节点，兼容原基础启动命令 |
 
 ## 数据路径
@@ -35,24 +35,26 @@ USB CDC → SerialIo → Parser → GatewayFrame → devices_node → 设备话�
 - 重连重置解析/时间基准，connection_id 区分连接；测量默认 500 ms 过期，心跳/状态 2.5 s 过期。
 - IMU 原始、姿态、气压三组独立失效；原始数据不会延长气压有效期，心跳不会延长电机测量有效期。
 - 无效数值用 NaN 和 false 有效标志表达。标准 ROS 传感器话题只在对应测量有效时发布。
+- TCP 9000 共享唯一串口所有者，GUI/Nano 由 9002 和 ROS 服务独占仲裁；GUI 令牌握手后发送原始串口字节。
+- global_camera 独立打开相机，TCP 9001 传拼接 JPEG，与 MCU 串口和控制权独立。
 
 ## 源码范围与后续功能
 
 src 按原项目的六个业务入口包组织，internal 保存上述七个底层包。
 未实现功能的空目录和 .gitkeep 已移除，后续功能集中记录在
 [README 的后续规划](../../README.md#后续规划)，开始实施时再创建所需目录。
-当前不新增闭环控制、相机、其他设备驱动、通信桥、估计/SLAM、任务管理或仿真模块。
+当前已接入独立双目采集/记录与原始串口 TCP 桥；闭环控制、其他设备驱动、估计/SLAM、任务管理与仿真模块尚未实现。
 原 underwater_* 包名、调试入口和原生消息保持不变。兼容入口新增自动后台管理、
 msg_pkg 外部消息及原命令名；未实现功能的入口返回明确错误，不运行空算法。
 项目自身的协议、串口、传感器及电机反馈模块均为 C++；启动配置采用 XML/YAML。
 
 ## 当前执行边界
 
-SerialIo 在电机发送或深度命令启用时使用 O_RDWR，两者都关闭时使用 O_RDONLY。
-深度命令默认可用，但只在明确调用 sensors/depth/zero 时查询/配置 02BA 并记录水面参考。
-manual.launch.xml 显式 motor_tx:=true 时才允许电机命令，
-只允许已校验的 0x100 电机速度/运行向量，启动先停机，每次 enable 必须建立零输出会话，
-输入/命令超时停止，重连后必须重新 enable。没有通用参数修改、IMU硬件校准、照明或 Bootloader 入口。
+SerialIo 在 ROS 电机发送、深度命令或 TCP 9000 任一启用时使用 O_RDWR，三者都关闭时使用 O_RDONLY；打开可写串口不代表任意客户端有权限。
+深度设备固定为 02BA、启动采用空气 P0=100965 Pa；只有明确调用 sensors/depth/zero 且 Nano 持有控制权时，才查询状态、等待有效压力并显式采集水面参考，不确认或写入型号。
+manual.launch.xml 显式 motor_tx:=true 且 Nano 持有控制权时才允许 ROS 电机命令，
+ROS 电机路径只允许已校验的 0x100 速度/运行向量，启动先停机，每次 enable 必须建立零输出会话，
+输入/命令超时停止，重连后必须重新 enable。GUI 接管后的原始串口路径可使用其原有配置/升级协议，受独占令牌约束；Nano 不额外实现这些 GUI 操作的 ROS 入口。
 主机停机依赖链路仍可写，不能替代 MCU 端通信看门狗。详情见动力分配使用说明。
 
 IMU 世界参考系与安装姿态尚未确认。因此设备原始四元数/欧拉角保存在自定义消息；

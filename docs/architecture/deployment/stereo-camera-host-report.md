@@ -2,7 +2,11 @@
 
 日期：2026-10-09。供 Underwater_GUI 相机页面修改时使用。
 
-已在现场 Nano 编译部署并启用 `underwater-camera.service`；服务当前运行、已设置开机启动。
+**当前部署说明（2026-10-10 复核）：** 相机转发已改为随 ROS launch 生命周期运行，旧开机服务已禁用。后续现场链路实收约 5.7–5.8 FPS，不能用下面早期 30.087 FPS 的记录代表当前性能；见[后续现场记录](../../experiments/2026-10-09-tcp-repair.md)和[操作手册](../../usage/09-forwarding-handbook.md)。当前测试后台使用 `camera_enabled=false`，9001 未开启，本次文档复核没有重测相机。
+
+## 早期部署与测量记录（后续部署已替代）
+
+早期记录曾在现场 Nano 编译部署并启用 `underwater-camera.service`，当时运行并设置开机启动；该方式现已取消。
 Windows 真实 TCP 接收 300 帧并解码成功，最终本机接收实测 30.087 FPS，平均每帧 158,762 字节，
 按 30 FPS 约 4.76 MB/s（38.10 Mbit/s，仅 JPEG 负载）。这是一段现场测量，画面复杂度与负载会改变结果。
 两客户端接收、重连、服务重启恢复、ROS 左右压缩图与可选原始图、三对图片保存均已验证。
@@ -15,7 +19,7 @@ Nano `192.168.20.70` 上的 `global_camera/global_cam_pub` 独占 `/dev/video0`�
 默认完整尺寸 2560×720，左半为左目，右半为右目，各 1280×720。
 用户要求默认左右并排显示。
 输出目标为 30 FPS，JPEG 质量 80。设备端请求 60 FPS，采集解码和输出编码并行，
-各阶段仅保留最新帧；最终交付和验收按上位机实际收到的 30 FPS 画面计算。
+各阶段仅保留最新帧；30 FPS 是输出目标，实际交付性能以 Windows 实收和解码的现场测量为准。
 整台相机倒置安装，Nano 默认先将完整拼接帧旋转 180°，再拆分左右目。
 输出左目来自原始帧右半，输出右目来自原始帧左半；两目都同时转正。
 转发 JPEG 已转正，**上位机不要再旋转或再次交换左右目**。
@@ -109,22 +113,19 @@ TCP 仅传帧头与 JPEG，上述 JSON 不混入 9001 字节流；Qt 无需部�
 
 ## 运行与上位机验收
 
-Nano 前台启动：
+当前日常在 Nano 前台启动完整后台（只有在未运行后台时执行）：
 
 ```bash
 cd /home/lamost/UnderWater-Robot-ROS2
 source /opt/ros/humble/setup.bash
 source install/setup.bash
-ros2 launch global_camera stereo.launch.xml
+ros2 launch underwater_bringup robot.launch.xml
 ```
 
-服务模板：`deploy/underwater-camera.service.example`。实际运行状态与本次硬件验证见
-[2026-10-09 双目验证记录](../experiments/2026-10-09-stereo-camera-validation.md)。
+仅调试相机时可选择 `ros2 launch global_camera stereo.launch.xml`，但不得与已有采集节点重复启动。历史服务模板为 `deploy/underwater-camera.service.example`，当前机器人不启用该服务。早期硬件验证见
+[2026-10-09 双目验证记录](../../experiments/2026-10-09-stereo-camera-validation.md)。
 
-现场已安装的服务可用 `systemctl status underwater-camera.service` 查看。
-修改参数应编辑相机配置并重启该服务；手工调试前用 `sudo systemctl stop underwater-camera.service`
-释放相机，调试结束用 `sudo systemctl start underwater-camera.service` 恢复。
-服务运行时不要额外启动第二个采集节点。`data_sub` 等订阅者可以同时运行。
+修改相机参数后，在现场测试结束时正常停止原 launch，再以所需配置启动；不要恢复旧开机服务。`data_sub` 等订阅者可同时运行。启动流程见[相机教程](../../usage/07-stereo-camera.md)。
 
 上位机应覆盖：真实画面、半包、连续多帧、长度越界、JPEG 损坏、节点重启、断线重连、
 连接但无帧、界面切换退出、慢解码和 9000/9001 同时连接。

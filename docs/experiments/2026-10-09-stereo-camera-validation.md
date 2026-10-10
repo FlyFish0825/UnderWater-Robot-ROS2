@@ -1,6 +1,6 @@
 # 2026-10-09 Nano 双目相机部署与验证
 
-[双目教程](../usage/07-stereo-camera.md) · [上位机接入报告](../deployment/stereo-camera-host-report.md)
+[双目教程](../usage/07-stereo-camera.md) · [上位机接入报告](../architecture/deployment/stereo-camera-host-report.md)
 
 ## 环境与范围
 

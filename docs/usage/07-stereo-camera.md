@@ -1,6 +1,12 @@
 # 双目相机采集、转发和记录
 
-[教程索引](README.md) · [上位机接入报告](../architecture/deployment/stereo-camera-host-report.md)
+[教程索引](README.md) · [转发操作手册](09-forwarding-handbook.md#camera) · [上位机接入报告](../architecture/deployment/stereo-camera-host-report.md)
+
+## 当前使用与帧率
+
+日常优先运行 `ros2 launch underwater_bringup robot.launch.xml`，一次启动串口、控制权和相机转发；已有后台时不要再启动独立相机采集。若启动参数为 `camera_enabled:=false`，9001 未开启，须在正常结束旧后台后选择完整启动配置。开机不自动启动转发。
+
+30 FPS 是输出目标，GUI 实时帧率是 Windows 成功解码的接收速率。2026-10-09 后续现场链路测得 Nano 输出约 29.96–29.98 FPS，Windows 实收约 5.7–5.8 FPS，平均 JPEG 约 198–200 KB，尚未证明上位机实收 30 FPS。按每帧约 200 KB 估算，30 FPS 的 JPEG 负载约 48 Mbit/s，网卡协商速率不能代替端到端吞吐。详细证据见[现场性能记录](../experiments/2026-10-09-tcp-repair.md)，诊断顺序见[手册帧率一节](09-forwarding-handbook.md#fps)。
 
 ## 画面来源
 

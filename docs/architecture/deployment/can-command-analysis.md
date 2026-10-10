@@ -1,6 +1,6 @@
 # CAN 抓包中的力与转速指令分析教程
 
-[返回 README 文档索引](../../README.md#文档索引) · [查看 111/112 实例](../experiments/2026-10-08-can-command-analysis.md)
+[返回 README 文档索引](../../../README.md#文档索引) · [查看 111/112 实例](../../experiments/2026-10-08-can-command-analysis.md)
 
 本教程用于离线分析 CAN CSV，并在已有 ROS 系统上观察和记录话题。
 2026-10-09 当前配置已采用实际 URDF 和用户确认的正转速极性；111/112 CSV 是 2026-10-08
@@ -49,7 +49,7 @@ CSV 中若只有 `0x100`，就没有足够证据证明电机实际达到目标�
 
 按键累加操作量，松开键不会自动归零，换一个轴操作也不会清除原轴。
 例如先将 Fy 加到 3，再把 Mx 减到 -1，输入是两轴组合。
-`Q` 退出并请求停机；完整退出和超时行为见 [README 键盘控制](../../README.md#键盘控制)。
+`Q` 退出并请求停机；完整退出和超时行为见 [README 键盘控制](../../../README.md#键盘控制)。
 
 设六轴绝对值的最大值为 `L`。当前分配器先按归一化六轴方向进行 QP 分配，
 归一化方向按 manual_axis_signs 逐轴映射，再使用统一增益。当前布局的单轴起步峰值为 1200 RPM；
@@ -71,9 +71,9 @@ L < 1：所有目标转速为 0
 但前提是采用当前默认参数和手动入口。该公式不能恢复全部六轴输入，
 也不适用于物理力入口或不同参数的系统。
 
-实现来源：[分配器](../../internal/underwater_control/src/allocation/allocator.cpp)、
-[转速映射](../../internal/underwater_control/src/allocation/linear_rpm.cpp)、
-[键盘输入](../../src/sensors_cpp/src/manual.cpp)。
+实现来源：[分配器](../../../internal/underwater_control/src/allocation/allocator.cpp)、
+[转速映射](../../../internal/underwater_control/src/allocation/linear_rpm.cpp)、
+[键盘输入](../../../src/sensors_cpp/src/manual.cpp)。
 
 ## 3. 解码 CAN 指令
 
@@ -121,7 +121,7 @@ L < 1：所有目标转速为 0
 只看到零速度帧，不能代替检查明确的停止帧。
 抓包可能从一组命令的中间开始，分析时应按命令和序号配对，不能固定把每两行视为一组。
 
-编码依据：[motor_commands.cpp](../../internal/underwater_mcu_gateway/src/commands/motor_commands.cpp)。
+编码依据：[motor_commands.cpp](../../../internal/underwater_mcu_gateway/src/commands/motor_commands.cpp)。
 
 ## 4. 从转速判断运动方向
 
@@ -178,7 +178,7 @@ M = Σ((position_i - center) × (axis_i × T_i)) # center 为八点几何中心�
 ```
 
 这里 `axis_i × T_i` 是向量乘标量。位置与方向取自
-[allocation.yaml](../../internal/underwater_control/config/allocation.yaml)，方向须归一化。
+[allocation.yaml](../../../internal/underwater_control/config/allocation.yaml)，方向须归一化。
 若修改了节点映射或 `motor_direction`，需先还原至推进器顺序和推力正方向，再合成。
 该比例未做真实推进器标定；反算值是“按下发 RPM 预测的模型输出”，不是实测力，也不是原始输入。
 
@@ -238,7 +238,7 @@ ros2 bag record -o ~/robot_data/can-command-$(date +%Y%m%d-%H%M%S) \
   /underwater_robot/gateway/status
 ```
 
-当前默认 [录包清单](../../internal/underwater_bringup/config/recording/topics.yaml)未包含上述全部控制话题，
+当前默认 [录包清单](../../../internal/underwater_bringup/config/recording/topics.yaml)未包含上述全部控制话题，
 针对指令分析时应使用这里的显式列表。记录当前配置、现场使用的源码版本，以及 CAN 工具与 ROS
 时钟的对齐方式，避免把不同时间基准的消息直接相减。
 
@@ -255,4 +255,4 @@ ros2 bag record -o ~/robot_data/can-command-$(date +%Y%m%d-%H%M%S) \
 | CSV 有指令但不知道是否真的转了 | 补录电机反馈；CAN 下发和真实运动是不同证据 |
 | 最后看到转速为零 | 继续确认 RUN_VECTOR 的运行位已清零 |
 
-完整实例与两张曲线见 [111/112 抓包记录](../experiments/2026-10-08-can-command-analysis.md)。
+完整实例与两张曲线见 [111/112 抓包记录](../../experiments/2026-10-08-can-command-analysis.md)。

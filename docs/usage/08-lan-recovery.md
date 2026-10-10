@@ -5,7 +5,7 @@
 ## 地址与端口
 
 机器人提供服务器，电脑主动连接。目标地址沿用 `192.168.20.70`；
-串口原始数据使用 TCP `9000`，双目拼接 JPEG 使用 TCP `9001`。
+串口原始数据使用 TCP `9000`，双目拼接 JPEG 使用 TCP `9001`，独占控制权管理使用 TCP `9002`。
 相机格式为 UWSC v1，不能用串口解析器读取相机端口。
 
 2026-10-09 已在真实机器人上持久保存 `192.168.20.70/24`，绑定网卡
@@ -15,7 +15,7 @@
 ## 随 ROS 2 启动两条转发
 
 按用户要求，开机只恢复固定网络地址，**不自动启动转发进程**。
-启动机器人 ROS 2 后台后，原始串口 9000 和相机 9001 一起启动；停止后台后两个端口一起关闭。
+启动机器人 ROS 2 后台后，原始串口 9000、控制权 9002 和相机 9001 一起启动；停止对应后台节点后端口关闭。显式设置 `camera_enabled:=false` 时不启动相机和 9001。日常操作见[转发手册](09-forwarding-handbook.md)。
 现场相机系统服务和旧用户串口服务已停止并禁用，本轮临时串口系统服务已移除。
 
 推荐启动：
@@ -32,9 +32,9 @@ ros2 launch underwater_bringup robot.launch.xml
 因此沿用 `ros2 run sensors_cpp sensors_sub` 等常用入口时，也自动准备两个转发。
 `ros2 topic` 查询等普通 ROS 2 CLI 命令不会创建后台。
 
-网关仍只有一个串口所有者，原始转发默认只读；启用 TCP 不自动开启电机发送。
+网关仍只有一个串口所有者。Nano 初始持有控制权，GUI 初始只读，明确接管后可发送原始串口数据；启用 TCP 不自动开启 Nano ROS 电机发送。控制权操作见[串口教程](06-nano-tcp.md#duplex)。
 相机由独立节点采集，缺失时重试，不要求停止其他节点。
-需要关闭转发或隔离测试时，可显式传 `tcp_port:=0 camera_enabled:=false`。
+需要关闭全部转发或隔离测试时，在支持这些参数的 `base.launch.xml` 等入口显式传 `tcp_port:=0 tcp_control_port:=0 camera_enabled:=false`；仅测试传感器时，`robot.launch.xml camera_enabled:=false` 保留 9000/9002。
 改变设备或图像端口可传 `camera_device:=/dev/video0 camera_tcp_port:=9001`。
 相机节点单独调试仍可使用 `ros2 launch global_camera stereo.launch.xml`，
 但应先停止已有采集后台，避免重复占用相机/端口。
@@ -42,7 +42,7 @@ ros2 launch underwater_bringup robot.launch.xml
 ```bash
 systemctl is-enabled underwater-camera.service
 systemctl --user is-enabled underwater-tcp.service
-ss -ltnp | grep -E ':900[01] '
+ss -ltnp | grep -E ':(9000|9001|9002)( |$)'
 fuser -v /dev/ttyACM0 /dev/video0
 ```
 

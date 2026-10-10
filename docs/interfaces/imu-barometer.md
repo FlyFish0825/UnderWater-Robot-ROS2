@@ -105,7 +105,9 @@ GET_INFO在观察到原生baro样本后增加压力/温度能力位，1E7→1FF�
 数据仍受IMU目标的START/STOP_STREAM控制，排队失败不推进baro发送游标。
 本轮不修改IMU采样率、算法模式、UART配置或校准。
 
-## 5. 固件与部署
+## 5. 早期补丁构建记录与当前部署
+
+本节的镜像尺寸和文件列表保留 2026-10-07 的构建记录。当前现场已在 2026-10-10 完成修复版烧录，真实气压组与 IMU/深度同时有效；当前镜像与实机证据见[最终验收记录](../experiments/2026-10-10-sensor-fix-control-acceptance.md)。
 
 下位机源工程：
 F:/file/BaiduSyncdisk/Project/CAN_To_Uart/CAN_To_Uart
@@ -121,10 +123,9 @@ F:/file/BaiduSyncdisk/Project/CAN_To_Uart/CAN_To_Uart
 - build/Release/CAN_To_Uart.bin
 
 Release使用Flash60468字节（128KiB的46.13%），Debug使用118912字节（90.72%）。
-原工程的UART开关、板卡时钟及CAN配置没有更改。当前未检测到烧录器，未烧录。
+原工程的 UART 开关、板卡时钟及 CAN 配置没有更改；2026-10-07 构建时未检测到烧录器，当时未烧录。该部署状态现已被上述实机烧录结果替代。
 
-烧录会重启H750，其MS5837型号/水面零点在RAM中，会丢失。
-更新完成且探头在空气/水面时，重新调用 sensors/depth/zero 即可恢复，不要在水下随意归零。
+当前固件固定 MS5837-02BA 与空气 P0=100965 Pa，复位后采用该固定空气参考；无需重新确认型号，也不要求每次烧录或启动后归零。只有现场确需修正时才显式调用 sensors/depth/zero，修正保存在 MCU RAM；不要在水下随意归零。
 现有硬件记录WCH自带串口会占用PA9/PA10；烧录后需按既有接线要求退出/拔除调试器再检查IMU流。
 
 旧版Underwater_GUI有0x85的长度兼容分支，但没有显示这四个气压字段；本轮只完善ROS端显示接口。

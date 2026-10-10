@@ -96,7 +96,7 @@ bash tools/validate.sh imu-calibration
 ```
 
 `v1.0.0` 发布前，上述测试均通过。日志中的 `PASS` 证明对应软件测试通过，不是实机带载或转动证据。
-详细验证记录见 [兼容入口验证](../deployment/entry-compatibility.md) 和 [发布说明](../../CHANGELOG.md)。
+详细验证记录见 [兼容入口验证](../architecture/deployment/entry-compatibility.md) 和 [发布说明](../../CHANGELOG.md)。
 
 <a id="versions"></a>
 ## 版本核对与源码更新

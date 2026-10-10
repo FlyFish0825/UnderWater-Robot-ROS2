@@ -234,7 +234,7 @@ ros2 topic echo /underwater_robot/actuators/thrusters/state \
 | `mcu_temperature_c` | MCU 内部温度 |
 
 建议转速有值仅证明求解产生结果。网关 `tx_frames` 增长仅证明完整写入串口；
-实际运行仍要结合有效反馈和现场测量。抓包分析见 [CAN 指令分析](../deployment/can-command-analysis.md)。
+实际运行仍要结合有效反馈和现场测量。抓包分析见 [CAN 指令分析](../architecture/deployment/can-command-analysis.md)。
 
 <a id="excitation"></a>
 ## 实验激励与物理力接口
@@ -259,6 +259,6 @@ ros2 run manual_control forces_pub \
 `/forces`、`requested_wrench`、`modeled_rpm_wrench` 都不能作为实测推力。
 
 原生 `wrench_command` 使用 `Fx Fy Fz Mx My Mz` 输入；其预览、启用和使用边界见
-[动力分配说明](../deployment/thrust-allocation.md)。不要绕过分配节点直接发布内部电机设定。
+[动力分配说明](../architecture/deployment/thrust-allocation.md)。不要绕过分配节点直接发布内部电机设定。
 
 [返回教程总目录](README.md) · 上一篇：[02 传感器与数据记录](02-sensors-recording.md) · 下一篇：[04 维护与故障排查](04-maintenance.md)

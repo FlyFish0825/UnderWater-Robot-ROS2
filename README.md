@@ -7,7 +7,7 @@ ROS 2 Humble / Jetson Orin NX / C++17。业务入口采用 fc_sensors_ros2 的�
 
 ## 文档索引
 
-**完整使用教程从 [教程总目录](docs/usage/README.md) 开始。** 新机器按安装、传感器、控制、维护的顺序阅读；
+**日常转发操作从 [串口与相机转发手册](docs/usage/09-forwarding-handbook.md) 开始；完整使用教程见 [教程总目录](docs/usage/README.md)。** 新机器按安装、传感器、控制、维护的顺序阅读；
 已有 Jetson 工作空间可直接进入传感器与记录篇。各篇均带章节索引、上一篇和下一篇链接。
 
 | 需要了解的内容 | 入口 |
@@ -17,7 +17,9 @@ ROS 2 Humble / Jetson Orin NX / C++17。业务入口采用 fc_sensors_ros2 的�
 | 新机器准备、源码获取、编译、终端环境 | [01 安装与编译](docs/usage/01-installation.md) |
 | 串口检查、IMU、深度归零、CSV、ROS bag | [02 传感器与数据记录](docs/usage/02-sensors-recording.md) |
 | 平放/朝向基准采样、姿态校正、保存与重启加载 | [05 IMU 基准姿态校正](docs/usage/05-imu-calibration.md) |
-| Nano 固定地址服务器、上位机 TCP 接入、Nano/上位机互斥接管、原始串口双向通道 | [06 Nano TCP 服务](docs/usage/06-nano-tcp.md) |
+| 串口转发使用教程：9000 原始数据、9002 控制权、GUI/Nano 接管与释放 | [06 串口 TCP 转发教程](docs/usage/06-nano-tcp.md) |
+| 相机转发使用教程：9001 双目图像、预览、记录与实际帧率 | [07 相机 TCP 转发教程](docs/usage/07-stereo-camera.md) |
+| 从开机到双路连接、控制权切换、停止与故障检查的完整手册 | [09 串口与相机转发操作手册](docs/usage/09-forwarding-handbook.md) |
 | 固定局域网 IP、随 ROS 2 同启两条转发、远程回退与同时接收验收 | [08 局域网与 TCP 恢复](docs/usage/08-lan-recovery.md) |
 | 双目相机采集、左右图、JPEG 转发与上位机接口 | [07 双目相机](docs/usage/07-stereo-camera.md)、[上位机接入报告](docs/architecture/deployment/stereo-camera-host-report.md) |
 | 隔离预览、键盘档位、实际控制、停机与反馈 | [03 手动控制](docs/usage/03-manual-control.md) |
@@ -62,14 +64,14 @@ deploy/                       服务模板
 
 ## 编译和环境
 
-首次获取公开源码：
+首次获取包含当前转发、控制权及传感器修复的源码（仅用于目标目录尚不存在时）：
 
 ```bash
-git clone --branch v1.0.0 https://github.com/FlyFish0825/UnderWater-Robot-ROS2.git
+git clone --branch codex/nano-tcp-stream https://github.com/FlyFish0825/UnderWater-Robot-ROS2.git
 cd UnderWater-Robot-ROS2
 ```
 
-已有工作空间时进入原项目目录即可。以下命令以当前 Jetson 的部署路径为例：
+`v1.0.0` 是历史固定发布标签，不包含后续相机转发与控制权功能。已有工作空间时进入原项目目录，按[维护教程](docs/usage/04-maintenance.md)检查 Git 或手工部署方式后再更新。以下命令以当前 Jetson 的部署路径为例：
 
 ```bash
 cd /home/lamost/UnderWater-Robot-ROS2

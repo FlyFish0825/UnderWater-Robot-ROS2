@@ -1,6 +1,6 @@
 # 动力分配与手动转速控制
 
-[返回 README 文档索引](../../README.md#文档索引) · [CAN 抓包分析教程](can-command-analysis.md) · [111/112 实例](../experiments/2026-10-08-can-command-analysis.md)
+[返回 README 文档索引](../../../README.md#文档索引) · [CAN 抓包分析教程](can-command-analysis.md) · [111/112 实例](../../experiments/2026-10-08-can-command-analysis.md)
 
 项目仍为 /home/lamost/UnderWater-Robot-ROS2；所有协议、分配和发送实现均为 C++。
 输入顺序是 **Fx Fy Fz Mx My Mz**，分别为模型中的 N 和 N·m。
@@ -222,7 +222,7 @@ bash tools/validate.sh allocation
 allocation 验证使用独立域和专用伪终端，启动真正的分配/网关节点并解析它们的串口输出。
 它不打开真实机器人串口，也不是实机带载证明。
 
-[实际 URDF 布局与极性修正验证](../experiments/2026-10-09-thrust-urdf-validation.md) ·
-[中心基准与正负一档验证](../experiments/2026-10-09-thruster-center-startup.md) ·
-[历史手动整体取反输出](../experiments/2026-10-09-manual-direction-examples.md) ·
-[历史移植与验证记录（旧布局）](../experiments/2026-10-07-thrust-allocation-validation.md)。
+[实际 URDF 布局与极性修正验证](../../experiments/2026-10-09-thrust-urdf-validation.md) ·
+[中心基准与正负一档验证](../../experiments/2026-10-09-thruster-center-startup.md) ·
+[历史手动整体取反输出](../../experiments/2026-10-09-manual-direction-examples.md) ·
+[历史移植与验证记录（旧布局）](../../experiments/2026-10-07-thrust-allocation-validation.md)。

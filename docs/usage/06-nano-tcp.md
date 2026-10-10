@@ -2,6 +2,8 @@
 
 [教程总目录](README.md) · 上一篇：[IMU 基准姿态校正](05-imu-calibration.md) · [项目 README](../../README.md)
 
+日常开机、GUI 连接与控制权切换见[串口与相机转发操作手册](09-forwarding-handbook.md)。本页为原始串口和 9002 控制权的详细说明。
+
 ## 本页索引
 
 - [连接方式](#topology)

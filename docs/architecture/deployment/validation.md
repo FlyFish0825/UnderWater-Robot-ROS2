@@ -25,7 +25,7 @@ export ROS_LOCALHOST_ONLY=1
 终端 A：
 
 ```bash
-ros2 launch underwater_bringup base.launch.xml gateway_enabled:=false namespace:=fixture
+ros2 launch underwater_bringup base.launch.xml gateway_enabled:=false camera_enabled:=false tcp_port:=0 tcp_control_port:=0 namespace:=fixture
 ```
 
 终端 B：
@@ -64,4 +64,4 @@ bash tools/validate.sh synthetic
 bash tools/validate.sh live
 ```
 
-[本轮实机结果](../experiments/2026-10-07-initial-validation.md)。
+[本轮实机结果](../../experiments/2026-10-07-initial-validation.md)。

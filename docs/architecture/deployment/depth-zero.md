@@ -22,9 +22,9 @@ ros2 service call /underwater_robot/sensors/depth/zero std_srvs/srv/Trigger "{}"
 - 归零不是完整压力/温度标定，也不标定水密度、传感器增益或安装误差。
 - 串口由网关独占；服务异步等待回复，不阻塞接收和电机命令超时处理。
 - 命令、目标、序号和回复内容必须匹配；没有自动重发。超时/断线返回失败，保留明确状态。
-- enable_depth_commands 默认 true，串口可写仅供这个显式零点服务按需使用；
-  enable_motor_tx 仍独立控制电机发送。两者都关闭时串口以只读方式打开。
-- 可在 bringup/config/instances/mcu.yaml 中关闭 enable_depth_commands 后重启。
+- enable_depth_commands 默认 true，但零点服务要求 Nano 持有控制权；GUI 占用时拒绝并提示接管。enable_motor_tx 独立控制 ROS 电机发送，GUI 接管后的原始 TCP 写入另受会话令牌保护。
+- 电机发送、深度命令与 TCP 9000 三者都关闭时，串口以只读方式打开；任一启用则以可写方式打开，实际写入仍受控制权和对应门禁检查。
+- 可在 `internal/underwater_bringup/config/instances/mcu.yaml` 中关闭 enable_depth_commands，在结束现场测试后正常重启后台。
 
 ## 本轮验证（2026-10-07）
 

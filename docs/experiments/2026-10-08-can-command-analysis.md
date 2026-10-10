@@ -1,6 +1,6 @@
 # 2026-10-08 CAN 指令抓包实例：111.csv 与 112.csv
 
-[返回 README 文档索引](../../README.md#文档索引) · [抓包分析教程](../deployment/can-command-analysis.md)
+[返回 README 文档索引](../../README.md#文档索引) · [抓包分析教程](../architecture/deployment/can-command-analysis.md)
 
 ## 本文索引
 
@@ -118,14 +118,14 @@ Fx、偏航与俯仰的最大通道转速均为 `1200→1248→1297→1248→120
 本次不把其中任何一种解释定为已验证的根因。
 
 若现场预期是“保持侧移，同时横滚”，应对照
-[教程中的同步录包方法](../deployment/can-command-analysis.md#7-同步记录-ros-输入和反馈)
+[教程中的同步录包方法](../architecture/deployment/can-command-analysis.md#7-同步记录-ros-输入和反馈)
 检查输入、死区前分配、死区后输出，以及最终电机反馈。
 
 ## 模型力和耦合对照
 
 以下使用临时比例 `T_i=rpm_i/12` 和当前布局，合成的是下发目标对应的模型输出。
 数值不是实测推力，也不等于原始六轴输入；真实推力曲线尚未标定。
-计算方法见 [教程的模型反算](../deployment/can-command-analysis.md#6-反算模型力与死区影响)。
+计算方法见 [教程的模型反算](../architecture/deployment/can-command-analysis.md#6-反算模型力与死区影响)。
 
 | 文件与工况 | 主要模型输出 | 附带模型力矩 |
 |---|---|---|

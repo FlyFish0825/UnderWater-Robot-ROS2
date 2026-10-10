@@ -65,25 +65,26 @@ cmake --version
 `ROS_DISTRO` 应为 `humble`；项目控制包要求 CMake 至少 3.22。
 
 <a id="source"></a>
-## 获取固定版本
+## 获取当前源码或历史固定版本
 
 仓库：[FlyFish0825/UnderWater-Robot-ROS2](https://github.com/FlyFish0825/UnderWater-Robot-ROS2)。
 以下命令仅用于目标位置尚无项目目录的新部署，不覆盖已有源码或记录：
 
 ```bash
 cd ~
-git clone --branch v1.0.0 \
+git clone --branch codex/nano-tcp-stream \
   https://github.com/FlyFish0825/UnderWater-Robot-ROS2.git
 cd ~/UnderWater-Robot-ROS2
 ```
 
-克隆发布标签出现 `detached HEAD` 是正常现象，表示固定在 `v1.0.0`。
-核对版本：
+当前分支包含本教程的相机转发、控制权管理和传感器修复。已有工作空间先按[维护教程](04-maintenance.md#versions)检查部署方式、保留配置与记录，不直接覆盖。核对当前分支与提交：
 
 ```bash
-git describe --tags --exact-match
+git log -1 --oneline
 git status --short --branch
 ```
+
+需要复现首个历史发布版时，在新的独立目录使用 `git clone --branch v1.0.0`；该标签不包含上述后续功能。克隆标签出现 `detached HEAD` 是正常现象，可用 `git describe --tags --exact-match` 核对，不能把历史标签当作当前转发手册的部署版本。
 
 首次使用 `rosdep` 时初始化：
 
