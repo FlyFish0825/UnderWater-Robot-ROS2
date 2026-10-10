@@ -1,12 +1,19 @@
 <?xml version="1.0"?>
+<!-- global_camera 双目相机启动文件：运行 global_cam_pub，加载 stereo.yaml 参数并由 arg 覆盖设备与端口。 -->
 <launch>
+  <!-- 节点命名空间，默认 underwater_robot（话题随之加前缀） -->
   <arg name="namespace" default="underwater_robot"/>
+  <!-- V4L2 相机设备节点 -->
   <arg name="device" default="/dev/video0"/>
+  <!-- 双目拼接 JPEG 的 TCP 转发端口 -->
   <arg name="tcp_port" default="9001"/>
   <node pkg="global_camera" exec="global_cam_pub" name="global_cam_pub"
         namespace="$(var namespace)" output="screen">
+    <!-- 先载入全部默认参数（分辨率/帧率/JPEG 质量/旋转等） -->
     <param from="$(find-pkg-share global_camera)/config/stereo.yaml"/>
+    <!-- 再用启动参数覆盖设备节点 -->
     <param name="device" value="$(var device)"/>
+    <!-- 再用启动参数覆盖 TCP 端口 -->
     <param name="tcp_port" value="$(var tcp_port)"/>
   </node>
 </launch>

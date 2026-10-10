@@ -1,12 +1,15 @@
+# IMU 姿态参考标定服务：采集静止姿态，并把它声明为用户给定的参考姿态。
+# 请求角度单位为度、ZYX 顺序；samples 为期望样本数(10..2000)，timeout_s 为采集超时(秒)。
+# 只有静止采集成功且原子写盘后才算成功，失败时保留原有基准不变。
 # The robot must already be resting in the user's known reference pose.
 # Degrees, ZYX roll/pitch/yaw. Zero means label this pose as level, heading zero.
-float64[3] reference_rpy_deg [0.0, 0.0, 0.0]
-uint32 samples 100
-float64 timeout_s 15.0
+float64[3] reference_rpy_deg [0.0, 0.0, 0.0] # 期望参考姿态 roll/pitch/yaw (deg)，全零表示标为水平且零航向
+uint32 samples 100 # 期望采集样本数，有效范围 10..2000
+float64 timeout_s 15.0 # 采集超时 (s)，须大于最短采集时长且不超过 120
 ---
 # True only after a stationary capture has been atomically saved and activated.
-bool success
-string message
-float64[3] captured_rpy_deg
-uint32 samples_collected
-string calibration_file
+bool success # 仅当采集成功并已原子保存启用时为 true
+string message # 人类可读的结果或失败原因
+float64[3] captured_rpy_deg # 采集到的基准姿态 roll/pitch/yaw (deg)，失败时为 NaN
+uint32 samples_collected # 实际接受的样本数
+string calibration_file # 参考文件绝对路径

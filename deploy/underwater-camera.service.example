@@ -1,16 +1,30 @@
+# 用途：双目相机与 JPEG TCP 推流服务的 systemd 模板（对外端口 9001）。
 [Unit]
+# 单元描述：左右并排双目采集 + JPEG TCP 转发
 Description=Underwater side-by-side stereo camera and JPEG TCP forwarder
+# 网络就绪后再启动（需监听 9001 端口）
 After=network.target
 
 [Service]
+# simple：前台常驻进程
 Type=simple
+# 运行用户，需有 /dev/video* 相机设备权限
 User=lamost
+# 工作目录，用于解析下面的 install/setup.bash
 WorkingDirectory=/home/lamost/UnderWater-Robot-ROS2
+# 启动命令：载入 ROS 2 Humble 与本工作区 install 环境（此处用绝对路径），
+# 再 exec 相机 launch；stereo.launch.xml 中 tcp_port 默认 9001，
+# 即双目 JPEG 图像流的对外端口
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && source /home/lamost/UnderWater-Robot-ROS2/install/setup.bash && exec ros2 launch global_camera stereo.launch.xml'
+# 仅在异常退出时重启
 Restart=on-failure
+# 重启前等待 3 秒
 RestartSec=3
+# 停止时发 SIGINT，优雅关闭
 KillSignal=SIGINT
+# 优雅停止最长等待 15 秒
 TimeoutStopSec=15
 
 [Install]
+# 启用后随多用户运行级别（开机）自动启动
 WantedBy=multi-user.target

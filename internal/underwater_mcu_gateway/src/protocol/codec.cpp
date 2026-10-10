@@ -1,3 +1,6 @@
+// 线协议的底层编解码：字节序读取、CRC 计算与整帧校验。
+// decode() 是唯一的帧合法性入口，长度预判在 stream_parser.cpp 中先行完成。
+// 规格：0x55 为旧版下行帧（CRC8），0x58/0x59/0x5b 为带时间戳上行帧（CRC16）。
 #include "underwater_mcu_gateway/protocol.hpp"
 #include <cstring>
 #include <stdexcept>
@@ -25,33 +28,37 @@ std::uint16_t crc16(const std::uint8_t * p, std::size_t n) {
     for(int j=0;j<8;++j) c=(c&0x8000)?std::uint16_t((c<<1)^0x1021):std::uint16_t(c<<1);
   } return c;
 }
+// 校验帧头、长度、CRC 与各 family 的字段约束，成功时把结果移入 output。
 bool decode(const Bytes & p, Frame & output) {
-  if(p.size()<14 || p[0]!=0xaa) return false;
+  if(p.size()<14 || p[0]!=0xaa) return false; // 最短帧（0x55 空载荷）为 14 字节
   Frame f; f.family=p[1];
-  if(f.family==0x55) {
-    const auto body=p[2];
+  if(f.family==0x55) { // 旧版下行：AA 55 <len> ... CRC8 55 AA
+    const auto body=p[2]; // 第 3 字节即帧体长度
+    // 帧体 8..76 字节；整包 = 帧体 + 6，CRC8 存于帧尾之前 1 字节。
     if(body<8 || body>76 || p.size()!=std::size_t(body)+6 ||
        p[p.size()-2]!=0x55 || p.back()!=0xaa ||
        crc8(p.data()+2,body+1)!=p[body+3]) return false;
     f.sequence=u16(p,3); f.can_id=u32(p,5); f.flags=p[9];
-    if(f.flags==0x80) {
+    if(f.flags==0x80) { // 0x80：固定长度安全帧，帧体 17 或 21 字节
       if((body!=17 && body!=21) || p[10]!=0x81) return false;
       f.command=p[10]; f.payload.assign(p.begin()+11,p.begin()+20);
       f.timestamp_valid=body==21; if(f.timestamp_valid) f.timestamp_us=u32(p,20);
     } else {
-      const auto n=p[10];
+      const auto n=p[10]; // 载荷长度
+      // 变长体：8+n / 12+n（末尾多 4 字节设备时间戳）/ 72（固定缓冲帧）。
       if(n>64 || (body!=8+n && body!=12+n && body!=72)) return false;
       f.payload.assign(p.begin()+11,p.begin()+11+n);
       f.timestamp_valid=body==12+n;
       if(f.timestamp_valid) f.timestamp_us=u32(p,11+n);
     }
-  } else {
+  } else { // 0x58/0x59/0x5b：帧尾回显 family，CRC16 覆盖 family 到载荷末字节
     if(p.size()<20 || (f.family!=0x58 && f.family!=0x59 && f.family!=0x5b)) return false;
-    const auto n=u16(p,10);
+    const auto n=u16(p,10); // 载荷长度，位于偏移 10
     if(p.size()!=20u+n || p[2]!=1 || p[18+n]!=f.family || p[19+n]!=0xaa ||
        crc16(p.data()+1,15+n)!=u16(p,16+n)) return false;
-    if(f.family==0x58 && ((n!=0 && n!=5) || p[3]!=1 || p[4]!=0 || p[5]!=0)) return false;
-    if(f.family==0x59 && n>4096) return false;
+    if(f.family==0x58 && ((n!=0 && n!=5) || p[3]!=1 || p[4]!=0 || p[5]!=0)) return false; // 心跳/缓冲状态帧，字段固定
+    if(f.family==0x59 && n>4096) return false; // 通用变长帧，载荷上限 4096
+    // 0x5b 设备帧：载荷 ≤58，target 1=IMU / 2=压力，flags ∈ {1,2,6,8}。
     if(f.family==0x5b && (n>58 || (p[5]!=1 && p[5]!=2) ||
        (p[4]!=1 && p[4]!=2 && p[4]!=6 && p[4]!=8))) return false;
     f.command=p[3]; f.flags=p[4]; f.target=p[5]; f.sequence=u32(p,6);

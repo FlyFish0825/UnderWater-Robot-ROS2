@@ -1,11 +1,13 @@
+# underwater_devices（devices_node）参数实例：IMU 与压力/深度传感器的解析与标定阈值。
+# 本文件不涉及 TCP 端口；数据源自 9000 端口之外的串口网关话题。
 /**:
   ros__parameters:
-    imu_frame_id: imu_sensor
-    depth_frame_id: pressure_sensor
-    measurement_timeout_ms: 500
+    imu_frame_id: imu_sensor            # IMU 消息的 frame_id
+    depth_frame_id: pressure_sensor     # 深度/压力消息的 frame_id
+    measurement_timeout_ms: 500         # 超过该时长未收到新帧即判为失效（毫秒）
     # Empty: $ROS_HOME/<namespace>/imu_reference.txt (root namespace: underwater_robot)
     # ROS_HOME defaults to ~/.ros. Calibrate only on an explicit service request.
-    imu_calibration_file: ""
-    imu_calibration_max_gyro_rad_s: 0.05
-    imu_calibration_max_spread_deg: 1.0
-    imu_calibration_min_duration_s: 1.0
+    imu_calibration_file: ""            # 空表示默认路径；仅在显式服务请求时标定
+    imu_calibration_max_gyro_rad_s: 0.05  # 标定时允许的最大角速度（弧度/秒），超限拒绝
+    imu_calibration_max_spread_deg: 1.0   # 标定期间姿态角最大离散（度）
+    imu_calibration_min_duration_s: 1.0   # 标定最短持续时长（秒）

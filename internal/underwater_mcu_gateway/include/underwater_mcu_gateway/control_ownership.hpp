@@ -1,4 +1,7 @@
 #pragma once
+// 控制权仲裁：串口写权限在 Nano 与 GUI 之间互斥转让。
+// GUI 的 session token 与其控制 TCP 连接绑定，心跳（PING）丢失超过 3s 自动交还 Nano。
+// 所有方法都假定由节点主线程调用，内部不加锁。
 
 #include <chrono>
 #include <cstdint>
@@ -24,12 +27,16 @@ public:
   using Clock = std::chrono::steady_clock;
 
   explicit ControlOwnership(ControllerOwner initial = ControllerOwner::Nano);
+  // takeover=false 时只在空闲（None）下才能获取，否则返回 success=false。
   OwnershipResult claim_nano(bool takeover);
   OwnershipResult release_nano();
+  // session 为控制 TCP 的 fd；同一 session 重复声明是幂等的，并返回原 token。
   OwnershipResult claim_gui(int session, bool takeover);
   OwnershipResult release_gui(int session);
+  // 校验 session + token 后续期心跳；token 不符返回 false。
   bool heartbeat_gui(int session, const std::string &token);
   bool disconnect_gui(int session);
+  // 心跳超过 3s 未更新则收回控制权；now 可注入以便测试。
   bool expire_gui(Clock::time_point now = Clock::now());
 
   ControllerOwner owner() const noexcept { return owner_; }

@@ -1,3 +1,7 @@
+// devices 节点：订阅 gateway/frames，用 adapters 解码 IMU/深度/推进器帧，
+// 发布自定义状态话题与标准 sensor_msgs 话题，并驱动 IMU 姿态参考标定组件。
+// 所有量都有独立的 valid 标志；失效或超时后通过 invalidate/expire 主动置无效并重发。
+// 时间基准：网关帧 header.stamp 为宿主接收时间，设备时间戳另由 device_timestamp_us 携带。
 #include "underwater_devices/adapters.hpp"
 #include "underwater_devices/imu_calibration.hpp"
 #include "underwater_mcu_gateway/protocol.hpp"
@@ -24,7 +28,7 @@ public:
     imu_frame_=declare_parameter<std::string>("imu_frame_id","imu_sensor",d);
     depth_frame_=declare_parameter<std::string>("depth_frame_id","pressure_sensor",d);
     timeout_=std::chrono::milliseconds(declare_parameter<int>("measurement_timeout_ms",500,d));
-    if(timeout_.count()<50 || timeout_.count()>10000) throw std::invalid_argument("measurement timeout out of range");
+    if(timeout_.count()<50 || timeout_.count()>10000) throw std::invalid_argument("measurement timeout out of range");  // 允许 50..10000 ms
     auto q=rclcpp::SensorDataQoS().keep_last(20);
     imu_=create_publisher<ui::ImuState>("sensors/imu/state",q);
     imu_ros_=create_publisher<sensor_msgs::msg::Imu>("sensors/imu/data_raw",q);
@@ -39,21 +43,21 @@ public:
     calibration_=std::make_unique<adapt::ImuCalibration>(*this,imu_frame_,timeout_);
     sub_=create_subscription<ui::GatewayFrame>("gateway/frames",rclcpp::SensorDataQoS().keep_last(100),
       [this](ui::GatewayFrame::ConstSharedPtr f){ receive(*f); });
-    watchdog_=create_wall_timer(100ms,[this]{ expire(); });
+    watchdog_=create_wall_timer(100ms,[this]{ expire(); });  // 100 ms 周期检查各缓存是否超时
   }
 private:
   void receive(const ui::GatewayFrame & f) {
     const auto age=(now()-rclcpp::Time(f.header.stamp)).nanoseconds();
-    if(age>timeout_.count()*1000000LL || age< -100000000LL) return;
+    if(age>timeout_.count()*1000000LL || age< -100000000LL) return;  // 丢弃过旧帧，并容忍 100 ms 以内的时钟提前
     if(f.connection_id!=connection_) {
-      invalidate(); connection_=f.connection_id; sequences_.clear(); motors_.clear();
+      invalidate(); connection_=f.connection_id; sequences_.clear(); motors_.clear();  // 串口重连：清空全部缓存并广播失效
       imu_cache_.clear(); depth_cache_.reset(); statuses_.clear();
     }
     if(f.family==0x5b && f.flags==8) {
       auto it=sequences_.find(f.target);
       if(it!=sequences_.end()) {
         auto step=std::uint32_t(f.sequence-it->second);
-        if(step==0 || step>=0x80000000u) return;
+        if(step==0 || step>=0x80000000u) return;  // 重复帧或序号回绕/倒退，直接丢弃
       }
       sequences_[f.target]=f.sequence;
     }
@@ -101,29 +105,29 @@ private:
     ui::MotorState mo;
     if(adapt::motor_feedback(f,mo)) {
       auto & entry=motors_[mo.node_id]; entry.message=mo; entry.feedback=t;
-      entry.message.heartbeat_valid=entry.heartbeat && t-*entry.heartbeat<2500ms;
+      entry.message.heartbeat_valid=entry.heartbeat && t-*entry.heartbeat<2500ms;  // 心跳有效期 2.5 s
       motor_->publish(entry.message); return;
     }
     if(adapt::motor_heartbeat(f)) {
-      const auto id=std::uint8_t(f.can_id-0x280); auto & entry=motors_[id]; entry.heartbeat=t;
+      const auto id=std::uint8_t(f.can_id-0x280); auto & entry=motors_[id]; entry.heartbeat=t;  // CAN 0x281..0x288 偏移得节点号
       auto & m=entry.message; m.connection_id=f.connection_id; m.node_id=id;
       m.online=true; m.heartbeat_valid=true; m.state=f.payload[1]; m.current_calibration_done=f.payload[2]!=0;
-      m.voltage_limited=f.payload[5]!=0;
-      if(!entry.feedback || t-*entry.feedback>timeout_) { clear_feedback(m); m.header=f.header; }
+      m.voltage_limited=f.payload[5]!=0;  // 心跳负载中的标志位
+      if(!entry.feedback || t-*entry.feedback>timeout_) { clear_feedback(m); m.header=f.header; }  // 反馈已过期则清空数值，只保留心跳
       motor_->publish(m); return;
     }
     if(f.family==0x5b && f.flags==8 && f.command==0x83 && f.payload.size()==20 && (f.target==1||f.target==2)) {
       ui::SensorStatus s; s.header=f.header; s.connection_id=f.connection_id; s.target=f.target; s.fresh=true;
-      s.device_status=wire::u32(f.payload,0); s.sample_sequence=wire::u32(f.payload,4);
+      s.device_status=wire::u32(f.payload,0); s.sample_sequence=wire::u32(f.payload,4);  // 负载偏移 0/4
       const auto sample_age=wire::u32(f.payload,8);
-      s.sample_age_ms=sample_age==0xffffffffu?std::int64_t(-1):std::int64_t(sample_age);
-      s.online=(s.device_status&1) && s.sample_age_ms>=0 && s.sample_age_ms<timeout_.count();
+      s.sample_age_ms=sample_age==0xffffffffu?std::int64_t(-1):std::int64_t(sample_age);  // 0xFFFFFFFF 表示从未上报样例
+      s.online=(s.device_status&1) && s.sample_age_ms>=0 && s.sample_age_ms<timeout_.count();  // bit0 在线，且样例未超时
       s.good_frames=wire::u32(f.payload,12); s.errors=wire::u32(f.payload,16);
       status_->publish(s); statuses_[s.target]={s,t};
     }
   }
   static void clear_feedback(ui::MotorState & m) {
-    m.feedback_valid=false;
+    m.feedback_valid=false;  // 数值字段一律置 NaN，避免下游误用旧值
     m.speed_rpm=m.estimated_bus_current_a=m.bus_voltage_v=m.mcu_temperature_c=adapt::invalid();
     m.device_timestamp_valid=false;
   }
@@ -133,14 +137,14 @@ private:
     m.baro_pressure_pa=m.baro_temperature_c=m.baro_height_m=m.baro_reference_pa=adapt::invalid();
     m.acceleration_m_s2.fill(adapt::invalid()); m.angular_velocity_rad_s.fill(adapt::invalid());
     m.magnetic_protocol_units.fill(adapt::invalid()); m.quaternion_wxyz.fill(adapt::invalid());
-    m.euler_rpy_rad.fill(adapt::invalid()); imu_->publish(m);
+    m.euler_rpy_rad.fill(adapt::invalid()); imu_->publish(m);  // 立即重发一次失效状态
     calibration_->process(m);
     if(m.group==0x85) imu_baro_->publish(m);
   }
   void invalidate_depth(ui::DepthState & m) {
     m.fresh=m.raw_valid=m.pressure_valid=m.temperature_valid=m.depth_valid=m.zero_valid=false;
     m.pressure_pa=m.temperature_c=m.raw_depth_m=m.filtered_depth_m=m.surface_pressure_pa=adapt::invalid();
-    m.d1=m.d2=0; depth_->publish(m);
+    m.d1=m.d2=0; depth_->publish(m);  // 原始 ADC 无有效标志，归零
   }
   void invalidate() {
     for(auto & kv:imu_cache_) if(kv.second.first.fresh) invalidate_imu(kv.second.first);
@@ -160,23 +164,23 @@ private:
       auto & e=kv.second; bool changed=false;
       if(e.message.feedback_valid && e.feedback && t-*e.feedback>timeout_) { clear_feedback(e.message); changed=true; }
       if(e.message.heartbeat_valid && e.heartbeat && t-*e.heartbeat>2500ms) { e.message.heartbeat_valid=false; changed=true; }
-      e.message.online=e.message.feedback_valid || e.message.heartbeat_valid;
+      e.message.online=e.message.feedback_valid || e.message.heartbeat_valid;  // 反馈或心跳任一有效即在线
       if(changed) motor_->publish(e.message);
     }
-    for(auto & kv:statuses_) if(kv.second.first.fresh && t-kv.second.second>2500ms) {
+    for(auto & kv:statuses_) if(kv.second.first.fresh && t-kv.second.second>2500ms) {  // 传感器状态树刷新周期 2.5 s
       kv.second.first.fresh=kv.second.first.online=false; status_->publish(kv.second.first);
     }
   }
-  struct MotorCache { ui::MotorState message; std::optional<Clock::time_point> feedback,heartbeat; };
+  struct MotorCache { ui::MotorState message; std::optional<Clock::time_point> feedback,heartbeat; };  // 反馈/心跳各自的到达时刻
   std::string imu_frame_,depth_frame_;
   std::unique_ptr<adapt::ImuCalibration> calibration_;
   std::chrono::milliseconds timeout_{500};
   std::uint64_t connection_=0;
-  std::map<std::uint8_t,std::uint32_t> sequences_;
-  std::map<std::uint8_t,std::pair<ui::ImuState,Clock::time_point>> imu_cache_;
+  std::map<std::uint8_t,std::uint32_t> sequences_;  // 按 target 记录最近序号，用于去重
+  std::map<std::uint8_t,std::pair<ui::ImuState,Clock::time_point>> imu_cache_;  // 按 group(0x80/0x81/0x85) 缓存
   std::optional<std::pair<ui::DepthState,Clock::time_point>> depth_cache_;
-  std::map<std::uint8_t,std::pair<ui::SensorStatus,Clock::time_point>> statuses_;
-  std::map<std::uint8_t,MotorCache> motors_;
+  std::map<std::uint8_t,std::pair<ui::SensorStatus,Clock::time_point>> statuses_;  // 按 target 缓存
+  std::map<std::uint8_t,MotorCache> motors_;  // 按 CAN 节点号缓存
   rclcpp::Publisher<ui::ImuState>::SharedPtr imu_;
   rclcpp::Publisher<ui::ImuState>::SharedPtr imu_baro_;
   rclcpp::Publisher<sensor_msgs::msg::FluidPressure>::SharedPtr imu_pressure_;

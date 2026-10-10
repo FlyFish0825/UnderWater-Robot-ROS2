@@ -1,15 +1,29 @@
 # Template only; not installed or enabled by this project.
+# 用途：整机 bringup 的 systemd 模板（仅作部署参考，本项目不会自动安装或 enable）。
 [Unit]
+# 单元描述，显示在 systemctl status 中
 Description=UnderWater-Robot-ROS2 receive-only telemetry
+# 网络就绪后再启动（服务对外提供 9000 原始串口 / 9001 双目图像 / 9002 控制权端口）
 After=network.target
 [Service]
+# simple：前台常驻进程，systemd 直接跟踪 ExecStart 进程
 Type=simple
+# 运行用户，需有串口设备（/dev/ttyACM* 等）与相机设备权限
 User=lamost
+# 工作目录，决定 ExecStart 中相对路径 install/setup.bash 的基准
 WorkingDirectory=/home/lamost/UnderWater-Robot-ROS2
+# 启动命令：依次载入 ROS 2 Humble 环境、本工作区 install 覆盖层，
+# 然后 exec 总入口 robot.launch.xml（内含串口网关 9000 / 控制权 9002、双目相机 9001
+# 与 underwater_robot 的 robot_node）
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && source install/setup.bash && exec ros2 launch underwater_bringup robot.launch.xml'
+# 仅在异常退出时重启
 Restart=on-failure
+# 重启前等待 3 秒，避免频繁拉起
 RestartSec=3
+# 停止时发 SIGINT，让 ROS 2 节点优雅关闭
 KillSignal=SIGINT
+# 优雅停止最长等待 15 秒，超时则强制结束
 TimeoutStopSec=15
 [Install]
+# 启用后随多用户运行级别（开机）自动启动
 WantedBy=multi-user.target

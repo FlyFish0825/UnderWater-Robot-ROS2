@@ -1,9 +1,12 @@
 <?xml version="1.0"?>
+<!-- imu_py：兼容旧命令名 imu_publisher 的空壳包（实现由 C++ 提供），版本 1.0.0，许可 Proprietary。 -->
 <package format="3">
   <name>imu_py</name><version>1.0.0</version>
   <description>Original fc_sensors_ros2 command names backed by C++.</description>
   <maintainer email="lamost@example.com">lamost</maintainer><license>Proprietary</license>
+  <!-- ament_cmake：ROS 2 构建工具 -->
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <!-- sensors_cpp：提供 compat_runtime 共享后端库 -->
   <depend>sensors_cpp</depend>
   <export><build_type>ament_cmake</build_type></export>
 </package>

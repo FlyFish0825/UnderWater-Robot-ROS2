@@ -1,12 +1,14 @@
 # Workspace-local defaults: run `colcon build` from this directory.
+# 作用：为本仓库提供 colcon 默认参数，避免每条命令重复传参；仅在本目录执行 colcon 时生效。
+# 注意：base-paths 只含 src 与 internal，故第三方的 third_party/ 与产物目录不会被构建器扫描。
 build:
-  base-paths: [src, internal]
-  executor: sequential
-  symlink-install: true
-  cmake-args: [-DCMAKE_BUILD_TYPE=RelWithDebInfo]
+  base-paths: [src, internal] # 只从这两个目录收集包，排除 third_party/ 等外部源码
+  executor: sequential # 串行构建：占用内存更低、日志更易读，代价是总耗时更长
+  symlink-install: true # 用符号链接安装（Python/脚本改完无需重新构建），C++ 需重编仍要重新 build
+  cmake-args: [-DCMAKE_BUILD_TYPE=RelWithDebInfo] # 优化 + 调试符号，兼顾实机性能与崩溃回溯
 
 # Keep discovery consistent for inspection and testing; exclude vendor sources and backups.
 list:
-  base-paths: [src, internal]
+  base-paths: [src, internal] # colcon list 的扫描范围与 build 保持一致，避免列出第三方包
 test:
-  base-paths: [src, internal]
+  base-paths: [src, internal] # colcon test 同样只跑本仓库的包，与 tools/validate.sh offline 的 ctest 对应

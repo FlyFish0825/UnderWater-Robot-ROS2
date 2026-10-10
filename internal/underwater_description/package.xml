@@ -1,9 +1,11 @@
 <?xml version="1.0"?>
+<!-- underwater_description：机器人 URDF 描述包（纯资源），版本 1.0.0，许可 Proprietary。 -->
 <package format="3">
   <name>underwater_description</name><version>1.0.0</version>
   <description>UnderWater-Robot-ROS2 underwater_description module.</description>
   <maintainer email="lamost@example.com">lamost</maintainer>
   <license>Proprietary</license>
+  <!-- ament_cmake：ROS 2 构建工具（仅用于安装 urdf 目录） -->
   <buildtool_depend>ament_cmake</buildtool_depend>
 
 

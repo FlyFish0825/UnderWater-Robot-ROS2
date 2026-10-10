@@ -1,15 +1,29 @@
 <?xml version="1.0"?>
+<!-- TCP 远程操控启动层：在 base 层之上开放上网端口，供上位机/GUI 远程接入。
+     端口约定：9000 原始串口数据流、9001 双目拼接图像、9002 控制权（ownership）服务；
+     注意写串口/写电机需显式 takeover，tcp_allow_tx 已废弃、不再授予控制权。 -->
 <launch>
+  <!-- 统一 ROS 命名空间前缀 -->
   <arg name="namespace" default="underwater_robot"/>
+  <!-- MCU 串口设备（by-id 稳定路径） -->
   <arg name="serial_port" default="/dev/serial/by-id/usb-STMicroelectronics_Lamost_UnderWater_Robot_ComPort_3588346E3134-if00"/>
+  <!-- 电机指令下发开关：默认 false，true 才允许经 Nano ROS 写电机 -->
   <arg name="motor_tx" default="false" description="Explicitly enable Nano ROS motor writes"/>
+  <!-- 原始串口数据 TCP 端口（9000） -->
   <arg name="tcp_port" default="9000"/>
+  <!-- 控制权 TCP 端口（9002），必须与 9000 不同 -->
   <arg name="tcp_control_port" default="9002"/>
+  <!-- 上述 TCP 服务的监听地址；0.0.0.0 表示全网卡可接入 -->
   <arg name="tcp_bind_address" default="0.0.0.0"/>
+  <!-- 已废弃开关：不再授予写权限，写操作须走 9002 显式 takeover -->
   <arg name="tcp_allow_tx" default="false"/>
+  <!-- 是否启动双目相机 -->
   <arg name="camera_enabled" default="true"/>
+  <!-- 双目相机设备节点 -->
   <arg name="camera_device" default="/dev/video0"/>
+  <!-- 双目拼接 JPEG TCP 端口（9001） -->
   <arg name="camera_tcp_port" default="9001"/>
+  <!-- 复用 base 层，透传含 TCP 绑定与写权限在内的全部相关参数 -->
   <include file="$(find-pkg-share underwater_bringup)/launch/base.launch.xml">
     <arg name="namespace" value="$(var namespace)"/>
     <arg name="serial_port" value="$(var serial_port)"/>

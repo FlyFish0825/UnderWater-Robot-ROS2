@@ -1,13 +1,18 @@
 <?xml version="1.0"?>
+<!-- underwater_interfaces：内部消息与服务接口定义（msg/srv），版本 1.0.0，许可 Proprietary。 -->
 <package format="3">
   <name>underwater_interfaces</name><version>1.0.0</version>
   <description>UnderWater-Robot-ROS2 underwater_interfaces module.</description>
   <maintainer email="lamost@example.com">lamost</maintainer>
   <license>Proprietary</license>
+  <!-- ament_cmake：ROS 2 构建工具 -->
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <!-- std_msgs：接口字段复用标准消息类型 -->
   <depend>std_msgs</depend>
+  <!-- rosidl 生成器/运行时：生成并在运行期加载接口代码 -->
   <buildtool_depend>rosidl_default_generators</buildtool_depend>
   <exec_depend>rosidl_default_runtime</exec_depend>
+  <!-- 标记为 rosidl 接口包 -->
   <member_of_group>rosidl_interface_packages</member_of_group>
   <export><build_type>ament_cmake</build_type></export>
 </package>

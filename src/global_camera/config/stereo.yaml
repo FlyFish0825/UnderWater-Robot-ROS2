@@ -1,13 +1,15 @@
+# global_cam_pub 双目相机参数（部署默认值；launch 中的 arg 会覆盖 device 与 tcp_port）。
+# 拼接图 2560x720 = 左目 1280x720 + 右目 1280x720；输出 30 FPS、V4L2 采集 60 FPS；TCP 9001 转发拼接 JPEG。
 /**:
   ros__parameters:
-    device: /dev/video0
-    width: 2560
-    height: 720
-    fps: 30.0
-    capture_fps: 60.0
-    jpeg_quality: 80
-    rotate_180: true
-    tcp_bind_address: 0.0.0.0
-    tcp_port: 9001
-    publish_raw: false
-    reconnect_interval_s: 2.0
+    device: /dev/video0        # V4L2 设备节点，由 flock 独占以防多实例抢占
+    width: 2560                # 拼接图总宽（须为偶数），左右目各占一半
+    height: 720                # 拼接图高度
+    fps: 30.0                  # ROS 发布/编码帧率上限
+    capture_fps: 60.0          # V4L2 采集帧率，须 >= fps
+    jpeg_quality: 80           # JPEG 编码质量 1-100
+    rotate_180: true           # 相机倒装：整幅旋转 180°（左右半幅随之互换）
+    tcp_bind_address: 0.0.0.0  # TCP 监听地址
+    tcp_port: 9001             # 双目图像转发端口；0 表示关闭 TCP
+    publish_raw: false         # 是否额外发布左/右原始 BGR8 图（较占带宽）
+    reconnect_interval_s: 2.0  # 采集失败后的重连间隔（秒）

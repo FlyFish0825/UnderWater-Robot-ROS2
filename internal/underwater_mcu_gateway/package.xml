@@ -1,13 +1,19 @@
 <?xml version="1.0"?>
+<!-- underwater_mcu_gateway：MCU 串口网关（协议编解码 + TCP 桥接），版本 1.0.0，许可 Proprietary。 -->
 <package format="3">
   <name>underwater_mcu_gateway</name><version>1.0.0</version>
   <description>UnderWater-Robot-ROS2 underwater_mcu_gateway module.</description>
   <maintainer email="lamost@example.com">lamost</maintainer>
   <license>Proprietary</license>
+  <!-- ament_cmake：ROS 2 构建工具 -->
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <!-- rclcpp：网关节点运行时 -->
   <depend>rclcpp</depend>
+  <!-- rcl_interfaces：节点参数与日志标准接口 -->
   <depend>rcl_interfaces</depend>
+  <!-- std_srvs：标准服务类型 -->
   <depend>std_srvs</depend>
+  <!-- underwater_interfaces：网关帧/状态/控制权等服务消息定义 -->
   <depend>underwater_interfaces</depend>
 
   <export><build_type>ament_cmake</build_type></export>

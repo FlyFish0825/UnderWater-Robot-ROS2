@@ -1,4 +1,10 @@
 // Bounded ROS integration check. Synthetic mode publishes ONLY internal ROS frames.
+// 验证内容：遥测链路——IMU 原始/姿态/气压计、标准 sensor_msgs::Imu、深度状态、
+//   电机反馈与网关状态，并检查数据失效（stale）时各字段是否被正确置为无效。
+// 运行方式：bash tools/validate.sh synthetic（自带 base.launch.xml 并传 -p synthetic:=true）；
+//   live 模式为 bash tools/validate.sh live [serial_port]，只订阅真机数据、不发送任何指令。
+// 通过标准：退出码 0 且打印 "PASS ... integration"；synthetic 另要求各通道超时失效计数 > 0。
+// 是否需要真实硬件：synthetic 不需要；live 需要真机串口在线，但本探针仅接收。
 #include <chrono>
 #include <cmath>
 #include <cstring>
@@ -17,11 +23,13 @@ namespace ui=underwater_interfaces::msg;
 using Clock=std::chrono::steady_clock;
 class Probe final : public rclcpp::Node {
 public:
+  // 构造函数只订阅与统计，不做断言；synthetic 参数决定期望值是否参与校验。
   Probe():Node("telemetry_probe") {
     synthetic=declare_parameter<bool>("synthetic",false);
-    auto q=rclcpp::SensorDataQoS().keep_last(100);
+    auto q=rclcpp::SensorDataQoS().keep_last(100); // 队列 100，避免高频遥测下丢样本
+    // IMU：区分原始量、姿态量、气压计（group 0x85）；失效帧必须清空所有有效性标志。
     imu_sub=create_subscription<ui::ImuState>("sensors/imu/state",q,[this](ui::ImuState::ConstSharedPtr m){
-      if(m->fresh && m->raw_valid) { ++imu_raw; if(synthetic && std::abs(m->acceleration_m_s2[0]-9.80665)>1e-6) ++errors; }
+      if(m->fresh && m->raw_valid) { ++imu_raw; if(synthetic && std::abs(m->acceleration_m_s2[0]-9.80665)>1e-6) ++errors; } // 合成帧 ax 应为 1g
       if(m->fresh && (m->quaternion_valid||m->euler_valid)) ++imu_attitude;
       if(m->fresh && m->group==0x85 && m->baro_pressure_valid) ++imu_baro;
       if(!m->fresh && m->group==0x85) {
@@ -33,13 +41,14 @@ public:
     });
     baro_pressure_sub=create_subscription<sensor_msgs::msg::FluidPressure>("sensors/imu/fluid_pressure",q,
       [this](sensor_msgs::msg::FluidPressure::ConstSharedPtr m){ ++baro_pressure;
-        if(synthetic && (m->fluid_pressure!=101325 || m->header.frame_id!="imu_sensor")) ++errors; });
+        if(synthetic && (m->fluid_pressure!=101325 || m->header.frame_id!="imu_sensor")) ++errors; }); // 合成气压 101325Pa，frame_id 固定
     baro_temperature_sub=create_subscription<sensor_msgs::msg::Temperature>("sensors/imu/temperature",q,
       [this](sensor_msgs::msg::Temperature::ConstSharedPtr m){ ++baro_temperature;
-        if(synthetic && m->temperature!=22.5) ++errors; });
+        if(synthetic && m->temperature!=22.5) ++errors; }); // 合成温度 22.5℃
     raw_sub=create_subscription<sensor_msgs::msg::Imu>("sensors/imu/data_raw",q,[this](sensor_msgs::msg::Imu::ConstSharedPtr m){
-      ++standard_imu; if(m->orientation_covariance[0]!=-1) ++errors;
+      ++standard_imu; if(m->orientation_covariance[0]!=-1) ++errors; // 原始 IMU 不应带姿态，约定协方差[0]=-1
     });
+    // 深度：无效标志与 NaN 必须一致，失效帧不得残留有效标志。
     depth_sub=create_subscription<ui::DepthState>("sensors/depth/state",q,[this](ui::DepthState::ConstSharedPtr m){
       if(m->fresh) { ++depth_count; last_depth=*m; }
       else ++depth_expired;
@@ -47,32 +56,37 @@ public:
       if(!m->depth_valid && (!std::isnan(m->raw_depth_m)||!std::isnan(m->filtered_depth_m))) ++errors;
       if(!m->fresh && (m->raw_valid||m->pressure_valid||m->depth_valid)) ++errors;
     });
+    // 电机：有反馈时 speed_rpm 应为合成值 -100；无反馈时必须为 NaN。
     motor_sub=create_subscription<ui::MotorState>("actuators/thrusters/state",q,[this](ui::MotorState::ConstSharedPtr m){
       if(m->feedback_valid) { ++motor_count; if(synthetic && m->speed_rpm!=-100) ++errors; }
       if(!m->feedback_valid) { ++motor_expired; if(!std::isnan(m->speed_rpm)) ++errors; }
     });
+    // 网关状态：探针自身不得使能发送，tx_enabled 必须始终为 false。
     gateway_sub=create_subscription<ui::GatewayStatus>("gateway/status",10,[this](ui::GatewayStatus::ConstSharedPtr m){
       last_gateway=*m; ++gateway_count; if(m->tx_enabled) ++errors;
     });
     publisher=create_publisher<ui::GatewayFrame>("gateway/frames",q);
   }
+  // inject：只发一帧合成网关帧（family 0x5B 信息帧/0x55 CAN 帧），用于一次性验证各解析分支。
   void inject() {
     ui::GatewayFrame f; f.header.stamp=now(); f.connection_id=99999; f.family=0x5b;
     f.flags=8; f.target=1; f.sequence=1; f.command=0x80; f.payload.resize(40); f.payload[0]=3;
-    put_float(f.payload,4,1.0f); publisher->publish(f);
-    f.command=0x85; f.sequence=2; f.payload.assign(20,0); f.payload[0]=0x30;
+    put_float(f.payload,4,1.0f); publisher->publish(f); // command 0x80：IMU 原始量，偏移 4 处放 ax=1.0
+    f.command=0x85; f.sequence=2; f.payload.assign(20,0); f.payload[0]=0x30; // command 0x85：气压计帧
     put_float(f.payload,4,12.5f); put_float(f.payload,8,22.5f);
     put_float(f.payload,12,101325.0f); put_float(f.payload,16,101500.0f); publisher->publish(f);
-    f.target=2; f.command=0x82; f.payload.assign(32,0); f.payload[0]=3; f.payload[1]=5;
+    f.target=2; f.command=0x82; f.payload.assign(32,0); f.payload[0]=3; f.payload[1]=5; // target 2 = 深度设备
     publisher->publish(f);
-    f.family=0x55; f.flags=2; f.can_id=0x201; f.payload.assign(12,0);
-    f.payload[0]=0x9c; f.payload[1]=0xff; publisher->publish(f);
+    f.family=0x55; f.flags=2; f.can_id=0x201; f.payload.assign(12,0); // CAN 帧：ID 0x201 为电机反馈
+    f.payload[0]=0x9c; f.payload[1]=0xff; publisher->publish(f); // 0xff9c 即 -100 RPM
   }
+  // refresh_raw：周期性重发 IMU 原始帧，用于观察其它通道超时失效后 IMU 仍保持新鲜。
   void refresh_raw() {
     ui::GatewayFrame f; f.header.stamp=now(); f.connection_id=99999; f.family=0x5b;
     f.flags=8; f.target=1; f.sequence=++raw_sequence; f.command=0x80; f.payload.resize(40); f.payload[0]=3;
     put_float(f.payload,4,1.0f); publisher->publish(f);
   }
+  // result：汇总计数并给出判定，返回 0/1 作为进程退出码。
   int result() {
     std::cout<<"imu_raw="<<imu_raw<<" attitude="<<imu_attitude<<" standard_imu="<<standard_imu
       <<" depth="<<depth_count<<" motor_feedback="<<motor_count<<" gateway_status="<<gateway_count
@@ -82,24 +96,25 @@ public:
     std::cout<<"depth status=0x"<<std::hex<<last_depth.device_status<<std::dec
       <<" pressure_valid="<<last_depth.pressure_valid<<" depth_valid="<<last_depth.depth_valid
       <<" D1="<<last_depth.d1<<" D2="<<last_depth.d2<<"\n";
-    bool ok=errors==0 && imu_raw>0 && standard_imu>0 && depth_count>0;
+    bool ok=errors==0 && imu_raw>0 && standard_imu>0 && depth_count>0; // 基础门槛：无非法值且各主通道有数据
     if(synthetic) {
       std::cout<<"expired: imu="<<imu_expired<<" depth="<<depth_expired<<" motor="<<motor_expired<<"\n";
-      ok=ok && motor_count>0 && imu_expired>0 && depth_expired>0 && motor_expired>0;
-      ok=ok && imu_raw>1 && imu_baro==1 && baro_pressure==1 && baro_temperature==1 && baro_expired>0;
+      ok=ok && motor_count>0 && imu_expired>0 && depth_expired>0 && motor_expired>0; // 只发一次帧，故三通道都必须出现过期
+      ok=ok && imu_raw>1 && imu_baro==1 && baro_pressure==1 && baro_temperature==1 && baro_expired>0; // 气压帧只应解析出 1 条
     } else {
       std::cout<<"gateway connected="<<last_gateway.connected<<" rx="<<last_gateway.rx_bytes
         <<" crc_errors="<<last_gateway.crc_errors<<" shape_errors="<<last_gateway.shape_errors
         <<" startup_or_stale_dropped="<<last_gateway.stale_frames
         <<" heartbeat_age_ms="<<last_gateway.heartbeat_age_ms<<"\n";
       ok=ok && imu_attitude>0 && gateway_count>0 && last_gateway.connected &&
-        last_gateway.heartbeat_age_ms>=0 && last_gateway.heartbeat_age_ms<2500;
+        last_gateway.heartbeat_age_ms>=0 && last_gateway.heartbeat_age_ms<2500; // 真机要求心跳不超过 2.5 秒
     }
     std::cout<<(ok?"PASS":"FAIL")<<(synthetic?" synthetic integration":" live receive-only integration")<<"\n";
-    return ok?0:1;
+    return ok?0:1; // 退出码 0 = PASS，1 = FAIL
   }
   bool synthetic=false;
 private:
+  // 以小端序写入 float，模拟网关帧载荷的字节布局。
   static void put_float(std::vector<std::uint8_t> & b,std::size_t offset,float v) {
     std::uint32_t raw; std::memcpy(&raw,&v,4);
     for(int i=0;i<4;++i) b[offset+i]=(raw>>(8*i))&255;
@@ -118,6 +133,7 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::FluidPressure>::SharedPtr baro_pressure_sub;
   rclcpp::Subscription<sensor_msgs::msg::Temperature>::SharedPtr baro_temperature_sub;
 };
+// 主循环最多运行 10 秒：synthetic 在第 2 秒注入一次合成帧，之后每 200ms 刷新 IMU 原始帧。
 int main(int argc,char ** argv) {
   rclcpp::init(argc,argv); auto node=std::make_shared<Probe>();
   const auto start=Clock::now(); bool sent=false;

@@ -1,10 +1,14 @@
 <?xml version="1.0"?>
+<!-- underwater_control：六轴推力分配与控制权管理，版本 1.0.0，许可 Proprietary。 -->
 <package format="3">
   <name>underwater_control</name><version>1.0.0</version>
   <description>C++ six-axis thrust allocation and manual command authority.</description>
   <maintainer email="lamost@example.com">lamost</maintainer><license>Proprietary</license>
+  <!-- ament_cmake：ROS 2 构建工具 -->
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <!-- rclcpp/rcl_interfaces/geometry_msgs：节点运行、参数接口与力/矩指令 -->
   <depend>rclcpp</depend><depend>rcl_interfaces</depend><depend>geometry_msgs</depend>
+  <!-- std_srvs/underwater_interfaces：控制权切换服务与内部状态消息 -->
   <depend>std_srvs</depend><depend>underwater_interfaces</depend>
   <export><build_type>ament_cmake</build_type></export>
 </package>

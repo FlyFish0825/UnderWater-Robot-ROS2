@@ -1,15 +1,25 @@
 <?xml version="1.0"?>
+<!-- sensors_cpp：兼容层核心包，提供 compat_runtime 共享后端与 14 个旧命令名入口， -->
+<!-- 版本 1.0.0，许可 Proprietary。 -->
 <package format="3">
   <name>sensors_cpp</name><version>1.0.0</version>
   <description>C++ compatibility entries and shared backend lifecycle.</description>
   <maintainer email="lamost@example.com">lamost</maintainer><license>Proprietary</license>
+  <!-- ament_cmake：ROS 2 构建工具 -->
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <!-- rclcpp：节点/话题/服务运行时 -->
   <depend>rclcpp</depend>
+  <!-- ament_index_cpp：运行期按包名定位资源（launch） -->
   <depend>ament_index_cpp</depend>
+  <!-- std_srvs：标准服务（如空请求触发动作） -->
   <depend>std_srvs</depend>
+  <!-- geometry_msgs：位姿/速度等控制指令 -->
   <depend>geometry_msgs</depend>
+  <!-- underwater_interfaces：内部消息与服务定义 -->
   <depend>underwater_interfaces</depend>
+  <!-- msg_pkg：兼容层历史消息定义 -->
   <depend>msg_pkg</depend>
+  <!-- underwater_bringup：运行期由 launch 拉起相关节点 -->
   <exec_depend>underwater_bringup</exec_depend>
   <export><build_type>ament_cmake</build_type></export>
 </package>

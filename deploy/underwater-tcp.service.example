@@ -1,17 +1,35 @@
 # User service: copy to ~/.config/systemd/user/underwater-tcp.service.
 # One serial owner. Stop other gateways before starting this service.
+# 用途：MCU 串口网关的用户级 systemd 模板（9000 原始串口 / 9002 控制权端口）。
+# 注意：串口同时只能有一个持有者，启动前请先停掉其它网关进程。
 [Unit]
+# 单元描述：带独占控制权的串口 TCP 服务
 Description=Underwater serial TCP server with exclusive controller ownership
+# 网络就绪后再启动
 After=network.target
 
 [Service]
+# simple：前台常驻进程
 Type=simple
+# %h 为用户主目录，用于解析下面的相对路径 install/setup.bash
 WorkingDirectory=%h/UnderWater-Robot-ROS2
+# 启动命令：载入 ROS 2 Humble 与本工作区 install 环境后 exec 网关节点；
+#   -r __ns:=/underwater_robot      统一命名空间
+#   -p tcp_port:=9000               原始串口数据端口（透传 MCU 帧）
+#   -p tcp_control_port:=9002       控制权端口（申请/释放串口控制权）
+#   -p tcp_bind_address:=0.0.0.0    监听所有网卡
+#   -p enable_depth_commands:=true  允许深度置零等深度命令
+#   -p enable_motor_tx:=false       暂不向电机下发指令（只收不发）
 ExecStart=/bin/bash -lc 'source /opt/ros/humble/setup.bash && source install/setup.bash && exec ros2 run underwater_mcu_gateway mcu_gateway_node --ros-args -r __ns:=/underwater_robot -p tcp_port:=9000 -p tcp_control_port:=9002 -p tcp_bind_address:=0.0.0.0 -p enable_depth_commands:=true -p enable_motor_tx:=false'
+# 仅在异常退出时重启
 Restart=on-failure
+# 重启前等待 2 秒
 RestartSec=2
+# 停止时发 SIGINT，让节点释放串口并优雅退出
 KillSignal=SIGINT
+# 优雅停止最长等待 10 秒（网关需及时释放串口独占权）
 TimeoutStopSec=10
 
 [Install]
+# 用户级服务：随 default.target（用户会话）启动
 WantedBy=default.target

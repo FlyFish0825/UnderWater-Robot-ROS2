@@ -1,11 +1,13 @@
 # Recording manifest; use the ros2 bag command in README.md.
+# 录制清单：默认命名空间 underwater_robot 下需要入库的话题（网关状态、IMU 各分组、深度、推进器状态）。
+# 注意：双目图像（camera/*）不在清单内，图像经 TCP 9001 走独立链路，避免 bag 体积过大。
 topics:
-  - /underwater_robot/gateway/status
-  - /underwater_robot/sensors/imu/state
-  - /underwater_robot/sensors/imu/data_raw
-  - /underwater_robot/sensors/imu/barometer
-  - /underwater_robot/sensors/imu/fluid_pressure
-  - /underwater_robot/sensors/imu/temperature
-  - /underwater_robot/sensors/depth/state
-  - /underwater_robot/sensors/status
-  - /underwater_robot/actuators/thrusters/state
+  - /underwater_robot/gateway/status          # 网关连接与控制权状态
+  - /underwater_robot/sensors/imu/state       # IMU 综合状态（含姿态角）
+  - /underwater_robot/sensors/imu/data_raw    # IMU 原始加速度/角速度
+  - /underwater_robot/sensors/imu/barometer   # IMU 内置气压计高度
+  - /underwater_robot/sensors/imu/fluid_pressure  # 流体压力（Pa）
+  - /underwater_robot/sensors/imu/temperature # IMU 温度（℃）
+  - /underwater_robot/sensors/depth/state     # 深度/压力/温度状态
+  - /underwater_robot/sensors/status          # 传感器总体状态
+  - /underwater_robot/actuators/thrusters/state  # 推进器实际输出状态

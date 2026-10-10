@@ -1,1 +1,3 @@
+# 作用：vcstool 依赖清单；本仓库不使用外部源码依赖，故 repositories 故意留空。
+# 用法：如需引入外部仓库，在此按 name/type/url/version 追加，再执行 vcs import < dependencies.repos。
 repositories: {}

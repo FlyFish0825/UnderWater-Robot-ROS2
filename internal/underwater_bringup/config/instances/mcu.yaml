@@ -1,7 +1,9 @@
+# mcu_gateway 节点参数实例（由 base.launch.xml 加载；launch 中的 arg 会再覆盖
+# port / enable_motor_tx / tcp_port(9000) / tcp_control_port(9002) / tcp_bind_address / tcp_allow_tx）。
 /**:
   ros__parameters:
-    settle_ms: 1000
-    max_device_lag_ms: 500
-    publish_raw: false
+    settle_ms: 1000            # 串口打开后的稳定等待（毫秒），期间不受理写操作
+    max_device_lag_ms: 500     # 设备时间戳允许的最大滞后（毫秒），超出判为不可信
+    publish_raw: false         # 是否额外发布原始串口字节话题 gateway/raw_rx
     # Only an explicit depth/zero service call sends sensor commands. No auto-zero.
-    enable_depth_commands: true
+    enable_depth_commands: true  # 允许深度零点标定服务；仍须显式调用，绝不自动零点

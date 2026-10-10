@@ -1,11 +1,20 @@
 <?xml version="1.0"?>
 <!-- Minimal frames; centroid is derived from the actual eight-thruster URDF positions. -->
+<!-- underwater_robot.urdf：机器人最小坐标系描述（不含惯量与可视化网格）。
+     仅定义机体基准系 base_link 与推进器合成中心 thruster_center，供推力分配与控制使用；
+     与 TCP 端口、话题无关。坐标单位：米；姿态单位：弧度（rpy）。 -->
 <robot name="UnderWater-Robot-ROS2">
+  <!-- 机体基准坐标系：所有传感器/推进器 frame 的父系 -->
   <link name="base_link"/>
+  <!-- 八推进器推力合成中心（质心近似），由实际推进器布置推导 -->
   <link name="thruster_center"/>
+  <!-- 固定关节：把 thruster_center 挂到 base_link，无相对运动 -->
   <joint name="base_to_thruster_center" type="fixed">
+    <!-- 父坐标系 -->
     <parent link="base_link"/>
+    <!-- 子坐标系 -->
     <child link="thruster_center"/>
+    <!-- 相对平移 xyz（米）与相对姿态 rpy（弧度）；力矩分配依赖该偏置 -->
     <origin xyz="-0.012873 0 -0.040532" rpy="0 0 0"/>
   </joint>
 </robot>

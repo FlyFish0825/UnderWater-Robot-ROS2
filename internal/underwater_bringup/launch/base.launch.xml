@@ -1,35 +1,64 @@
 <?xml version="1.0"?>
+<!-- underwater_bringup 基础启动层：MCU 网关（串口+TCP）+ 传感器设备节点 + 双目相机。
+     TCP 端口约定（全部可通过 arg 覆盖）：9000 原始串口数据流、9001 双目拼接 JPEG、
+     9002 控制权（ownership）服务；对应端口为 0 表示禁用。 -->
 <launch>
+  <!-- 统一 ROS 命名空间前缀，默认 underwater_robot -->
   <arg name="namespace" default="underwater_robot"/>
+  <!-- MCU 串口设备：用 by-id 稳定路径，避免 /dev/ttyACM* 重新枚举后错位 -->
   <arg name="serial_port" default="/dev/serial/by-id/usb-STMicroelectronics_Lamost_UnderWater_Robot_ComPort_3588346E3134-if00"/>
+  <!-- 是否启动 MCU 网关节点；关闭后无人读串口 -->
   <arg name="gateway_enabled" default="true"/>
+  <!-- 电机指令下发总开关；默认 false（只收不发），true 才允许向串口写电机命令 -->
   <arg name="motor_tx" default="false"/>
+  <!-- 原始串口数据 TCP 服务端口（9000） -->
   <arg name="tcp_port" default="9000"/>
+  <!-- 控制权 TCP 服务端口（9002），与数据端口必须不同 -->
   <arg name="tcp_control_port" default="9002"/>
+  <!-- 上述两个 TCP 服务的监听地址 -->
   <arg name="tcp_bind_address" default="0.0.0.0"/>
+  <!-- 已废弃：TCP 侧写串口开关，不再授予控制权，需显式 takeover -->
   <arg name="tcp_allow_tx" default="false"/>
+  <!-- 是否随基础层启动双目相机 -->
   <arg name="camera_enabled" default="true"/>
+  <!-- 双目相机 V4L2 设备节点 -->
   <arg name="camera_device" default="/dev/video0"/>
+  <!-- 双目拼接 JPEG 的 TCP 端口（9001） -->
   <arg name="camera_tcp_port" default="9001"/>
   <group>
+    <!-- 以下节点统一挂到该命名空间下 -->
     <push-ros-namespace namespace="$(var namespace)"/>
+    <!-- MCU 网关：串口收发、电机设点校验、9000/9002 TCP 服务；话题 gateway/status、gateway/frames 等 -->
     <node pkg="underwater_mcu_gateway" exec="mcu_gateway_node" name="mcu_gateway"
           output="screen" if="$(var gateway_enabled)">
+      <!-- 网关参数默认值（settle_ms、publish_raw、enable_depth_commands 等） -->
       <param from="$(find-pkg-share underwater_bringup)/config/instances/mcu.yaml"/>
+      <!-- 串口设备路径 -->
       <param name="port" value="$(var serial_port)"/>
+      <!-- 电机写入开关 -->
       <param name="enable_motor_tx" value="$(var motor_tx)"/>
+      <!-- 原始串口数据 TCP 端口（9000） -->
       <param name="tcp_port" value="$(var tcp_port)"/>
+      <!-- 控制权 TCP 端口（9002） -->
       <param name="tcp_control_port" value="$(var tcp_control_port)"/>
+      <!-- TCP 监听地址 -->
       <param name="tcp_bind_address" value="$(var tcp_bind_address)"/>
+      <!-- 已废弃参数，保持 false -->
       <param name="tcp_allow_tx" value="$(var tcp_allow_tx)"/>
     </node>
+    <!-- 传感器设备节点：解析 MCU 帧并发布 imu/depth 等标准化话题 -->
     <node pkg="underwater_devices" exec="devices_node" name="devices" output="screen">
+      <!-- 传感器参数：frame_id、测量超时、IMU 标定文件与阈值 -->
       <param from="$(find-pkg-share underwater_bringup)/config/instances/sensors.yaml"/>
     </node>
   </group>
+  <!-- 双目相机：加载 global_camera 的启动文件；按需改写命名空间、设备与图像端口 -->
   <include file="$(find-pkg-share global_camera)/launch/stereo.launch.xml" if="$(var camera_enabled)">
+    <!-- 相机节点命名空间，与网关保持一致 -->
     <arg name="namespace" value="$(var namespace)"/>
+    <!-- 相机设备节点 -->
     <arg name="device" value="$(var camera_device)"/>
+    <!-- 双目图像 TCP 端口（9001） -->
     <arg name="tcp_port" value="$(var camera_tcp_port)"/>
   </include>
 </launch>

@@ -1,8 +1,11 @@
-uint8 CLAIM=0
-uint8 TAKEOVER=1
-uint8 RELEASE=2
-uint8 action
+# 网关控制权服务：在多个客户端之间声明、抢占或释放串口发送权。
+# action 取 CLAIM/TAKEOVER/RELEASE 三者之一；owner 为操作完成后的持有者。
+# 控制权与电机使能相互独立：持有控制权不等于允许发送电机指令。
+uint8 CLAIM=0 # 申请控制权，已有持有者时失败
+uint8 TAKEOVER=1 # 抢占控制权，无论当前持有者是谁
+uint8 RELEASE=2 # 主动释放控制权
+uint8 action # 本次操作的动作码，取上方常量之一
 ---
-bool success
-uint8 owner
-string message
+bool success # 操作是否成功
+uint8 owner # 操作完成后的持有者，0 表示无人持有
+string message # 人类可读的说明或失败原因

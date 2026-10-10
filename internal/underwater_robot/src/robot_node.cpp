@@ -1,3 +1,6 @@
+// robot_node.cpp —— 机器人主节点的“软件心跳”占位实现（节点名 robot_node，话题 status，队列 10）。
+// 本节点不接触硬件、不涉及 TCP 端口；硬件状态由 underwater_mcu_gateway 发布在 gateway/status。
+// 参数 status_period_ms（只读，范围 [1,3600000]，默认 1000 毫秒）：心跳发布周期，改动需重启节点。
 #include <chrono>
 #include <cstdint>
 #include <exception>
@@ -13,6 +16,7 @@ namespace underwater_robot
 {
 
 // Software heartbeat only. Hardware interfaces are added in separate modules.
+// 仅做软件心跳：周期性发布 "node_running"，用于确认节点存活。
 class RobotNode final : public rclcpp::Node
 {
 public:
@@ -21,25 +25,25 @@ public:
   {
     rcl_interfaces::msg::ParameterDescriptor descriptor;
     descriptor.description = "Software status publication period in milliseconds.";
-    descriptor.read_only = true;
+    descriptor.read_only = true;  // 只读参数，运行期不允许动态修改
     rcl_interfaces::msg::IntegerRange range;
     range.from_value = 1;
-    range.to_value = 3600000;
+    range.to_value = 3600000;  // 上限 1 小时，避免过大的定时间隔
     range.step = 1;
     descriptor.integer_range.push_back(range);
 
     const auto period_ms =
-      declare_parameter<std::int64_t>("status_period_ms", 1000, descriptor);
+      declare_parameter<std::int64_t>("status_period_ms", 1000, descriptor);  // 默认 1000 毫秒
     if (period_ms < 1 || period_ms > 3600000) {
       throw std::invalid_argument("status_period_ms must be in [1, 3600000]");
     }
 
-    status_publisher_ = create_publisher<std_msgs::msg::String>("status", 10);
-    status_timer_ = create_wall_timer(
+    status_publisher_ = create_publisher<std_msgs::msg::String>("status", 10);  // 话题 <ns>/status，队列 10
+    status_timer_ = create_wall_timer(  // 墙钟定时器：按 period_ms 触发心跳
       std::chrono::milliseconds(period_ms),
       [this]() {
         std_msgs::msg::String message;
-        message.data = "node_running";
+        message.data = "node_running";  // 固定载荷，仅表示进程存活
         status_publisher_->publish(message);
       });
 
@@ -55,6 +59,7 @@ private:
 
 }  // namespace underwater_robot
 
+// 进程入口：单线程 spin；参数非法或运行异常时记录错误并返回退出码 1。
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);

@@ -1,4 +1,6 @@
+# robot_node（软件心跳节点）参数；命名空间 /underwater_robot。
+# 本节点不涉及 TCP 端口与硬件接口，仅周期发布 <ns>/status = "node_running"。
 /**:
   ros__parameters:
     # Software heartbeat interval in milliseconds; restart after changing.
-    status_period_ms: 1000
+    status_period_ms: 1000  # 心跳周期（毫秒），只读参数，修改后需重启节点

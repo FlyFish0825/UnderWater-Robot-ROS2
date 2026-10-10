@@ -1,13 +1,21 @@
 <?xml version="1.0"?>
+<!-- global_camera：双目相机采集、ROS 图像发布与 JPEG TCP 转发（默认 9001）， -->
+<!-- 版本 1.0.0，许可 Proprietary。 -->
 <package format="3">
   <name>global_camera</name><version>1.0.0</version>
   <description>C++ side-by-side stereo capture, ROS images and bounded JPEG TCP forwarding.</description>
   <maintainer email="lamost@example.com">lamost</maintainer><license>Proprietary</license>
+  <!-- ament_cmake：ROS 2 构建工具 -->
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <!-- rclcpp：节点运行时 -->
   <depend>rclcpp</depend>
+  <!-- sensor_msgs：图像/相机信息消息 -->
   <depend>sensor_msgs</depend>
+  <!-- std_msgs：标准消息类型 -->
   <depend>std_msgs</depend>
+  <!-- libopencv-dev：采集与 JPEG 编解码 -->
   <depend>libopencv-dev</depend>
+  <!-- launch_*：stereo.launch.xml 启动所需的 launch 前端 -->
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>launch_xml</exec_depend>
   <export><build_type>ament_cmake</build_type></export>

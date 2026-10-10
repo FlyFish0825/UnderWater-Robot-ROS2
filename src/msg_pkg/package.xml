@@ -1,12 +1,18 @@
 <?xml version="1.0"?>
+<!-- msg_pkg：兼容层传感器/指令消息定义，版本 1.0.0，许可 Proprietary。 -->
+<!-- 供 imu_py/depth_py/manual_control 等旧命令名节点共用消息类型。 -->
 <package format="3">
   <name>msg_pkg</name><version>1.0.0</version>
   <description>Compatibility-facing sensor and command messages.</description>
   <maintainer email="lamost@example.com">lamost</maintainer><license>Proprietary</license>
+  <!-- ament_cmake：ROS 2 构建工具 -->
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <!-- std_msgs：消息字段复用标准消息头等类型 -->
   <depend>std_msgs</depend>
+  <!-- rosidl 生成器/运行时：生成并加载消息代码 -->
   <buildtool_depend>rosidl_default_generators</buildtool_depend>
   <exec_depend>rosidl_default_runtime</exec_depend>
+  <!-- 标记为 rosidl 接口包，供其他包 find_package 使用 -->
   <member_of_group>rosidl_interface_packages</member_of_group>
   <export><build_type>ament_cmake</build_type></export>
 </package>

@@ -1,12 +1,18 @@
 <?xml version="1.0"?>
+<!-- underwater_robot 包自身的启动文件：只运行 robot_node（软件心跳），不含网关、相机与 TCP 端口。
+     完整系统请用 underwater_bringup 的 launch 文件。 -->
 <launch>
+  <!-- 节点命名空间，默认 underwater_robot（话题相应加前缀） -->
   <arg name="namespace" default="underwater_robot"
        description="ROS namespace for this robot"/>
+  <!-- 参数文件绝对路径，默认指向本包安装后的 config/robot.yaml -->
   <arg name="params_file"
        default="$(find-pkg-share underwater_robot)/config/robot.yaml"
        description="Absolute path to the node parameter YAML file"/>
+  <!-- 心跳节点：按 status_period_ms 周期发布 <ns>/status -->
   <node pkg="underwater_robot" exec="robot_node" name="robot_node"
         namespace="$(var namespace)" output="screen">
+    <!-- 载入节点参数（status_period_ms） -->
     <param from="$(var params_file)"/>
   </node>
 </launch>

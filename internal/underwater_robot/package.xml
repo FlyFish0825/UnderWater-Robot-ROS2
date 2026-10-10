@@ -1,15 +1,19 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<!-- underwater_robot：机器人本体基础 bringup 节点包，版本 1.0.0，许可 Proprietary。 -->
 <package format="3">
   <name>underwater_robot</name>
   <version>1.0.0</version>
   <description>Basic C++ ROS 2 bringup for the underwater robot.</description>
   <maintainer email="lamost@example.com">lamost</maintainer>
   <license>Proprietary</license>
+  <!-- ament_cmake：ROS 2 构建工具 -->
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <!-- rclcpp/rcl_interfaces/std_msgs：节点运行时、参数接口与标准消息 -->
   <depend>rclcpp</depend>
   <depend>rcl_interfaces</depend>
   <depend>std_msgs</depend>
+  <!-- launch_*：随包安装的 XML launch 所需前端 -->
   <exec_depend>launch</exec_depend>
   <exec_depend>launch_ros</exec_depend>
   <exec_depend>launch_xml</exec_depend>

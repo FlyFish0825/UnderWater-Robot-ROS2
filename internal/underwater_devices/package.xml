@@ -1,15 +1,23 @@
 <?xml version="1.0"?>
+<!-- underwater_devices：设备解码与 IMU 标定节点，版本 1.0.0，许可 Proprietary。 -->
 <package format="3">
   <name>underwater_devices</name><version>1.0.0</version>
   <description>UnderWater-Robot-ROS2 underwater_devices module.</description>
   <maintainer email="lamost@example.com">lamost</maintainer>
   <license>Proprietary</license>
+  <!-- ament_cmake：ROS 2 构建工具 -->
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <!-- rclcpp：devices_node 运行时 -->
   <depend>rclcpp</depend>
+  <!-- rcl_interfaces：参数/日志标准接口 -->
   <depend>rcl_interfaces</depend>
+  <!-- sensor_msgs：发布标准 IMU 消息 -->
   <depend>sensor_msgs</depend>
+  <!-- std_srvs：标准服务类型 -->
   <depend>std_srvs</depend>
+  <!-- underwater_interfaces：内部状态消息定义 -->
   <depend>underwater_interfaces</depend>
+  <!-- underwater_mcu_gateway：复用 gateway_protocol 协议库 -->
   <depend>underwater_mcu_gateway</depend>
 
   <export><build_type>ament_cmake</build_type></export>

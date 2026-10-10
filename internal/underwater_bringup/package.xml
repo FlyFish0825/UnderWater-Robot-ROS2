@@ -1,13 +1,18 @@
 <?xml version="1.0"?>
+<!-- underwater_bringup：系统启动包，汇总 launch/config 并依赖全部运行时节点包， -->
+<!-- 版本 1.0.0，许可 Proprietary。 -->
 <package format="3">
   <name>underwater_bringup</name><version>1.0.0</version>
   <description>UnderWater-Robot-ROS2 underwater_bringup module.</description>
   <maintainer email="lamost@example.com">lamost</maintainer>
   <license>Proprietary</license>
+  <!-- ament_cmake：ROS 2 构建工具 -->
   <buildtool_depend>ament_cmake</buildtool_depend>
+  <!-- launch/launch_ros/launch_xml：XML launch 前端与节点拉起 -->
   <depend>launch</depend>
   <depend>launch_ros</depend>
   <depend>launch_xml</depend>
+  <!-- 以下依赖为 launch 中实际启动的节点包 -->
   <exec_depend>global_camera</exec_depend>
   <depend>underwater_mcu_gateway</depend>
   <depend>underwater_devices</depend>
@@ -15,6 +20,7 @@
   <depend>underwater_robot</depend>
   <depend>underwater_description</depend>
 
+  <!-- 集成探针（tests/integration）所需的测试期依赖 -->
   <test_depend>rclcpp</test_depend>
   <test_depend>sensor_msgs</test_depend>
   <test_depend>underwater_interfaces</test_depend>

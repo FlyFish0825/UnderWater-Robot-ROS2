@@ -1,13 +1,24 @@
 <?xml version="1.0"?>
+<!-- 手动操控启动层：在 base 层（网关 + 传感器 + 双目相机）之上再启动推力分配节点。
+     端口沿用 base 约定：9000 原始串口、9001 双目图像、9002 控制权。 -->
 <launch>
+  <!-- 统一 ROS 命名空间前缀 -->
   <arg name="namespace" default="underwater_robot"/>
+  <!-- MCU 串口设备（by-id 稳定路径） -->
   <arg name="serial_port" default="/dev/serial/by-id/usb-STMicroelectronics_Lamost_UnderWater_Robot_ComPort_3588346E3134-if00"/>
+  <!-- 电机指令下发开关：默认 false 只收不发，手动操控需显式置 true -->
   <arg name="motor_tx" default="false" description="Explicitly enable motor command writes"/>
+  <!-- 原始串口数据 TCP 端口（9000） -->
   <arg name="tcp_port" default="9000"/>
+  <!-- 控制权 TCP 端口（9002） -->
   <arg name="tcp_control_port" default="9002"/>
+  <!-- 是否启动双目相机 -->
   <arg name="camera_enabled" default="true"/>
+  <!-- 双目相机设备节点 -->
   <arg name="camera_device" default="/dev/video0"/>
+  <!-- 双目拼接 JPEG TCP 端口（9001） -->
   <arg name="camera_tcp_port" default="9001"/>
+  <!-- 复用 base 层，逐项透传上面可覆盖的参数 -->
   <include file="$(find-pkg-share underwater_bringup)/launch/base.launch.xml">
     <arg name="namespace" value="$(var namespace)"/>
     <arg name="serial_port" value="$(var serial_port)"/>
@@ -18,8 +29,10 @@
     <arg name="camera_device" value="$(var camera_device)"/>
     <arg name="camera_tcp_port" value="$(var camera_tcp_port)"/>
   </include>
+  <!-- 推力分配器：把期望力/力矩（actuators/thrusters/setpoint）分配到各推进器 -->
   <node pkg="underwater_control" exec="control_node" name="thrust_allocator"
         namespace="$(var namespace)" output="screen">
+    <!-- 分配矩阵与限幅等参数 -->
     <param from="$(find-pkg-share underwater_control)/config/allocation.yaml"/>
   </node>
 </launch>
