@@ -1,7 +1,7 @@
 # 当前实机与待确认信息
 
-- 机器人计算机：NVIDIA Jetson Orin NX / Seeed reComputer，Ubuntu 22.04.5，ROS 2 Humble。
-- Nano 项目：/home/lamost/UnderWater-Robot-ROS2。
+- 机器人计算机：NVIDIA Jetson Orin NX 16GB Super / Seeed reComputer（256GB SSD），Ubuntu 22.04.5，ROS 2 Humble。
+- 板载项目路径：/home/lamost/UnderWater-Robot-ROS2。
 - MCU USB CDC：0483:5740；当前稳定路径：
   /dev/serial/by-id/usb-STMicroelectronics_Lamost_UnderWater_Robot_ComPort_3588346E3134-if00
 - 对应 ttyACM0；lamost 已属于 dialout。启动前确认没有 GUI 或其他进程占用同一串口。

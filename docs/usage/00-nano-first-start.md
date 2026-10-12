@@ -1,18 +1,18 @@
-# Nano 从开机到运行 ROS 2
+# 00 Orin NX 从开机到运行 ROS 2
 
 [项目 README](../../README.md) · [教程总目录](README.md) · 下一篇：[安装与编译](01-installation.md)
 
-本文假设 Jetson Nano 已安装 Ubuntu 22.04、ROS 2 Humble，项目已部署并至少编译过一次，工作空间位于 `/home/lamost/UnderWater-Robot-ROS2`。按“只查看传感器”或“手动控制”选择一种启动方式。两种方式都启动串口网关，不能同时启动，以免争用 MCU 串口。
+本文假设 NVIDIA Jetson Orin NX 16GB（Super）已安装 Ubuntu 22.04、ROS 2 Humble，项目已部署并至少编译过一次，工作空间位于 `/home/lamost/UnderWater-Robot-ROS2`。按“只查看传感器”或“手动控制”选择一种启动方式。两种方式都启动串口网关，不能同时启动，以免争用 MCU 串口。
 
 ## 1. 打开终端并加载工作空间
 
-Nano 开机进入 Ubuntu 后，打开终端。若从另一台电脑操作，可先 SSH 登录：
+Orin NX 开机进入 Ubuntu 后，打开终端。若从另一台电脑操作，可先 SSH 登录：
 
 ```bash
 ssh -t lamost@192.168.20.70
 ```
 
-在 Nano 终端中进入项目并加载 ROS 2 与工作空间环境：
+在 Orin NX 终端中进入项目并加载 ROS 2 与工作空间环境：
 
 ```bash
 cd /home/lamost/UnderWater-Robot-ROS2

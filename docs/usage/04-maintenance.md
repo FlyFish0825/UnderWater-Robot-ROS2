@@ -138,7 +138,7 @@ git tag --list
 
 ### 当前主分支同步与工作区整理
 
-本地与 Nano 都保留 `main`。正常网络下，先确认工作区干净再更新：
+本地与 Jetson Orin NX 都保留 `main`。正常网络下，先确认工作区干净再更新：
 
 ```bash
 git status -sb
@@ -148,7 +148,7 @@ git merge --ff-only origin/main
 git rev-parse HEAD
 ```
 
-双方最后一条命令的完整提交号应一致，`git status --porcelain` 应无输出。Nano 网络异常时，使用本地导出的 Git bundle 同步对象和分支引用，再校验对应源码文件；不要用强制重置掩盖修改。
+双方最后一条命令的完整提交号应一致，`git status --porcelain` 应无输出。Jetson Orin NX 网络异常时，使用本地导出的 Git bundle 同步对象和分支引用，再校验对应源码文件；不要用强制重置掩盖修改。
 
 `build/`、`install/`、`log/`、`Recodes/`、`artifacts/`、`tmp/`、`output/` 和部署归档/日志属于本地生成或现场证据，按 `.gitignore` 保留，不作为源码提交。`deploy/*.service.example` 仍跟踪。旧诊断文件先归档、验证哈希再整理；不删除采集记录、恢复备份、第三方源码或当前后台使用的安装目录。
 

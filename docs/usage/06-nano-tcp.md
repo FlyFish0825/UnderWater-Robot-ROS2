@@ -1,6 +1,8 @@
-# 06 Nano 原始串口 TCP 服务
+# 06 串口 TCP 转发与控制权服务
 
 [教程总目录](README.md) · 上一篇：[IMU 基准姿态校正](05-imu-calibration.md) · [项目 README](../../README.md)
+
+> **说明**：板载计算平台为 **NVIDIA Jetson Orin NX 16GB Super**。文中提及的“Nano”及网络协议标识（如 TCP 9002 控制权状态 `STATE NANO`）为板载端/机载端服务标识。
 
 日常开机、GUI 连接与控制权切换见[串口与相机转发操作手册](09-forwarding-handbook.md)。本页为原始串口和 9002 控制权的详细说明。
 

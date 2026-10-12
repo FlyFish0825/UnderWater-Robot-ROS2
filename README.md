@@ -2,8 +2,13 @@
 
 首个公开发布版：**v1.0.0**（2026-10-08）。版本范围和验证记录见 [发布说明](CHANGELOG.md)。
 
-ROS 2 Humble / Jetson Orin NX / C++17。业务入口采用 fc_sensors_ros2 的包名和程序名，
-原有 underwater_* 实现放在 internal，原调试命令与原生消息继续可用。
+```text
+NVIDIA Jetson Orin NX 16GB Super
+ROS 2 Humble
+C++17
+```
+
+业务入口采用 `fc_sensors_ros2` 的包名和程序名，原有 `underwater_*` 实现放在 `internal`，原调试命令与原生消息继续可用。
 
 ## 文档索引
 
@@ -13,11 +18,11 @@ ROS 2 Humble / Jetson Orin NX / C++17。业务入口采用 fc_sensors_ros2 的�
 | 需要了解的内容 | 入口 |
 |---|---|
 | 完整使用教程、日常操作顺序 | [教程总目录与快速开始](docs/usage/README.md) |
-| Nano 开机后启动 ROS 2、查看 IMU/深度、进入手动控制 | [00 Nano 从开机到运行 ROS 2](docs/usage/00-nano-first-start.md) |
+| Orin NX 开机后启动 ROS 2、查看 IMU/深度、进入手动控制 | [00 Orin NX 从开机到运行 ROS 2](docs/usage/00-nano-first-start.md) |
 | 新机器准备、源码获取、编译、终端环境 | [01 安装与编译](docs/usage/01-installation.md) |
 | 串口检查、IMU、深度归零、CSV、ROS bag | [02 传感器与数据记录](docs/usage/02-sensors-recording.md) |
 | 平放/朝向基准采样、姿态校正、保存与重启加载 | [05 IMU 基准姿态校正](docs/usage/05-imu-calibration.md) |
-| 串口转发使用教程：9000 原始数据、9002 控制权、GUI/Nano 接管与释放 | [06 串口 TCP 转发教程](docs/usage/06-nano-tcp.md) |
+| 串口转发使用教程：9000 原始数据、9002 控制权、GUI/Orin NX 接管与释放 | [06 串口 TCP 转发教程](docs/usage/06-nano-tcp.md) |
 | 相机转发使用教程：9001 双目图像、预览、记录与实际帧率 | [07 相机 TCP 转发教程](docs/usage/07-stereo-camera.md) |
 | 从开机到双路连接、控制权切换、停止与故障检查的完整手册 | [09 串口与相机转发操作手册](docs/usage/09-forwarding-handbook.md) |
 | 固定局域网 IP、随 ROS 2 同启两条转发、远程回退与同时接收验收 | [08 局域网与 TCP 恢复](docs/usage/08-lan-recovery.md) |
@@ -28,7 +33,7 @@ ROS 2 Humble / Jetson Orin NX / C++17。业务入口采用 fc_sensors_ros2 的�
 | 键盘按键、档位与启停 | [键盘控制](#键盘控制)、[动力分配与手动转速控制](docs/architecture/deployment/thrust-allocation.md) |
 | 如何分析 CAN CSV 中的力与转速指令 | [抓包分析教程](docs/architecture/deployment/can-command-analysis.md) |
 | 111.csv、112.csv 的方向、时间线与曲线 | [2026-10-08 抓包实例记录](docs/experiments/2026-10-08-can-command-analysis.md) |
-| 传感器修复、真实 GUI/Nano 控制权与原始串口验收 | [2026-10-10 最终实机验收](docs/experiments/2026-10-10-sensor-fix-control-acceptance.md)、[排障阶段记录](docs/experiments/2026-10-10-control-ownership.md) |
+| 传感器修复、真实 GUI/Orin NX 控制权与原始串口验收 | [2026-10-10 最终实机验收](docs/experiments/2026-10-10-sensor-fix-control-acceptance.md)、[排障阶段记录](docs/experiments/2026-10-10-control-ownership.md) |
 | ROS 话题与串口协议 | [话题接口](docs/interfaces/topics.md)、[MCU 线协议](docs/protocols/mcu-wire.md) |
 | 深度归零与硬件范围 | [深度归零](docs/architecture/deployment/depth-zero.md)、[当前硬件](docs/hardware/current-hardware.md) |
 | 验证方法与兼容入口 | [验证说明](docs/architecture/deployment/validation.md)、[兼容入口验证](docs/architecture/deployment/entry-compatibility.md) |
@@ -71,7 +76,7 @@ git clone --branch main https://github.com/FlyFish0825/UnderWater-Robot-ROS2.git
 cd UnderWater-Robot-ROS2
 ```
 
-`main` 已包含相机转发、控制权和传感器修复，本地与 Nano 均统一使用这个主分支。`v1.0.0` 是历史固定发布标签，不包含上述后续功能。已有工作空间时进入原项目目录，按[维护教程](docs/usage/04-maintenance.md)核对版本和未提交内容后再更新。以下命令以当前 Jetson 的部署路径为例：
+`main` 已包含相机转发、控制权和传感器修复，本地与 Jetson Orin NX 均统一使用这个主分支。`v1.0.0` 是历史固定发布标签，不包含上述后续功能。已有工作空间时进入原项目目录，按[维护教程](docs/usage/04-maintenance.md)核对版本和未提交内容后再更新。以下命令以当前 Jetson 的部署路径为例：
 
 ```bash
 cd /home/lamost/UnderWater-Robot-ROS2
@@ -84,7 +89,7 @@ source install/setup.bash
 项目自带 `colcon_defaults.yaml`，自动设置 src/internal 包搜索范围、逐包构建、符号链接安装和 RelWithDebInfo，
 无需再手动添加构建参数；不会将 third_party、artifacts 或 tmp 中的源码/备份识别为额外包。
 查看包列表直接使用 `colcon list`。
-Windows 保存同一份源码，编译和设备验证在 Nano 完成；build/install/log 是生成目录。
+Windows 保存同一份源码，编译和设备验证在 Jetson Orin NX 完成；build/install/log 是生成目录。
 
 ## 沿用原命令
 
@@ -100,7 +105,7 @@ Windows 保存同一份源码，编译和设备验证在 Nano 完成；build/ins
 | ros2 run manual_control time_read_test | 打印 ROS 时间，不启动后台 |
 
 每个终端先 source install/setup.bash。传感器、查看和记录入口可单独运行，
-所需后台会自动准备。记录默认保存到项目根目录的 Recodes/，Nano 上为
+所需后台会自动准备。记录默认保存到项目根目录的 Recodes/，Jetson Orin NX 上为
 /home/lamost/UnderWater-Robot-ROS2/Recodes；此默认路径在编译时确定，不随启动终端的当前目录改变。
 参数 output_dir 可改保存位置。记录包含时间、深度、温度、压力、加速度、
 角速度、欧拉角和有效位，缺测字段为 NaN，不伪造相机数据。
