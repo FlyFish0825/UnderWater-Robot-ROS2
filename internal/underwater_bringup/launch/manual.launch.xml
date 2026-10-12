@@ -5,6 +5,8 @@
   <arg name="motor_tx" default="false" description="Explicitly enable motor command writes"/>
   <arg name="tcp_port" default="9000"/>
   <arg name="tcp_control_port" default="9002"/>
+  <arg name="tcp_bind_address" default="0.0.0.0"/>
+  <arg name="tcp_allow_tx" default="false"/>
   <arg name="camera_enabled" default="true"/>
   <arg name="camera_device" default="/dev/video0"/>
   <arg name="camera_tcp_port" default="9001"/>
@@ -14,6 +16,8 @@
     <arg name="motor_tx" value="$(var motor_tx)"/>
     <arg name="tcp_port" value="$(var tcp_port)"/>
     <arg name="tcp_control_port" value="$(var tcp_control_port)"/>
+    <arg name="tcp_bind_address" value="$(var tcp_bind_address)"/>
+    <arg name="tcp_allow_tx" value="$(var tcp_allow_tx)"/>
     <arg name="camera_enabled" value="$(var camera_enabled)"/>
     <arg name="camera_device" value="$(var camera_device)"/>
     <arg name="camera_tcp_port" value="$(var camera_tcp_port)"/>

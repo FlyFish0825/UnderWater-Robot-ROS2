@@ -1,4 +1,5 @@
 #include "underwater_mcu_gateway/tcp_control_server.hpp"
+#include "underwater_mcu_gateway/control_protocol.hpp"
 
 #include <algorithm>
 #include <arpa/inet.h>
@@ -13,10 +14,6 @@ namespace {
 constexpr std::size_t kMaxClients = 8;
 constexpr std::size_t kMaxLine = 128;
 
-std::string owner_line(const char *prefix, const OwnershipResult &result) {
-  return std::string(prefix) + " " + controller_name(result.owner) + " " + result.token
-      + " " + result.message + "\n";
-}
 }
 
 TcpControlServer::~TcpControlServer() { close(); }
@@ -69,24 +66,7 @@ void TcpControlServer::queue(Client &client, std::string response) {
 }
 
 bool TcpControlServer::handle_line(Client &client, const std::string &line) {
-  if (line == "STATE") {
-    queue(client, std::string("STATE ") + controller_name(ownership_.owner()) + "\n");
-  } else if (line == "CLAIM GUI" || line == "TAKEOVER GUI") {
-    const bool takeover = line == "TAKEOVER GUI";
-    const auto result = ownership_.claim_gui(client.fd, takeover);
-    queue(client, owner_line(result.success ? "OK" : "BUSY", result));
-  } else if (line == "RELEASE GUI") {
-    const auto result = ownership_.release_gui(client.fd);
-    queue(client, owner_line(result.success ? "OK" : "BUSY", result));
-  } else if (line.rfind("PING ", 0) == 0) {
-    const std::string token = line.substr(5);
-    if (ownership_.heartbeat_gui(client.fd, token))
-      queue(client, "HEARTBEAT GUI\n");
-    else
-      queue(client, std::string("REVOKED ") + controller_name(ownership_.owner()) + "\n");
-  } else {
-    queue(client, "ERROR expected STATE, CLAIM GUI, TAKEOVER GUI, RELEASE GUI, or PING <token>\n");
-  }
+  queue(client, control_reply(ownership_, client.fd, line));
   return true;
 }
 

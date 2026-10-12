@@ -16,6 +16,7 @@
   <depend>underwater_description</depend>
 
   <test_depend>rclcpp</test_depend>
+  <test_depend>python3</test_depend>
   <test_depend>sensor_msgs</test_depend>
   <test_depend>underwater_interfaces</test_depend>
   <test_depend>geometry_msgs</test_depend>

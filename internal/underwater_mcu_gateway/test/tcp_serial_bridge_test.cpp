@@ -90,6 +90,19 @@ int main() {
 
     fd = connect_client(server.port());
     authenticate(server, fd, "session-token");
+    server.set_controller(ControllerOwner::Gui, "rotated-token");
+    check(!server.connected() && server.take_disconnect(), "raw token rotation closes the old authenticated client");
+    check(::recv(fd, buffer, sizeof(buffer), 0) == 0, "old raw socket sees revocation EOF");
+    check(!server.take_write_disconnect(), "deliberate credential rotation does not report new holder disconnect");
+    ::close(fd);
+    fd = connect_client(server.port());
+    authenticate(server, fd, "rotated-token");
+    server.set_controller(ControllerOwner::Gui, "session-token");
+    check(!server.connected() && server.take_disconnect() && !server.take_write_disconnect(),
+          "a second raw credential switch does not revoke the replacement authority");
+    ::close(fd);
+    fd = connect_client(server.port());
+    authenticate(server, fd, "session-token");
     wire::Bytes incoming;
     for (const auto value : payload) {
       check(::send(fd, &value, 1, MSG_NOSIGNAL) == 1, "send raw byte");
@@ -110,6 +123,7 @@ int main() {
     ::close(fd);
     server.poll();
     check(!server.connected() && server.take_disconnect(), "disconnect event");
+    check(server.take_write_disconnect(), "genuine current raw holder disconnect still reports ownership loss");
     server.forward_rx(payload);
     fd = connect_client(server.port(), "127.0.0.2");
     server.poll();
@@ -129,6 +143,42 @@ int main() {
     check(::recv(fd, buffer, sizeof(buffer), 0) == static_cast<ssize_t>(payload.size()),
           "read-only monitoring remains available after release");
     ::close(fd);
+    server.close();
+    server.open("127.0.0.1", 0);
+    server.set_serial_ready(true);
+    const std::string business_token(32, 'a');
+    server.set_controller(ControllerOwner::GuiManual, business_token);
+    fd = connect_client(server.port());
+    server.poll();
+    check(server.connected() && !server.write_authorized(), "business mode accepts read-only monitoring");
+    server.set_controller(ControllerOwner::GuiManual, business_token);
+    check(server.connected() && !server.take_disconnect(),
+          "repeated business synchronization does not disconnect read-only monitor");
+    const auto rejected = server.rejected_bytes();
+    const std::string forged = "OWNER " + business_token + "\n";
+    check(::send(fd, forged.data(), forged.size(), MSG_NOSIGNAL) == static_cast<ssize_t>(forged.size()),
+          "present business credential to the raw socket");
+    for(int i = 0; i < 20 && server.rejected_bytes() == rejected; ++i) {
+      check(server.poll().empty(), "business token is never forwarded to the UART");
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    check(server.rejected_bytes() == rejected + forged.size() && !server.write_authorized(),
+          "raw handshake cannot accept a business credential");
+    const auto after_token = server.rejected_bytes();
+    check(::send(fd, payload.data(), payload.size(), MSG_NOSIGNAL) == static_cast<ssize_t>(payload.size()),
+          "send raw motor bytes while business mode owns the GUI");
+    for(int i = 0; i < 20 && server.rejected_bytes() == after_token; ++i) {
+      check(server.poll().empty(), "business mode rejects every raw write");
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+    check(server.rejected_bytes() == after_token + payload.size(), "rejected business raw bytes counted");
+    server.forward_rx(payload);
+    size = ::recv(fd, buffer, sizeof(buffer), 0);
+    check(size == static_cast<ssize_t>(payload.size()) && wire::Bytes(buffer, buffer + size) == payload,
+          "business mode still receives unchanged UART bytes");
+    ::close(fd);
+    server.poll();
+    check(!server.take_write_disconnect(), "read-only business disconnect does not revoke management ownership");
     std::cout << "PASS " << checks << " TCP raw bridge and ownership checks\n";
     return 0;
   } catch (const std::exception &error) {

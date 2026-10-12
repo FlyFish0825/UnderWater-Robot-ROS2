@@ -21,7 +21,7 @@
 | sensors/status | underwater_interfaces/SensorStatus | TARGET 1/2 状态、采样年龄、成功和错误累计计数 |
 | actuators/thrusters/state | underwater_interfaces/MotorState | 节点 1..8 的普通反馈和心跳状态 |
 | control/wrench_request | geometry_msgs/WrenchStamped | base_link 六轴模型输入；时间戳必须新鲜，单发布者 |
-| control/manual_request | geometry_msgs/WrenchStamped | 键盘六轴档位 -100..100；0 停机，1 档起步；与 wrench_request 合计只能一个发布者 |
+| control/manual_request | geometry_msgs/WrenchStamped | 终端或已授权 GUI 的六轴档位 -100..100，参考系 thruster_center；0 停机，1 档起步；与 wrench_request 合计只能一个发布者 |
 | control/allocation | underwater_interfaces/AllocationStatus | QP 推力、建议 RPM、死区后的预测六轴量和启停状态 |
 | actuators/thrusters/setpoint | underwater_interfaces/MotorSetpoint | 绑定当前串口连接与 enable 会话的受限内部命令 |
 
@@ -44,3 +44,24 @@ ROS 输入帧话题是可信机器人内部接口，不是鉴权命令服务；�
 MotorSetpoint 由分配节点生成，外部物理力请求使用 wrench_request，键盘档位使用 manual_request；
 两种输入不能同时占用控制权，不要绕过控制入口直接发布电机向量。
 gateway/status 的 tx_frames/tx_bytes 只表示完整写入串口，不代表 CAN 应答或电机已经转动。
+
+## 业务操控权限（功能分支）
+
+`gateway/status.control_owner` 为 `NONE`、`NANO`、`GUI` 或 `GUI_MANUAL`。
+`GUI_MANUAL` 表示 GUI 持有操作权、Nano 执行原控制链，不是要求把权限改回 NANO；
+`GUI` 表示原始串口独占写入，禁止并行 ROS 电机输出。状态话题不公开租约令牌。
+
+`gateway/validate_manual_lease`（`underwater_interfaces/ValidateManualLease`）供 9003 适配节点内部校验：
+
+```text
+string token
+---
+bool valid
+uint64 generation
+string detail
+```
+
+这是可信 ROS 网络中的内部服务，不是可直接开放公网的鉴权接口。
+令牌由 9002 当前 GUI 会话取得，不能写日志、提交到仓库或用公开状态替代；
+`generation` 用于识别接管/模式切换后的权限代次变化。新增接口部署后需重新编译并重启旧后台。
+协议、时限和恢复方式见[远程操控教程](../usage/10-remote-manual-control.md)。

@@ -1,4 +1,5 @@
 #include "underwater_control/allocator.hpp"
+#include "underwater_control/manual_authority.hpp"
 #include <chrono>
 #include <algorithm>
 #include <optional>
@@ -64,7 +65,8 @@ public:
       [this](geometry_msgs::msg::WrenchStamped::ConstSharedPtr w){ wrench(*w,true); });
     gateway_sub_=create_subscription<ui::GatewayStatus>("gateway/status",10,
       [this](ui::GatewayStatus::ConstSharedPtr s){
-        if(gateway_ && gateway_->connection_id!=s->connection_id) disable("serial connection changed");
+        if(gateway_ && (gateway_->connection_id!=s->connection_id || gateway_->control_owner!=s->control_owner))
+          disable("serial connection or control authority changed");
         gateway_=*s; gateway_at_=Clock::now();
         if(armed_ && (!s->connected || !s->tx_enabled)) disable("gateway unavailable");
         if(armed_ && s->motor_session_id==session_) {
@@ -98,7 +100,15 @@ private:
   }
   bool gateway_ready() const {
     return gateway_ && Clock::now()-gateway_at_<2500ms && gateway_->connected &&
-      !gateway_->settling && gateway_->tx_enabled && gateway_->heartbeat_age_ms>=0 && gateway_->heartbeat_age_ms<2500;
+      !gateway_->settling && gateway_->tx_enabled && gateway_->heartbeat_age_ms>=0 && gateway_->heartbeat_age_ms<2500 && source_authorized();
+  }
+  bool source_authorized() const {
+    if(!gateway_) return false;
+    const auto manual=get_publishers_info_by_topic("control/manual_request");
+    const auto wrench=count_publishers("control/wrench_request");
+    const bool remote_only=manual.size()==1 && manual.front().node_name()=="remote_manual" &&
+        manual.front().node_namespace()==get_namespace();
+    return uc::remote::authorized_source(gateway_->control_owner,manual.size(),wrench,remote_only);
   }
   bool fresh() const { return input_valid_ && Clock::now()-input_at_<timeout_; }
   void disable(const std::string & reason) {
@@ -108,7 +118,8 @@ private:
     const rclcpp::Time stamp(w.header.stamp);
     const auto age=(now()-stamp).nanoseconds();
     if(w.header.frame_id!=frame_id_ || age< -100000000LL || age>250000000LL ||
-       (last_stamp_ && stamp<=*last_stamp_) || command_sources()>1) {
+       (last_stamp_ && stamp<=*last_stamp_) || command_sources()>1 || !source_authorized() ||
+       (gateway_->control_owner=="GUI_MANUAL" && !manual)) {
       input_valid_=false; disable("invalid frame, stale/duplicate timestamp or multiple publishers"); publish_command(); return;
     }
     last_stamp_=stamp;

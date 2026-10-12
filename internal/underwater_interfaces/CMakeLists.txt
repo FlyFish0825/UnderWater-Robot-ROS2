@@ -11,6 +11,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/ImuCalibrationStatus.msg"
   "srv/CalibrateImu.srv"
   "srv/ControlOwnership.srv"
+  "srv/ValidateManualLease.srv"
   "msg/DepthState.msg"
   "msg/SensorStatus.msg"
   "msg/MotorState.msg"

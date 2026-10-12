@@ -30,14 +30,20 @@ void TcpSerialBridge::close() noexcept {
   client_=listener_=-1;outgoing_.clear();offset_=0;ready_=false;port_=0;disconnected_=false;
   authenticated_=false;handshake_.clear();token_.clear();owner_=ControllerOwner::Nano;write_disconnected_=false;
 }
-void TcpSerialBridge::drop(const std::string &reason) {
-  if(client_>=0){write_disconnected_|=authenticated_ && owner_==ControllerOwner::Gui;::close(client_);client_=-1;disconnected_=true;}
+void TcpSerialBridge::drop(const std::string &reason,bool holder_disconnect) {
+  if(client_>=0){write_disconnected_|=holder_disconnect && authenticated_ && owner_==ControllerOwner::Gui;::close(client_);client_=-1;disconnected_=true;}
   outgoing_.clear();offset_=0;authenticated_=false;handshake_.clear();detail_=reason;
 }
 void TcpSerialBridge::set_controller(const ControllerOwner owner,const std::string &token) {
-  if(owner_==owner && token_==token)return;
-  owner_=owner;token_=owner==ControllerOwner::Gui?token:std::string{};
-  if(client_>=0)drop("Control owner changed; reconnect to apply the new ownership");
+  // A business lease is never a raw UART credential. Normalize before comparing
+  // so periodic business-proof expiry does not drop a read-only data client.
+  const auto raw_token=owner==ControllerOwner::Gui?token:std::string{};
+  if(owner_==owner && token_==raw_token)return;
+  // Closing an obsolete credential is intentional revocation, not loss of the
+  // replacement owner. Pending disconnects also belong to the previous lease.
+  if(client_>=0)drop("Control owner changed; reconnect to apply the new ownership",false);
+  write_disconnected_=false;
+  owner_=owner;token_=raw_token;
 }
 void TcpSerialBridge::set_serial_ready(bool ready) {
   ready_=ready;

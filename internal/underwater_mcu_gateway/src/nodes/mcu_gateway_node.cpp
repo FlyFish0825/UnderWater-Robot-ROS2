@@ -5,6 +5,7 @@
 #include "underwater_mcu_gateway/depth_zero.hpp"
 #include "underwater_mcu_gateway/control_ownership.hpp"
 #include "underwater_mcu_gateway/tcp_control_server.hpp"
+#include "underwater_mcu_gateway/motor_authority.hpp"
 #include <chrono>
 #include <optional>
 #include <rclcpp/rclcpp.hpp>
@@ -14,6 +15,7 @@
 #include <underwater_interfaces/msg/raw_serial.hpp>
 #include <underwater_interfaces/msg/motor_setpoint.hpp>
 #include <underwater_interfaces/srv/control_ownership.hpp>
+#include <underwater_interfaces/srv/validate_manual_lease.hpp>
 #include <std_srvs/srv/trigger.hpp>
 using Clock=std::chrono::steady_clock;
 using underwater::ControllerOwner;
@@ -73,6 +75,17 @@ public:
         response->owner=static_cast<std::uint8_t>(result.owner);
         response->message=result.message;
       });
+    manual_lease_service_=create_service<srv::ValidateManualLease>("gateway/validate_manual_lease",
+      [this](const std::shared_ptr<srv::ValidateManualLease::Request> request,
+             std::shared_ptr<srv::ValidateManualLease::Response> response){
+        // Revoke a lapsed proof before renewal can make it appear continuous.
+        // Neither this service nor ownership acquisition enables motor TX.
+        const auto renewal=motor_authority_.renew_manual_lease(request->token);
+        if(renewal.stop_required) apply_authority_change();
+        response->generation=renewal.generation;
+        response->valid=response->generation!=0;
+        response->detail=response->valid?"Current GUI business lease verified":"GUI business lease unavailable or expired";
+      });
     zero_service_=create_service<std_srvs::srv::Trigger>("sensors/depth/zero",
       [this](std::shared_ptr<rmw_request_id_t> header,std_srvs::srv::Trigger::Request::SharedPtr){
         if(ownership_.owner()!=ControllerOwner::Nano || !depth_commands_ || !serial_.connected() ||
@@ -120,7 +133,8 @@ private:
     }
   }
   void command(const ui::MotorSetpoint & m) {
-    if(ownership_.owner()!=ControllerOwner::Nano || !motor_tx_ || !serial_.connected() || m.connection_id!=connection_ ||
+    synchronize_owner();
+    if(!motor_authority_.ros_motor_allowed() || !motor_tx_ || !serial_.connected() || m.connection_id!=connection_ ||
        Clock::now()-opened_<std::chrono::milliseconds(settle_ms_)) return;
     const auto age=(this->now()-rclcpp::Time(m.header.stamp)).nanoseconds();
     if(age< -100000000LL || age>250000000LL) return;
@@ -133,21 +147,21 @@ private:
     } catch(const std::exception & e) { serial_failure(e.what()); }
   }
   void synchronize_owner() {
+    if(!motor_authority_.synchronize()) return;
+    apply_authority_change();
+  }
+  void apply_authority_change() {
     const auto owner=ownership_.owner();
     const auto token=ownership_.gui_token();
-    if(owner==synced_owner_ && token==synced_token_) return;
     if(serial_.connected()) {
-      try { send_motor({},0); command_detail_="control owner changed: stop transaction written"; }
+      try { send_motor({},0); command_detail_="control authority changed or expired: stop transaction written"; }
       catch(const std::exception & e) { detail_=e.what(); }
     }
     if(owner!=ControllerOwner::Nano && depth_zero_.busy()) {
       depth_zero_.cancel("Control ownership changed; Nano will not continue the transaction");
       process_depth_zero();
     }
-    gate_.reset();
     tcp_.set_controller(owner,token);
-    synced_owner_=owner;
-    synced_token_=token;
     publish_status();
     RCLCPP_INFO(get_logger(),"Robot control owner is now %s",controller_name(owner));
   }
@@ -282,8 +296,7 @@ private:
   std::uint64_t tx_bytes_=0,tx_frames_=0;
   std::string command_detail_="motor TX disabled";
   underwater::wire::MotorGate gate_;
-  underwater::ControllerOwner synced_owner_=underwater::ControllerOwner::Nano;
-  std::string synced_token_;
+  underwater::MotorAuthority motor_authority_{ownership_,gate_};
   std::uint64_t connection_=std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count(),rx_=0,stale_=0;
   std::array<std::uint8_t,5> buffers_{};
   std::optional<std::uint32_t> high_water_;
@@ -294,6 +307,7 @@ private:
   rclcpp::Publisher<ui::GatewayStatus>::SharedPtr status_;
   rclcpp::Subscription<ui::MotorSetpoint>::SharedPtr commands_;
   rclcpp::Service<srv::ControlOwnership>::SharedPtr ownership_service_;
+  rclcpp::Service<srv::ValidateManualLease>::SharedPtr manual_lease_service_;
   rclcpp::TimerBase::SharedPtr tick_,report_;
 };
 int main(int argc,char ** argv) {
