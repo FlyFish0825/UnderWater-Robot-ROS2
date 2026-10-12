@@ -17,6 +17,7 @@ C++17
 
 | 需要了解的内容 | 入口 |
 |---|---|
+| 🌟 初学者网页版全景指南 (含架构/节点/话题/教程/交互模拟器) | [打开网页说明文档 (doc/index.html)](doc/index.html) · [说明](doc/README.md) |
 | 完整使用教程、日常操作顺序 | [教程总目录与快速开始](docs/usage/README.md) |
 | Orin NX 开机后启动 ROS 2、查看 IMU/深度、进入手动控制 | [00 Orin NX 从开机到运行 ROS 2](docs/usage/00-nano-first-start.md) |
 | 新机器准备、源码获取、编译、终端环境 | [01 安装与编译](docs/usage/01-installation.md) |
