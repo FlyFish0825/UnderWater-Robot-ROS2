@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UnderWater-Robot-ROS2 水下机器人开发全景指南 | 系统分层架构与 13 包全景</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 顶部导航条 -->
+  <header class="top-header">
+    <div class="brand-section">
+      <button class="menu-toggle" id="menuToggle" aria-label="切换菜单">☰</button>
+      <div class="brand-logo">ROV</div>
+      <div class="brand-title">
+        <a href="index.html" style="color: inherit; text-decoration: none;">UnderWater-Robot-ROS2</a>
+        <span class="badge badge-version">v1.0.0</span>
+        <span class="badge badge-hardware">Jetson Orin NX 16GB</span>
+        <span class="badge badge-cpp">C++17</span>
+      </div>
+    </div>
+    
+    <div class="header-actions">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" class="search-input" placeholder="搜索本页内容...">
+      </div>
+      <button class="theme-toggle" id="themeToggle" title="切换模式">☀️</button>
+    </div>
+  </header>
+
+  <!-- 主体容器 -->
+  <div class="app-container">
+    
+    <!-- 左侧侧边栏导航 (多页面跳转) -->
+    <nav class="sidebar" id="sidebar">
+      <div class="nav-group">
+        <div class="nav-group-title">知识体系导航</div>
+        <a href="index.html" class="nav-item"><span class="nav-item-icon">🚀</span> 1. 项目概览与硬件平台</a>
+        <a href="architecture.html" class="nav-item active"><span class="nav-item-icon">🏛️</span> 2. 系统分层架构与 13 包</a>
+        <a href="nodes.html" class="nav-item"><span class="nav-item-icon">⚙️</span> 3. 核心节点（Nodes）详解</a>
+        <a href="interfaces.html" class="nav-item"><span class="nav-item-icon">📡</span> 4. 话题、服务与消息总线</a>
+        <a href="algorithms.html" class="nav-item"><span class="nav-item-icon">📐</span> 5. 算法原理与底层协议</a>
+        <a href="tutorials.html" class="nav-item"><span class="nav-item-icon">🛠️</span> 6. 初学者分步实操教程</a>
+        <a href="troubleshooting.html" class="nav-item"><span class="nav-item-icon">🚨</span> 7. 实机排障与推力模拟器</a>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-title">快捷外部资源</div>
+        <a href="../README.md" class="nav-item"><span class="nav-item-icon">📄</span> 仓库 README</a>
+        <a href="../CHANGELOG.md" class="nav-item"><span class="nav-item-icon">📝</span> 更新发布日志</a>
+      </div>
+    </nav>
+
+    <!-- 中间主体内容区 -->
+    <main class="main-content">
+      
+      <!-- 2. 系统分层架构与数据流 -->
+      <section id="architecture" class="doc-section">
+        <h1 class="doc-title">系统分层架构与数据流</h1>
+        <p class="lead-p">
+          本项目严格遵循现代机器人系统的<strong>关注点分离（Separation of Concerns）</strong>原则，从物理硬件到顶层应用分为五个清晰层次。各层之间通过标准化的 ROS 2 话题、服务或 TCP 套接字松耦合互联，保证单层升级不影响全局稳定性：
+        </p>
+
+        <div class="arch-container">
+          
+          <!-- Layer 4: 顶层交互 -->
+          <div class="arch-layer">
+            <div class="arch-layer-header">
+              <div class="arch-layer-title">🖥️ 顶层人机交互与外部应用</div>
+              <span class="arch-layer-badge">Layer 4: Application & UI</span>
+            </div>
+            <div class="arch-modules">
+              <div class="arch-module-card">
+                <div class="arch-module-name">Windows / Linux Qt 上位机</div>
+                <div class="arch-module-desc">Underwater_GUI：TCP 9000 原始数据透传、TCP 9002 控制权请求与状态握手、3D 姿态与仪表盘显示。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">ROS 2 键盘操作 / 自动化脚本</div>
+                <div class="arch-module-desc">终端键盘六轴手动控制、Forces 激励时序发生器、自主巡航任务状态机。</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 通道 1 -->
+          <div class="arch-connector">
+            <div class="arch-connector-line">
+              <span>↕ 通信通道：</span>
+              <span class="arch-channel-tag">TCP 9000 (原始字节)</span>
+              <span>|</span>
+              <span class="arch-channel-tag">TCP 9002 (控制权仲裁)</span>
+              <span>|</span>
+              <span class="arch-channel-tag">TCP 9001 (双目 JPEG 流)</span>
+              <span>|</span>
+              <span class="arch-channel-tag">ROS 2 话题总线</span>
+            </div>
+          </div>
+
+          <!-- Layer 3: 业务与外设兼容层 -->
+          <div class="arch-layer">
+            <div class="arch-layer-header">
+              <div class="arch-layer-title">📦 Orin NX: 业务与外设兼容层 (src/)</div>
+              <span class="arch-layer-badge">Layer 3: User & Peripheral</span>
+            </div>
+            <div class="arch-modules">
+              <div class="arch-module-card">
+                <div class="arch-module-name">sensors_cpp 兼容层</div>
+                <div class="arch-module-desc">复刻原 14 个兼容命令分派、<code>sensors_sub</code> 汇总查看、<code>sensors_sub_jilushuju</code> 10Hz CSV 实时落盘。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">manual_control 控制交互</div>
+                <div class="arch-module-desc">终端键盘六轴档位输入解析、forces 时序激励发生、<code>preview</code> 隔离预览安全门禁。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">global_camera 双目视觉</div>
+                <div class="arch-module-desc">V4L2 双目图像采集驱动、左右目画面实时拆分发布、内置 TCP 9001 JPEG 压缩推流服务。</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 通道 2 -->
+          <div class="arch-connector">
+            <div class="arch-connector-line">
+              <span>↕ 内部 ROS 2 话题总线：</span>
+              <span class="arch-channel-tag">/underwater_robot/ (ImuState, DepthState, MotorState, AllocationStatus, manual_request)</span>
+            </div>
+          </div>
+
+          <!-- Layer 2: 核心算法与设备层 -->
+          <div class="arch-layer">
+            <div class="arch-layer-header">
+              <div class="arch-layer-title">🧠 Orin NX: 核心算法与设备层 (internal/)</div>
+              <span class="arch-layer-badge">Layer 2: Algorithms & Core</span>
+            </div>
+            <div class="arch-modules">
+              <div class="arch-module-card">
+                <div class="arch-module-name">underwater_control 动力分配</div>
+                <div class="arch-module-desc">基于 OSQP 二次规划的最优推力分配算法、<code>thruster_center</code> 几何中心力矩计算、1000~6000 RPM 死区与极性映射。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">underwater_devices 设备抽象</div>
+                <div class="arch-module-desc">MS5837 深度状态机与水面归零服务、IMU 姿态相对基准校准、0x201..0x208 电机遥测解析。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">underwater_description 机器人模型</div>
+                <div class="arch-module-desc">北东地 (NED) 坐标系 URDF 刚体模型、<code>base_link</code> 到 <code>thruster_center</code> 静态 TF 变换。</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 通道 3 -->
+          <div class="arch-connector">
+            <div class="arch-connector-line">
+              <span>↕ 内部数据流：</span>
+              <span class="arch-channel-tag">gateway/frames (AA55/58/5B 解码帧)</span>
+              <span>|</span>
+              <span class="arch-channel-tag">gateway/status (网关遥测)</span>
+              <span>|</span>
+              <span class="arch-channel-tag">下行电机控制报文</span>
+            </div>
+          </div>
+
+          <!-- Layer 1: 通信网关层 -->
+          <div class="arch-layer">
+            <div class="arch-layer-header">
+              <div class="arch-layer-title">🔌 Orin NX: 通信网关层 (underwater_mcu_gateway)</div>
+              <span class="arch-layer-badge">Layer 1: Gateway & Protocol</span>
+            </div>
+            <div class="arch-modules">
+              <div class="arch-module-card">
+                <div class="arch-module-name">串口底层驱动</div>
+                <div class="arch-module-desc">带超时检测与自动重连的 USB CDC 虚拟串口（/dev/ttyACM0）驱动，波特率 921600。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">增量解包状态机</div>
+                <div class="arch-module-desc">64KB 环形缓冲区、AA55 (CAN/电机)、AA58 (网关状态)、AA5B (传感器遥测)、单调滑动重同步机制。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">网络转发与控制权仲裁</div>
+                <div class="arch-module-desc">TCP 9000 原始串口透明桥接服务、TCP 9002 独占控制权状态机（Orin NX 与 GUI 互斥）。</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 通道 4 -->
+          <div class="arch-connector">
+            <div class="arch-connector-line">
+              <span>↕ 物理接口：</span>
+              <span class="arch-channel-tag">USB CDC 虚拟串口数据线 (921600 Baud, /dev/ttyACM0)</span>
+            </div>
+          </div>
+
+          <!-- Layer 0: 下位机硬件 -->
+          <div class="arch-layer">
+            <div class="arch-layer-header">
+              <div class="arch-layer-title">⚙️ 下位机嵌入式硬件 (MCU)</div>
+              <span class="arch-layer-badge">Layer 0: Microcontroller</span>
+            </div>
+            <div class="arch-modules">
+              <div class="arch-module-card">
+                <div class="arch-module-name">STM32H750 主控 MCU</div>
+                <div class="arch-module-desc">负责高频硬件中断、看门狗安全定时器、串口协议帧封装下发。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">I²C & 串口传感器</div>
+                <div class="arch-module-desc">MS5837-02BA 耐压水深计（I²C 约 25Hz 采样）、高精九轴姿态 IMU 模块。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">8 路 CAN 电机驱动</div>
+                <div class="arch-module-desc">CAN 总线连接 8 台水下推进器 (fan1 ~ fan8)，实时反馈转速、电压、电流和温度。</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 3. 源码目录与 13 包全景 -->
+      <section id="workspace" class="doc-section">
+        <h2>源码目录与 13 包全景矩阵</h2>
+        <p>工作空间分为两大源代码目录：<code>src/</code>（对外开放业务接口与外设包）和 <code>internal/</code>（核心驱动、设备模型、分配算法与接口包）：</p>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>包名 (Package)</th>
+                <th>目录路径</th>
+                <th>语言</th>
+                <th>核心职责与定位</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>underwater_mcu_gateway</code></td>
+                <td>internal/</td>
+                <td>C++17</td>
+                <td>MCU 物理串口驱动、AA55/58/5B 流式增量解包、TCP 9000 透明转发、TCP 9002 独占控制权管理</td>
+              </tr>
+              <tr>
+                <td><code>underwater_devices</code></td>
+                <td>internal/</td>
+                <td>C++17</td>
+                <td>设备语义建模。将底层网关字节帧转化为标准的 IMU、深度计、电机状态 ROS 消息；水面零点与基准标定</td>
+              </tr>
+              <tr>
+                <td><code>underwater_control</code></td>
+                <td>internal/</td>
+                <td>C++17</td>
+                <td>六自由度动力分配（基于 OSQP 二次规划求解器）、八推进器安装坐标力矩计算、电机死区与极性映射、安全启停控制</td>
+              </tr>
+              <tr>
+                <td><code>underwater_description</code></td>
+                <td>internal/</td>
+                <td>URDF/XML</td>
+                <td>机器人 3D 几何与刚体模型。严格定义 NED 坐标系下 <code>base_link</code> 到 <code>thruster_center</code> 的静态 TF 变换</td>
+              </tr>
+              <tr>
+                <td><code>underwater_bringup</code></td>
+                <td>internal/</td>
+                <td>XML/Launch</td>
+                <td>顶层 Launch 启动集合：<code>base.launch.xml</code>、<code>manual.launch.xml</code>、<code>tcp.launch.xml</code> 等</td>
+              </tr>
+              <tr>
+                <td><code>underwater_interfaces</code></td>
+                <td>internal/</td>
+                <td>IDL</td>
+                <td>核心消息与服务接口定义：<code>ImuState</code>, <code>DepthState</code>, <code>MotorState</code>, <code>AllocationStatus</code>, <code>ControlOwnership</code></td>
+              </tr>
+              <tr>
+                <td><code>underwater_robot</code></td>
+                <td>internal/</td>
+                <td>C++17</td>
+                <td>顶层系统级节点与生命周期整合</td>
+              </tr>
+              <tr>
+                <td><code>sensors_cpp</code></td>
+                <td>src/</td>
+                <td>C++17</td>
+                <td>兼容层核心。复刻原 14 个 Python 命令名（如 <code>sensors_sub</code>, <code>sensors_sub_jilushuju</code> 10Hz CSV 录制），提供共享后端 <code>compat_runtime</code></td>
+              </tr>
+              <tr>
+                <td><code>manual_control</code></td>
+                <td>src/</td>
+                <td>C++17</td>
+                <td>手动控制兼容包。终端键盘六轴输入、时序激励生成（<code>forces_pub</code>）、时间测试与预览隔离</td>
+              </tr>
+              <tr>
+                <td><code>global_camera</code></td>
+                <td>src/</td>
+                <td>C++17</td>
+                <td>双目相机采集驱动。V4L2 硬件配置、左右目图像实时拆分、ROS <code>sensor_msgs/Image</code> 发布、TCP 9001 JPEG 推流</td>
+              </tr>
+              <tr>
+                <td><code>msg_pkg</code></td>
+                <td>src/</td>
+                <td>IDL</td>
+                <td>历史消息接口兼容包，提供 <code>ImuData.msg</code>, <code>DepthSensor.msg</code>, <code>Forces.msg</code> 等</td>
+              </tr>
+              <tr>
+                <td><code>imu_py</code></td>
+                <td>src/</td>
+                <td>C++17</td>
+                <td>保留原 <code>imu_publisher</code> 命名与使用习惯的轻量入口</td>
+              </tr>
+              <tr>
+                <td><code>depth_py</code></td>
+                <td>src/</td>
+                <td>C++17</td>
+                <td>保留原 <code>depth_publisher</code> 命名与使用习惯的轻量入口</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 页面翻页器 -->
+      <div class="page-nav">
+        <a href="index.html" class="page-nav-card prev">
+          <span class="page-nav-label">上一篇</span>
+          <span class="page-nav-title">⏮ 1. 项目概览与硬件平台</span>
+        </a>
+        <a href="nodes.html" class="page-nav-card next">
+          <span class="page-nav-label">下一篇</span>
+          <span class="page-nav-title">3. 核心节点（Nodes）详解 ➔</span>
+        </a>
+      </div>
+
+    </main>
+
+    <!-- 右侧页面目录（TOC） -->
+    <aside class="toc-panel">
+      <div class="toc-title">本页内容目录</div>
+      <a href="#architecture" class="toc-link active">系统分层架构</a>
+      <a href="#workspace" class="toc-link">源码目录与 13 包</a>
+    </aside>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

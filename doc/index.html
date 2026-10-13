@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>UnderWater-Robot-ROS2 水下机器人开发与架构全景指南</title>
+  <title>UnderWater-Robot-ROS2 水下机器人开发全景指南 | 概览与平台</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,7 +14,7 @@
       <button class="menu-toggle" id="menuToggle" aria-label="切换菜单">☰</button>
       <div class="brand-logo">ROV</div>
       <div class="brand-title">
-        <span>UnderWater-Robot-ROS2</span>
+        <a href="index.html" style="color: inherit; text-decoration: none;">UnderWater-Robot-ROS2</a>
         <span class="badge badge-version">v1.0.0</span>
         <span class="badge badge-hardware">Jetson Orin NX 16GB</span>
         <span class="badge badge-cpp">C++17</span>
@@ -24,7 +24,7 @@
     <div class="header-actions">
       <div class="search-box">
         <span class="search-icon">🔍</span>
-        <input type="text" id="searchInput" class="search-input" placeholder="搜索节点、话题、函数、教程...">
+        <input type="text" id="searchInput" class="search-input" placeholder="搜索本页内容...">
       </div>
       <button class="theme-toggle" id="themeToggle" title="切换模式">☀️</button>
     </div>
@@ -33,54 +33,34 @@
   <!-- 主体容器 -->
   <div class="app-container">
     
-    <!-- 左侧侧边栏导航 -->
+    <!-- 左侧侧边栏导航 (多页面跳转) -->
     <nav class="sidebar" id="sidebar">
       <div class="nav-group">
-        <div class="nav-group-title">入门指引</div>
-        <a href="#overview" class="nav-item active"><span class="nav-item-icon">🚀</span> 项目概览与硬件平台</a>
-        <a href="#architecture" class="nav-item"><span class="nav-item-icon">🏛️</span> 系统分层架构与数据流</a>
-        <a href="#workspace" class="nav-item"><span class="nav-item-icon">📂</span> 源码目录与 13 包全景</a>
+        <div class="nav-group-title">知识体系导航</div>
+        <a href="index.html" class="nav-item active"><span class="nav-item-icon">🚀</span> 1. 项目概览与硬件平台</a>
+        <a href="architecture.html" class="nav-item"><span class="nav-item-icon">🏛️</span> 2. 系统分层架构与 13 包</a>
+        <a href="nodes.html" class="nav-item"><span class="nav-item-icon">⚙️</span> 3. 核心节点（Nodes）详解</a>
+        <a href="interfaces.html" class="nav-item"><span class="nav-item-icon">📡</span> 4. 话题、服务与消息总线</a>
+        <a href="algorithms.html" class="nav-item"><span class="nav-item-icon">📐</span> 5. 算法原理与底层协议</a>
+        <a href="tutorials.html" class="nav-item"><span class="nav-item-icon">🛠️</span> 6. 初学者分步实操教程</a>
+        <a href="troubleshooting.html" class="nav-item"><span class="nav-item-icon">🚨</span> 7. 实机排障与推力模拟器</a>
       </div>
 
       <div class="nav-group">
-        <div class="nav-group-title">ROS 2 核心要素</div>
-        <a href="#nodes" class="nav-item"><span class="nav-item-icon">⚙️</span> 核心节点（Nodes）详解</a>
-        <a href="#topics-services" class="nav-item"><span class="nav-item-icon">📡</span> 话题（Topics）与服务（Services）</a>
-        <a href="#messages" class="nav-item"><span class="nav-item-icon">📦</span> 自定义消息（Messages）拆解</a>
-      </div>
-
-      <div class="nav-group">
-        <div class="nav-group-title">算法与核心函数</div>
-        <a href="#algorithms-alloc" class="nav-item"><span class="nav-item-icon">📐</span> 八推进器动力分配 (QP)</a>
-        <a href="#algorithms-protocol" class="nav-item"><span class="nav-item-icon">🔄</span> 底层串口流式增量解析</a>
-        <a href="#algorithms-imu-depth" class="nav-item"><span class="nav-item-icon">🧭</span> IMU 基准姿态与水深归零</a>
-      </div>
-
-      <div class="nav-group">
-        <div class="nav-group-title">新手实操教程</div>
-        <a href="#tutorial-setup" class="nav-item"><span class="nav-item-icon">🛠️</span> 教程 1：环境搭建与全量编译</a>
-        <a href="#tutorial-sensors" class="nav-item"><span class="nav-item-icon">📊</span> 教程 2：日常开机与传感器监视</a>
-        <a href="#tutorial-camera" class="nav-item"><span class="nav-item-icon">📷</span> 教程 3：双目相机与网络推流</a>
-        <a href="#tutorial-control" class="nav-item"><span class="nav-item-icon">🎮</span> 教程 4：键盘安全控制与隔离预览</a>
-        <a href="#tutorial-gui-tcp" class="nav-item"><span class="nav-item-icon">🖥️</span> 教程 5：上位机 GUI 与控制权协同</a>
-        <a href="#tutorial-recording" class="nav-item"><span class="nav-item-icon">💾</span> 教程 6：10Hz 数据落盘与分析</a>
-      </div>
-
-      <div class="nav-group">
-        <div class="nav-group-title">工程工具与排障</div>
-        <a href="#troubleshooting" class="nav-item"><span class="nav-item-icon">🚨</span> 常见故障排查手册 (FAQ)</a>
-        <a href="#simulator" class="nav-item"><span class="nav-item-icon">🎛️</span> 推进器转速与推力模拟器</a>
+        <div class="nav-group-title">快捷外部资源</div>
+        <a href="../README.md" class="nav-item"><span class="nav-item-icon">📄</span> 仓库 README</a>
+        <a href="../CHANGELOG.md" class="nav-item"><span class="nav-item-icon">📝</span> 更新发布日志</a>
       </div>
     </nav>
 
     <!-- 中间主体内容区 -->
     <main class="main-content">
       
-      <!-- 1. 项目概览 -->
+      <!-- 项目概览 -->
       <section id="overview" class="doc-section">
         <h1 class="doc-title">项目概览与硬件平台</h1>
         <p class="lead-p">
-          <strong>UnderWater-Robot-ROS2</strong> 是专为工业级水下机器人（ROV）打造的高可靠、低延迟开源机器人操作系统（ROS 2）软件栈。全栈基于 <strong>C++17</strong> 实现，运行在 <strong>NVIDIA Jetson Orin NX 16GB Super</strong> 计算平台上，为水下六自由度姿态控制、双目视觉感知、高精度流体深度闭环和上位机控制提供了完整的工程级解决方案。
+          <strong>UnderWater-Robot-ROS2</strong> 是面向工业级水下机器人（ROV）自主作业与遥控操控打造的开源机器人操作系统（ROS 2）软件栈。系统全栈采用现代 <strong>C++17</strong> 实现，运行在 <strong>NVIDIA Jetson Orin NX 16GB Super</strong> 边缘算力平台上，涵盖高精度流体深度闭环、九轴姿态解算、双目立体视觉推流、基于二次规划的八推进器动力分配算法，以及与地面上位机 Qt GUI 的独占控制权交互。
         </p>
 
         <div class="callout tip">
@@ -88,7 +68,7 @@
           <div class="callout-content">
             <div class="callout-title">初学者核心理解</div>
             <p>
-              水下机器人系统的本质是一个<strong>“感知 ➔ 决策 ➔ 执行”</strong>的闭环回路：下位机 MCU 采集传感器数据上传给边缘主机 Jetson Orin NX；Orin NX 上的 ROS 2 节点解包数据、估算位姿、运行动力分配二次规划算法，再将电机转速指令安全下发给推进器，同时通过以太网向操作手上位机回传高清双目图像与遥测信息。
+              水下机器人系统的本质是一个<strong>“感知 ➔ 决策 ➔ 执行”</strong>的高可靠闭环回路：下位机 MCU 采集传感器数据上传给边缘主机 Jetson Orin NX；Orin NX 上的 ROS 2 节点解包数据、估算位姿、运行动力分配二次规划算法，再将电机转速指令安全下发给推进器，同时通过以太网向操作手上位机回传高清双目图像与遥测信息。
             </p>
           </div>
         </div>
@@ -99,7 +79,7 @@
             <div class="card-title">主计算单元 (SBC) <span class="badge badge-hardware">Orin NX</span></div>
             <div class="card-desc">
               <strong>型号</strong>: NVIDIA Jetson Orin NX 16GB Super<br>
-              <strong>算力</strong>: 高达 100 TOPS AI 边缘计算算力<br>
+              <strong>算力</strong>: 100 TOPS AI 边缘计算算力<br>
               <strong>存储与系统</strong>: 256GB NVMe SSD，Ubuntu 22.04 LTS (aarch64)<br>
               <strong>ROS 版本</strong>: ROS 2 Humble Hawksbill
             </div>
@@ -109,14 +89,14 @@
             <div class="card-desc">
               <strong>接口</strong>: USB CDC 虚拟串口（波特率 921600）<br>
               <strong>设备路径</strong>: <code>/dev/serial/by-id/usb-STMicroelectronics...</code><br>
-              <strong>职责</strong>: 25Hz 深度计驱动、IMU 串口数据组装、8 路 CAN 总线电机驱动、心跳看门狗
+              <strong>职责</strong>: 25Hz 深度计驱动、IMU 串口数据组装、8 路 CAN 电机总线、看门狗定时器
             </div>
           </div>
           <div class="card">
             <div class="card-title">高精水下传感器 <span class="badge badge-version">Sensors</span></div>
             <div class="card-desc">
-              <strong>深度/压力</strong>: TE Connectivity MS5837-02BA（I²C 接口，耐压水深）<br>
-              <strong>惯性测量 (IMU)</strong>: 高精九轴 IMU（加速度、角速度、姿态四元数、匹配固件气压）<br>
+              <strong>深度/水温</strong>: TE Connectivity MS5837-02BA（I²C 约 25Hz）<br>
+              <strong>惯性测量 (IMU)</strong>: 高精九轴模块（加速度、角速度、姿态欧拉角与气压）<br>
               <strong>视觉感知</strong>: 720P 双目 USB 全局快门立体相机
             </div>
           </div>
@@ -124,1149 +104,57 @@
             <div class="card-title">动力执行机构 <span class="badge badge-warning">Actuators</span></div>
             <div class="card-desc">
               <strong>推进器数量</strong>: 8 台无刷水下推进器 (fan1 ~ fan8)<br>
-              <strong>布局</strong>: 4 台水平对角布置 (45°) + 4 台垂直内侧布置<br>
+              <strong>布局方式</strong>: 4 台水平对角布置 (45°) + 4 台垂直内侧布置<br>
               <strong>通信总线</strong>: CAN 总线节点 1 ~ 8<br>
               <strong>转速范围</strong>: 1000 ~ 6000 RPM（带有 1000 RPM 死区保护）
             </div>
           </div>
         </div>
-      </section>
 
-      <!-- 2. 系统分层架构与数据流 -->
-      <section id="architecture" class="doc-section">
-        <h2>系统分层架构与数据流</h2>
-        <p>本项目严格遵循现代机器人系统的关注点分离（Separation of Concerns）原则，从物理硬件到顶层应用分为五个清晰层次：</p>
-
-        <div class="arch-container">
-          
-          <!-- Layer 4: 顶层交互 -->
-          <div class="arch-layer">
-            <div class="arch-layer-header">
-              <div class="arch-layer-title">🖥️ 顶层人机交互与外部应用</div>
-              <span class="arch-layer-badge">Application & UI Layer</span>
-            </div>
-            <div class="arch-modules">
-              <div class="arch-module-card">
-                <div class="arch-module-name">Windows / Linux Qt 上位机</div>
-                <div class="arch-module-desc">Underwater_GUI：TCP 9000 原始数据透传、TCP 9002 控制权请求与状态握手、3D 姿态与仪表盘显示。</div>
-              </div>
-              <div class="arch-module-card">
-                <div class="arch-module-name">ROS 2 键盘操作 / 自动化脚本</div>
-                <div class="arch-module-desc">终端键盘六轴手动控制、Forces 激励时序发生器、自主巡航任务状态机。</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 通道 1 -->
-          <div class="arch-connector">
-            <div class="arch-connector-line">
-              <span>↕ 通信通道：</span>
-              <span class="arch-channel-tag">TCP 9000 (原始字节)</span>
-              <span>|</span>
-              <span class="arch-channel-tag">TCP 9002 (控制权仲裁)</span>
-              <span>|</span>
-              <span class="arch-channel-tag">TCP 9001 (双目 JPEG 流)</span>
-              <span>|</span>
-              <span class="arch-channel-tag">ROS 2 话题总线</span>
-            </div>
-          </div>
-
-          <!-- Layer 3: 业务与外设兼容层 -->
-          <div class="arch-layer">
-            <div class="arch-layer-header">
-              <div class="arch-layer-title">📦 Orin NX: 业务与外设兼容层 (src/)</div>
-              <span class="arch-layer-badge">User & Peripheral Layer</span>
-            </div>
-            <div class="arch-modules">
-              <div class="arch-module-card">
-                <div class="arch-module-name">sensors_cpp 兼容层</div>
-                <div class="arch-module-desc">复刻原 14 个兼容命令分派、<code>sensors_sub</code> 汇总查看、<code>sensors_sub_jilushuju</code> 10Hz CSV 实时落盘。</div>
-              </div>
-              <div class="arch-module-card">
-                <div class="arch-module-name">manual_control 控制交互</div>
-                <div class="arch-module-desc">终端键盘六轴档位输入解析、forces 时序激励发生、<code>preview</code> 隔离预览安全门禁。</div>
-              </div>
-              <div class="arch-module-card">
-                <div class="arch-module-name">global_camera 双目视觉</div>
-                <div class="arch-module-desc">V4L2 双目图像采集驱动、左右目画面实时拆分发布、内置 TCP 9001 JPEG 压缩推流服务。</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 通道 2 -->
-          <div class="arch-connector">
-            <div class="arch-connector-line">
-              <span>↕ 内部 ROS 2 话题总线：</span>
-              <span class="arch-channel-tag">/underwater_robot/ (ImuState, DepthState, MotorState, AllocationStatus, manual_request)</span>
-            </div>
-          </div>
-
-          <!-- Layer 2: 核心算法与设备层 -->
-          <div class="arch-layer">
-            <div class="arch-layer-header">
-              <div class="arch-layer-title">🧠 Orin NX: 核心算法与设备层 (internal/)</div>
-              <span class="arch-layer-badge">Core Algorithms & Devices Layer</span>
-            </div>
-            <div class="arch-modules">
-              <div class="arch-module-card">
-                <div class="arch-module-name">underwater_control 动力分配</div>
-                <div class="arch-module-desc">基于 OSQP 二次规划的最优推力分配算法、<code>thruster_center</code> 几何中心力矩计算、1000~6000 RPM 死区与极性映射。</div>
-              </div>
-              <div class="arch-module-card">
-                <div class="arch-module-name">underwater_devices 设备抽象</div>
-                <div class="arch-module-desc">MS5837 深度状态机与水面归零服务、IMU 姿态相对基准校准、0x201..0x208 电机遥测解析。</div>
-              </div>
-              <div class="arch-module-card">
-                <div class="arch-module-name">underwater_description 机器人模型</div>
-                <div class="arch-module-desc">北东地 (NED) 坐标系 URDF 刚体模型、<code>base_link</code> 到 <code>thruster_center</code> 静态 TF 变换。</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 通道 3 -->
-          <div class="arch-connector">
-            <div class="arch-connector-line">
-              <span>↕ 内部数据流：</span>
-              <span class="arch-channel-tag">gateway/frames (AA55/58/5B 解码帧)</span>
-              <span>|</span>
-              <span class="arch-channel-tag">gateway/status (网关遥测)</span>
-              <span>|</span>
-              <span class="arch-channel-tag">下行电机控制报文</span>
-            </div>
-          </div>
-
-          <!-- Layer 1: 通信网关层 -->
-          <div class="arch-layer">
-            <div class="arch-layer-header">
-              <div class="arch-layer-title">🔌 Orin NX: 通信网关层 (underwater_mcu_gateway)</div>
-              <span class="arch-layer-badge">Transport & Protocol Gateway</span>
-            </div>
-            <div class="arch-modules">
-              <div class="arch-module-card">
-                <div class="arch-module-name">串口底层驱动</div>
-                <div class="arch-module-desc">带超时检测与自动重连的 USB CDC 虚拟串口（/dev/ttyACM0）驱动，波特率 921600。</div>
-              </div>
-              <div class="arch-module-card">
-                <div class="arch-module-name">增量解包状态机</div>
-                <div class="arch-module-desc">64KB 环形缓冲区、AA55 (CAN/电机)、AA58 (网关状态)、AA5B (传感器遥测)、单调滑动重同步机制。</div>
-              </div>
-              <div class="arch-module-card">
-                <div class="arch-module-name">网络转发与控制权仲裁</div>
-                <div class="arch-module-desc">TCP 9000 原始串口透明桥接服务、TCP 9002 独占控制权状态机（Orin NX 与 GUI 互斥）。</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 通道 4 -->
-          <div class="arch-connector">
-            <div class="arch-connector-line">
-              <span>↕ 物理接口：</span>
-              <span class="arch-channel-tag">USB CDC 虚拟串口数据线 (921600 Baud, /dev/ttyACM0)</span>
-            </div>
-          </div>
-
-          <!-- Layer 0: 下位机硬件 -->
-          <div class="arch-layer">
-            <div class="arch-layer-header">
-              <div class="arch-layer-title">⚙️ 下位机嵌入式硬件 (MCU)</div>
-              <span class="arch-layer-badge">Hardware & Microcontroller</span>
-            </div>
-            <div class="arch-modules">
-              <div class="arch-module-card">
-                <div class="arch-module-name">STM32H750 主控 MCU</div>
-                <div class="arch-module-desc">负责高频硬件中断、看门狗安全定时器、串口协议帧封装下发。</div>
-              </div>
-              <div class="arch-module-card">
-                <div class="arch-module-name">I²C & 串口传感器</div>
-                <div class="arch-module-desc">MS5837-02BA 耐压水深计（I²C 约 25Hz 采样）、高精九轴姿态 IMU 模块。</div>
-              </div>
-              <div class="arch-module-card">
-                <div class="arch-module-name">8 路 CAN 电机驱动</div>
-                <div class="arch-module-desc">CAN 总线连接 8 台水下推进器 (fan1 ~ fan8)，实时反馈转速、电压、电流和温度。</div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </section>
-
-      <!-- 3. 源码目录与 13 包全景 -->
-      <section id="workspace" class="doc-section">
-        <h2>源码目录与 13 包全景</h2>
-        <p>工作空间分为两大源代码目录：<code>src/</code>（对外开放业务接口与外设包）和 <code>internal/</code>（核心驱动、设备模型、分配算法与接口包）：</p>
-
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>包名 (Package)</th>
-                <th>目录路径</th>
-                <th>语言</th>
-                <th>核心职责与定位</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><code>underwater_mcu_gateway</code></td>
-                <td>internal/</td>
-                <td>C++17</td>
-                <td>MCU 物理串口驱动、AA55/58/5B 流式增量解包、TCP 9000 透明转发、TCP 9002 独占控制权管理</td>
-              </tr>
-              <tr>
-                <td><code>underwater_devices</code></td>
-                <td>internal/</td>
-                <td>C++17</td>
-                <td>设备语义建模。将底层网关字节帧转化为标准的 IMU、深度计、电机状态 ROS 消息；水面零点与基准标定</td>
-              </tr>
-              <tr>
-                <td><code>underwater_control</code></td>
-                <td>internal/</td>
-                <td>C++17</td>
-                <td>六自由度动力分配（基于 OSQP 二次规划求解器）、八推进器安装坐标力矩计算、电机死区与极性映射、安全启停控制</td>
-              </tr>
-              <tr>
-                <td><code>underwater_description</code></td>
-                <td>internal/</td>
-                <td>URDF/XML</td>
-                <td>机器人 3D 几何与刚体模型。严格定义 NED 坐标系下 <code>base_link</code> 到 <code>thruster_center</code> 的静态 TF 变换</td>
-              </tr>
-              <tr>
-                <td><code>underwater_bringup</code></td>
-                <td>internal/</td>
-                <td>XML/Launch</td>
-                <td>顶层 Launch 启动集合：<code>base.launch.xml</code>、<code>manual.launch.xml</code>、<code>tcp.launch.xml</code> 等</td>
-              </tr>
-              <tr>
-                <td><code>underwater_interfaces</code></td>
-                <td>internal/</td>
-                <td>IDL</td>
-                <td>核心消息与服务接口定义：<code>ImuState</code>, <code>DepthState</code>, <code>MotorState</code>, <code>AllocationStatus</code>, <code>ControlOwnership</code></td>
-              </tr>
-              <tr>
-                <td><code>underwater_robot</code></td>
-                <td>internal/</td>
-                <td>C++17</td>
-                <td>顶层系统级节点与生命周期整合</td>
-              </tr>
-              <tr>
-                <td><code>sensors_cpp</code></td>
-                <td>src/</td>
-                <td>C++17</td>
-                <td>兼容层核心。复刻原 14 个 Python 命令名（如 <code>sensors_sub</code>, <code>sensors_sub_jilushuju</code> 10Hz CSV 录制），提供共享后端 <code>compat_runtime</code></td>
-              </tr>
-              <tr>
-                <td><code>manual_control</code></td>
-                <td>src/</td>
-                <td>C++17</td>
-                <td>手动控制兼容包。终端键盘六轴输入、时序激励生成（<code>forces_pub</code>）、时间测试与预览隔离</td>
-              </tr>
-              <tr>
-                <td><code>global_camera</code></td>
-                <td>src/</td>
-                <td>C++17</td>
-                <td>双目相机采集驱动。V4L2 硬件配置、左右目图像实时拆分、ROS <code>sensor_msgs/Image</code> 发布、TCP 9001 JPEG 推流</td>
-              </tr>
-              <tr>
-                <td><code>msg_pkg</code></td>
-                <td>src/</td>
-                <td>IDL</td>
-                <td>历史消息接口兼容包，提供 <code>ImuData.msg</code>, <code>DepthSensor.msg</code>, <code>Forces.msg</code> 等</td>
-              </tr>
-              <tr>
-                <td><code>imu_py</code></td>
-                <td>src/</td>
-                <td>C++17</td>
-                <td>保留原 <code>imu_publisher</code> 命名与使用习惯的轻量入口</td>
-              </tr>
-              <tr>
-                <td><code>depth_py</code></td>
-                <td>src/</td>
-                <td>C++17</td>
-                <td>保留原 <code>depth_publisher</code> 命名与使用习惯的轻量入口</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- 4. 核心节点详解 -->
-      <section id="nodes" class="doc-section">
-        <h2>核心节点（Nodes）全景深度剖析</h2>
-        <p class="lead-p">
-          初学者学习机器人系统，最关键的就是建立清晰的<strong>“进程拓扑模型”</strong>：明确每一个节点（Node）的输入来源、算法处理、输出目的地以及故障时的降级策略。下面对系统内 10 大核心节点进行全方位的工程级详细拆解：
-        </p>
-
-        <!-- 节点 1: mcu_gateway_node -->
-        <div class="node-detail-card">
-          <div class="node-header-bar">
-            <div class="node-main-title">
-              <span>🔌 1. mcu_gateway_node</span>
-            </div>
-            <div class="node-tags-group">
-              <span class="badge badge-hardware">包: underwater_mcu_gateway</span>
-              <span class="badge badge-cpp">C++17</span>
-              <span class="badge badge-version">常驻守护进程</span>
-            </div>
-          </div>
-          <p class="node-summary-p">
-            <strong>核心职责</strong>：整个机器人系统的<strong>物理总线中枢与网络网关</strong>。负责独占打开与 STM32H750 MCU 连接的 USB CDC 虚拟串口（<code>/dev/ttyACM0</code>），运行有界增量流式解包状态机，向下位机下发电机转速指令；同时在本地开放 TCP 9000（串口透明转发）与 TCP 9002（独占控制权仲裁）端口，供上位机 Qt GUI 无缝接入。
-          </p>
-          
-          <div class="node-sub-heading">📥 接口总线矩阵 (Topics & Services)</div>
-          <div class="table-container">
-            <table class="param-table">
-              <thead><tr><th>类型</th><th>接口名</th><th>数据类型</th><th>作用与触发条件</th></tr></thead>
-              <tbody>
-                <tr><td>发布 (Pub)</td><td><code>gateway/frames</code></td><td>underwater_interfaces/GatewayFrame</td><td>发布校验合法的 AA55/AA58/AA5B 完整二进制帧，供设备层订阅</td></tr>
-                <tr><td>发布 (Pub)</td><td><code>gateway/status</code></td><td>underwater_interfaces/GatewayStatus</td><td>汇报串口连接状态、累计收发字节数/帧数、丢包率与缓冲区水位</td></tr>
-                <tr><td>发布 (Pub)</td><td><code>gateway/raw_serial</code></td><td>underwater_interfaces/RawSerial</td><td>原始字节流镜像（供调试记录或录包分析）</td></tr>
-                <tr><td>订阅 (Sub)</td><td><code>control/motor_command</code></td><td>underwater_interfaces/MotorSetpoint</td><td>订阅动力分配节点计算的 8 路电机转速指令，组装成 0x100 帧下发</td></tr>
-                <tr><td>服务 (Srv)</td><td><code>gateway/control_ownership</code></td><td>underwater_interfaces/ControlOwnership</td><td>查询或切换控制权所有者（Orin NX 本地 vs 上位机 GUI）</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="node-sub-heading">⚙️ 核心参数 (ROS Parameters)</div>
-          <div class="table-container">
-            <table class="param-table">
-              <thead><tr><th>参数名</th><th>默认值</th><th>类型</th><th>说明</th></tr></thead>
-              <tbody>
-                <tr><td><code>serial_port</code></td><td><code>/dev/serial/by-id/usb-...</code></td><td>string</td><td>MCU USB CDC 稳定设备路径（强烈推荐 by-id 路径，防止插拔后变 ttyACM1）</td></tr>
-                <tr><td><code>baud_rate</code></td><td><code>921600</code></td><td>int</td><td>底层串口物理波特率，必须与 STM32H750 固件配置严格匹配</td></tr>
-                <tr><td><code>tcp_enabled</code></td><td><code>true</code></td><td>bool</td><td>是否开启 TCP 9000 原始串口转发服务</td></tr>
-                <tr><td><code>tcp_port</code></td><td><code>9000</code></td><td>int</td><td>原始字节透明转发监听端口，支持单个 GUI 客户端连接</td></tr>
-                <tr><td><code>control_port</code></td><td><code>9002</code></td><td>int</td><td>控制权仲裁 TCP 端口（响应 <code>CLAIM GUI</code>、<code>RELEASE GUI</code> 等文本握手）</td></tr>
-                <tr><td><code>buffer_capacity</code></td><td><code>65536</code></td><td>int</td><td>环形缓冲区容量上限（64KB），防止网络或串口积压导致内存无限膨胀</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="highlight-box">
-            💡 <strong>初学者避坑关键</strong>：<code>mcu_gateway_node</code> 必须拥有对 <code>/dev/ttyACM0</code> 的独占访问权限！启动前若有遗留进程未退出，会导致 <code>Failed to open serial port</code>。排查命令：<code>fuser -v /dev/ttyACM0</code>。
-          </div>
-        </div>
-
-        <!-- 节点 2: devices_node -->
-        <div class="node-detail-card">
-          <div class="node-header-bar">
-            <div class="node-main-title">
-              <span>🧭 2. devices_node</span>
-            </div>
-            <div class="node-tags-group">
-              <span class="badge badge-hardware">包: underwater_devices</span>
-              <span class="badge badge-cpp">C++17</span>
-              <span class="badge badge-version">设备抽象层</span>
-            </div>
-          </div>
-          <p class="node-summary-p">
-            <strong>核心职责</strong>：水下传感器的<strong>物理语义解释器</strong>。它不直接操作硬件串口，而是订阅 <code>mcu_gateway_node</code> 发出的 <code>gateway/frames</code> 二进制数据，将其精准反序列化为工程物理单位，并发布符合 ROS 2 工业标准的传感器状态话题。
-          </p>
-
-          <div class="node-sub-heading">📥 接口总线矩阵 (Topics & Services)</div>
-          <div class="table-container">
-            <table class="param-table">
-              <thead><tr><th>类型</th><th>接口名</th><th>数据类型</th><th>作用与触发条件</th></tr></thead>
-              <tbody>
-                <tr><td>订阅 (Sub)</td><td><code>gateway/frames</code></td><td>underwater_interfaces/GatewayFrame</td><td>接收网关解出的 AA5B（传感器）与 AA55（电机反馈）帧</td></tr>
-                <tr><td>发布 (Pub)</td><td><code>sensors/imu/state</code></td><td>underwater_interfaces/ImuState</td><td>发布九轴加速度（m/s²）、角速度（rad/s）、欧拉角、气压及有效位</td></tr>
-                <tr><td>发布 (Pub)</td><td><code>sensors/depth/state</code></td><td>underwater_interfaces/DepthState</td><td>发布水温（℃）、压力（Pa）、计算水深（m）、水面零点 P0 及错误码</td></tr>
-                <tr><td>发布 (Pub)</td><td><code>actuators/thrusters/state</code></td><td>underwater_interfaces/MotorState</td><td>发布 8 台推进器的实际转速、母线电压、工作电流与电调温度</td></tr>
-                <tr><td>服务 (Srv)</td><td><code>sensors/depth/zero</code></td><td>std_srvs/Trigger</td><td>触发水面深度归零校准（将当前大气压采样更新为基准 P0）</td></tr>
-                <tr><td>服务 (Srv)</td><td><code>sensors/imu/calibrate</code></td><td>underwater_interfaces/CalibrateImu</td><td>触发静止基准姿态采样，保存相对水平/朝向四元数偏移</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="highlight-box">
-            🔬 <strong>核心算法与物理模型</strong>：
-            <ul>
-              <li><strong>深度解算公式</strong>：$h = \frac{P - P_0}{\rho \cdot g}$，其中 $P$ 为 MS5837-02BA 实测绝对压力，$P_0$ 为水面参考气压（默认 100965 Pa），$\rho$ 为水体密度（淡水 1000 kg/m³，海水 1025 kg/m³），$g = 9.80665\,\text{m/s}^2$。</li>
-              <li><strong>MS5837 状态机高位诊断</strong>：当 0x83 状态帧返回异常时，自动拆解 `status` 字段第 24~31 位，定位是 I²C 硬件总线错误、CRC 校验失败还是缺少水面参考。</li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- 节点 3: control_node -->
-        <div class="node-detail-card">
-          <div class="node-header-bar">
-            <div class="node-main-title">
-              <span>🎯 3. control_node</span>
-            </div>
-            <div class="node-tags-group">
-              <span class="badge badge-hardware">包: underwater_control</span>
-              <span class="badge badge-cpp">C++17</span>
-              <span class="badge badge-warning">高安全级门禁</span>
-            </div>
-          </div>
-          <p class="node-summary-p">
-            <strong>核心职责</strong>：六自由度<strong>动力分配求解与电机使能安全门禁</strong>。接收六轴力/力矩期望（$F_x, F_y, F_z, M_x, M_y, M_z$），通过内置 OSQP 二次规划求解器，计算 8 台推进器的最优推力，并完成死区处理与极性映射；节点内置双重安全锁：必须显式调用服务使能，且具备 500ms 丢包看门狗急停保护。
-          </p>
-
-          <div class="node-sub-heading">📥 接口总线矩阵 (Topics & Services)</div>
-          <div class="table-container">
-            <table class="param-table">
-              <thead><tr><th>类型</th><th>接口名</th><th>数据类型</th><th>作用与触发条件</th></tr></thead>
-              <tbody>
-                <tr><td>订阅 (Sub)</td><td><code>control/manual_request</code></td><td>geometry_msgs/Twist</td><td>键盘手动控制发布的期望六轴速度/档位</td></tr>
-                <tr><td>订阅 (Sub)</td><td><code>control/wrench_request</code></td><td>geometry_msgs/Wrench</td><td>自动控制或算法节点发布的标准力与力矩（牛顿 / 牛·米）</td></tr>
-                <tr><td>发布 (Pub)</td><td><code>control/motor_command</code></td><td>underwater_interfaces/MotorSetpoint</td><td>最终下发给 8 台电机的目标转速（RPM）与运行掩码</td></tr>
-                <tr><td>发布 (Pub)</td><td><code>control/allocation_status</code></td><td>underwater_interfaces/AllocationStatus</td><td>动力分配求解状态（迭代次数、残差、各路分配推力）</td></tr>
-                <tr><td>服务 (Srv)</td><td><code>control/enable</code></td><td>std_srvs/SetBool</td><td>电机动力输出总开关（发 <code>true</code> 允许电机转动，发 <code>false</code> 强制急停）</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="node-sub-heading">⚙️ 核心安全参数</div>
-          <div class="table-container">
-            <table class="param-table">
-              <thead><tr><th>参数名</th><th>默认值</th><th>类型</th><th>说明</th></tr></thead>
-              <tbody>
-                <tr><td><code>motor_tx</code></td><td><code>false</code></td><td>bool</td><td>全局发送许可。出于安全考虑默认必须通过 launch 显式开启</td></tr>
-                <tr><td><code>timeout_ms</code></td><td><code>500</code></td><td>int</td><td>指令超时看门狗阈值。若超过 500ms 未收到新控制指令，自动向推进器下发 0 RPM</td></tr>
-                <tr><td><code>deadzone_rpm</code></td><td><code>1000.0</code></td><td>double</td><td>电机死区下限。推力换算转速在 (-1000, 1000) 区间内直接截断归零</td></tr>
-                <tr><td><code>max_rpm</code></td><td><code>6000.0</code></td><td>double</td><td>单台水下推进器允许输出的最大转速限制</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="highlight-box">
-            🛡️ <strong>力矩基准消除虚假耦合</strong>：
-            动力分配严格以推进器几何中心 <code>thruster_center = (-0.012873, 0.0, -0.040532) m</code> 作为计算原点。在平移消除后，纯前进力 $F_x$ 分配将不会产生虚假的下沉力矩，确保 ROV 在水下直线航行时不发生“磕头”或“仰头”。
-          </div>
-        </div>
-
-        <!-- 节点 4: global_cam_pub -->
-        <div class="node-detail-card">
-          <div class="node-header-bar">
-            <div class="node-main-title">
-              <span>📷 4. global_cam_pub</span>
-            </div>
-            <div class="node-tags-group">
-              <span class="badge badge-hardware">包: global_camera</span>
-              <span class="badge badge-cpp">C++17 + OpenCV</span>
-              <span class="badge badge-version">双目视觉引擎</span>
-            </div>
-          </div>
-          <p class="node-summary-p">
-            <strong>核心职责</strong>：<strong>全局快门双目立体相机的硬件采集与网络推流服务</strong>。通过 Linux V4L2 接口采集原生 2560x720@30FPS 宽幅双目画面，在内存中按中线零拷贝切割为左目（1280x720）与右目（1280x720），并分别发布标准 ROS 图像；同时内部集成独立 TCP 9001 服务器，支持向下位机或上位机低延迟推送压缩 JPEG 流。
-          </p>
-
-          <div class="node-sub-heading">📥 接口总线矩阵 (Topics & Network)</div>
-          <div class="table-container">
-            <table class="param-table">
-              <thead><tr><th>类型</th><th>接口名</th><th>数据类型 / 协议</th><th>作用说明</th></tr></thead>
-              <tbody>
-                <tr><td>发布 (Pub)</td><td><code>global_camera/left/image_raw</code></td><td>sensor_msgs/Image</td><td>左目 1280x720 原始彩色图像，时间戳严格同步</td></tr>
-                <tr><td>发布 (Pub)</td><td><code>global_camera/right/image_raw</code></td><td>sensor_msgs/Image</td><td>右目 1280x720 原始彩色图像，供立体深度匹配（Stereo BM/SGBM）</td></tr>
-                <tr><td>网络推流</td><td><code>TCP 0.0.0.0:9001</code></td><td>自定义二进制流</td><td>格式：<code>0xAABBCCDD (4B) + 数据长度 (4B 大端) + JPEG 数据</code></td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="highlight-box">
-            ⚡ <strong>性能优化亮点</strong>：
-            图像分割过程基于 <code>cv::Mat</code> 的子区域（ROI）视图实现，不触发整幅画面的内存复制（Zero-copy）。JPEG 编码在独立的工作线程中执行，彻底隔离相机 I/O 阻塞对主控制回路的影响，保证稳定的 25~30 FPS 输出。
-          </div>
-        </div>
-
-        <!-- 节点 5: manual_control -->
-        <div class="node-detail-card">
-          <div class="node-header-bar">
-            <div class="node-main-title">
-              <span>🎮 5. manual_control</span>
-            </div>
-            <div class="node-tags-group">
-              <span class="badge badge-hardware">包: manual_control</span>
-              <span class="badge badge-cpp">C++17</span>
-              <span class="badge badge-version">人机操控终端</span>
-            </div>
-          </div>
-          <p class="node-summary-p">
-            <strong>核心职责</strong>：终端<strong>非阻塞键盘六自由度手动操控交互器</strong>。接管终端按键事件（W/S/A/D/I/K/J/L 等），将其转化为六轴档位并保持，首个方向键自动请求使能；支持 <code>preview:=true</code> 隔离安全预览模式，方便在陆上无水环境下进行控制逻辑验证。
-          </p>
-
-          <div class="node-sub-heading">📥 接口总线矩阵</div>
-          <div class="table-container">
-            <table class="param-table">
-              <thead><tr><th>类型</th><th>接口名</th><th>数据类型</th><th>作用说明</th></tr></thead>
-              <tbody>
-                <tr><td>发布 (Pub)</td><td><code>control/manual_request</code></td><td>geometry_msgs/Twist</td><td>按 10Hz 持续发布当前按键保持的六轴目标档位（-1.0 ~ +1.0）</td></tr>
-                <tr><td>客户端 (Client)</td><td><code>control/enable</code></td><td>std_srvs/SetBool</td><td>首次按下方向键时自动向控制节点发送使能请求（preview 模式下跳过）</td></tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="highlight-box">
-            🕹️ <strong>常用操控参数</strong>：
-            <br>• <code>preview:=true</code>：只计算推力与发布话题，不调用底层硬件使能服务，安全级别极高！
-            <br>• <code>auto_start:=false</code>：接入已有正在运行的后台，不自动在后台重复拉起节点。
-          </div>
-        </div>
-
-        <!-- 节点 6: sensors_sub_jilushuju -->
-        <div class="node-detail-card">
-          <div class="node-header-bar">
-            <div class="node-main-title">
-              <span>💾 6. sensors_sub_jilushuju</span>
-            </div>
-            <div class="node-tags-group">
-              <span class="badge badge-hardware">包: sensors_cpp</span>
-              <span class="badge badge-cpp">C++17</span>
-              <span class="badge badge-version">10Hz 定频落盘</span>
-            </div>
-          </div>
-          <p class="node-summary-p">
-            <strong>核心职责</strong>：水下试验<strong>高可靠定频数据记录仪（数据记录）</strong>。以严格 10.0 Hz 采样周期对 IMU 姿态、角速度、加速度、深度计压力、水温与计算深度进行时间戳多源对齐，并自动落盘生成 CSV 文件，存储至工作空间的 <code>Recodes/</code> 目录下。
-          </p>
-          <div class="highlight-box">
-            📊 <strong>数据对齐与完整性规范</strong>：
-            如果某一时刻某路传感器暂时未产生最新样本，该字段在 CSV 中严格写入 <code>NaN</code>，绝不复用历史脏数据或伪造零值；文件首行自动写入标准表头，文件名为生成时刻精确时间戳，完全满足国家级水下实验数据规范。
-          </div>
-        </div>
-
-        <!-- 节点 7: forces_pub -->
-        <div class="node-detail-card">
-          <div class="node-header-bar">
-            <div class="node-main-title">
-              <span>📈 7. forces_pub</span>
-            </div>
-            <div class="node-tags-group">
-              <span class="badge badge-hardware">包: manual_control</span>
-              <span class="badge badge-cpp">C++17</span>
-              <span class="badge badge-warning">动力学辨识</span>
-            </div>
-          </div>
-          <p class="node-summary-p">
-            <strong>核心职责</strong>：<strong>预定时序水动力学激励信号发生器</strong>。在进行水动力学建模、推力拖曳试验或系统阶跃辨识时，按精确时间轴自动发布前向推力 $F_x$ 阶跃信号（默认执行 100 秒后自动请求停机），省去人工按键的不确定性。
-          </p>
-        </div>
-
-        <!-- 节点 8: backend_host -->
-        <div class="node-detail-card">
-          <div class="node-header-bar">
-            <div class="node-main-title">
-              <span>🏭 8. backend_host / compat_runtime</span>
-            </div>
-            <div class="node-tags-group">
-              <span class="badge badge-hardware">包: sensors_cpp</span>
-              <span class="badge badge-cpp">C++17 动态库</span>
-              <span class="badge badge-version">兼容层架构</span>
-            </div>
-          </div>
-          <p class="node-summary-p">
-            <strong>核心职责</strong>：<strong>原项目 14 个兼容入口的统一宿主运行时</strong>。原项目中的 <code>depth</code>、<code>sensors_sub</code>、<code>camera_display</code>、<code>auto_control</code> 等命令全部链接至该共享库，运行期根据 <code>COMPAT_ENTRY</code> 宏分派。如果发现系统底层后台未启动，宿主具备进程单例发现与自动后台准备（<code>auto_start</code>）能力。
-          </p>
-        </div>
-
-        <!-- 节点 9: data_sub -->
-        <div class="node-detail-card">
-          <div class="node-header-bar">
-            <div class="node-main-title">
-              <span>👁️ 9. data_sub</span>
-            </div>
-            <div class="node-tags-group">
-              <span class="badge badge-hardware">包: global_camera</span>
-              <span class="badge badge-cpp">C++17 + HighGUI</span>
-              <span class="badge badge-version">图像监视验证</span>
-            </div>
-          </div>
-          <p class="node-summary-p">
-            <strong>核心职责</strong>：<strong>ROS 2 双目图像本地订阅与可视化检视工具</strong>。订阅 <code>left/image_raw</code> 与 <code>right/image_raw</code> 话题，实时通过 OpenCV 窗口渲染双目画面，并支持键盘按键一键捕获当前立体图像对并保存为 PNG 图片，供标定与离线算法评测使用。
-          </p>
-        </div>
-
-        <!-- 节点 10: depth_publisher & imu_publisher -->
-        <div class="node-detail-card">
-          <div class="node-header-bar">
-            <div class="node-main-title">
-              <span>📦 10. depth_publisher & imu_publisher</span>
-            </div>
-            <div class="node-tags-group">
-              <span class="badge badge-hardware">包: depth_py & imu_py</span>
-              <span class="badge badge-cpp">C++17 薄封装</span>
-              <span class="badge badge-version">独立单传感器入口</span>
-            </div>
-          </div>
-          <p class="node-summary-p">
-            <strong>核心职责</strong>：<strong>单传感器独立调试入口</strong>。允许只关心深度计或只关心 IMU 的开发者单独运行 <code>ros2 run depth_py depth_publisher</code> 或 <code>ros2 run imu_py imu_publisher</code>，底层自动挂接 <code>compat_runtime</code> 共享驱动，降低单一传感器故障排查的复杂度。
-          </p>
-        </div>
-
-      </section>
-
-      <!-- 5. 话题与服务总线 -->
-      <section id="topics-services" class="doc-section">
-        <h2>话题（Topics）与服务（Services）</h2>
-        <p>系统默认命名空间为 <code>/underwater_robot</code>。所有节点通过 ROS 2 标准总线解耦通信：</p>
-
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>话题名称</th>
-                <th>消息类型</th>
-                <th>典型频率</th>
-                <th>详细说明</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><code>/underwater_robot/sensors/imu/state</code></td>
-                <td>underwater_interfaces/ImuState</td>
-                <td>20 ~ 50 Hz</td>
-                <td>包含线加速度 (m/s²)、角速度 (rad/s)、四元数、欧拉角 (roll/pitch/yaw 度)、气压与各字段有效性掩码</td>
-              </tr>
-              <tr>
-                <td><code>/underwater_robot/sensors/depth/state</code></td>
-                <td>underwater_interfaces/DepthState</td>
-                <td>约 25 Hz</td>
-                <td>MS5837 实测压力 (Pa)、水温 (°C)、计算水深 (m)、水面参考基准 P0 (Pa)、设备有效性与高位错误诊断码</td>
-              </tr>
-              <tr>
-                <td><code>/underwater_robot/actuators/thrusters/state</code></td>
-                <td>underwater_interfaces/MotorState</td>
-                <td>10 ~ 20 Hz</td>
-                <td>8 路推进器实时遥测：实际转速 (RPM)、母线电压 (V)、母线电流 (A)、电机控制器温度 (°C)</td>
-              </tr>
-              <tr>
-                <td><code>/underwater_robot/control/allocation_status</code></td>
-                <td>underwater_interfaces/AllocationStatus</td>
-                <td>10 Hz</td>
-                <td>动力分配状态：请求的六轴力、实际分配的八路目标 RPM、OSQP 求解器迭代次数、是否进入死区停机</td>
-              </tr>
-              <tr>
-                <td><code>/underwater_robot/control/manual_request</code></td>
-                <td>geometry_msgs/Twist</td>
-                <td>10 Hz</td>
-                <td>键盘手动输入的六轴目标档位（x, y, z 分别为前后/左右/上下，angular.z 为偏航航向）</td>
-              </tr>
-              <tr>
-                <td><code>/underwater_robot/global_camera/left/image_raw</code></td>
-                <td>sensor_msgs/Image</td>
-                <td>20 ~ 30 Hz</td>
-                <td>左目 1280x720 BGR8/RGB8 原始图像数据，供 SLAM/目标识别节点订阅</td>
-              </tr>
-              <tr>
-                <td><code>/underwater_robot/global_camera/right/image_raw</code></td>
-                <td>sensor_msgs/Image</td>
-                <td>20 ~ 30 Hz</td>
-                <td>右目 1280x720 BGR8/RGB8 原始图像数据，供立体视差匹配订阅</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <h3>核心服务接口（Services）</h3>
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>服务名称</th>
-                <th>服务类型</th>
-                <th>功能与调用条件</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><code>/underwater_robot/control/enable</code></td>
-                <td>std_srvs/SetBool</td>
-                <td><strong>电机启停使能</strong>。仅当 <code>data=true</code> 且 Orin NX 持有控制权时，推进器才被允许下发物理转速。发 <code>false</code> 立即全停。</td>
-              </tr>
-              <tr>
-                <td><code>/underwater_robot/sensors/depth/zero</code></td>
-                <td>std_srvs/Trigger</td>
-                <td><strong>深度水面归零</strong>。机器人置于水面静止时调用，采集连续有效压力更新水面基准大气压 $P_0$，重设水深 $0.00\,\text{m}$。</td>
-              </tr>
-              <tr>
-                <td><code>/underwater_robot/sensors/imu/calibrate</code></td>
-                <td>underwater_interfaces/CalibrateImu</td>
-                <td><strong>IMU 姿态相对基准校准</strong>。采集当前静止姿态作为参考基准，后续输出相对于此基准的水平平放或指定朝向。</td>
-              </tr>
-              <tr>
-                <td><code>/underwater_robot/gateway/control_ownership</code></td>
-                <td>underwater_interfaces/ControlOwnership</td>
-                <td><strong>控制权切换仲裁</strong>。用于查询或在上位机 GUI（CLAIM GUI）与机载 ROS 2（CLAIM NANO）之间原子交接控制权。</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- 6. 核心函数与算法深度解析 -->
-      <section id="algorithms-alloc" class="doc-section">
-        <h2>核心算法解析：八推进器动力分配 (QP Allocation)</h2>
-        <p class="lead-p">
-          机器人六自由度运动（前/后 $F_x$、左/右 $F_y$、上/下 $F_z$、横滚 $M_x$、俯仰 $M_y$、偏航 $M_z$）由 8 台推进器协同驱动。由于推进器数量（8）大于受控自由度（6），该系统属于<strong>过驱动系统（Over-actuated System）</strong>。本项目采用基于 OSQP 的二次规划算法进行最优推力分配。
-        </p>
-
-        <div class="callout info">
-          <div class="callout-icon">📌</div>
-          <div class="callout-content">
-            <div class="callout-title">力矩基准：thruster_center</div>
-            <p>
-              本系统严格以 8 台推进器安装坐标的算术平均中心作为力矩基准点，其相对于 URDF 原始 <code>base_link</code> 原点的平移量为：
-              <br><code>r_offset = (-0.012873, 0.0, -0.040532) m</code>。
-              所有推进器的位置矢量在分配计算前均统一减去此偏移量，消除绕底部原点计算带来的虚假俯仰/横滚力矩耦合！
-            </p>
-          </div>
-        </div>
-
-        <h3>推进器安装参数与几何矩阵</h3>
-        <p>模型采用<strong>北东地 (NED: +X 北, +Y 东, +Z 下)</strong> 约定，推进器具体布局如下：</p>
-
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>推进器</th>
-                <th>CAN ID</th>
-                <th>URDF 安装坐标 (x, y, z) m</th>
-                <th>正转速推力单位向量 (nx, ny, nz)</th>
-                <th>极性 motor_direction</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td>fan1</td><td>1</td><td>(0.23016, -0.18359, -0.040532)</td><td>(-0.70711, -0.70711, 0) 水平前左</td><td><code>+1</code></td></tr>
-              <tr><td>fan2</td><td>2</td><td>(0.23016, 0.18359, -0.040532)</td><td>(0.70711, -0.70711, 0) 水平前右</td><td><code>-1</code></td></tr>
-              <tr><td>fan3</td><td>3</td><td>(-0.25591, -0.18359, -0.040532)</td><td>(-0.70711, 0.70711, 0) 水平后左</td><td><code>-1</code></td></tr>
-              <tr><td>fan4</td><td>4</td><td>(-0.25591, 0.18359, -0.040532)</td><td>(0.70711, 0.70711, 0) 水平后右</td><td><code>+1</code></td></tr>
-              <tr><td>fan5</td><td>5</td><td>(0.062129, -0.125, -0.040532)</td><td>(0, 0, 1) 垂直前左向下</td><td><code>+1</code></td></tr>
-              <tr><td>fan6</td><td>6</td><td>(0.062129, 0.125, -0.040532)</td><td>(0, 0, 1) 垂直前右向下</td><td><code>+1</code></td></tr>
-              <tr><td>fan7</td><td>7</td><td>(-0.087871, -0.125, -0.040532)</td><td>(0, 0, -1) 垂直后左向上</td><td><code>-1</code></td></tr>
-              <tr><td>fan8</td><td>8</td><td>(-0.087871, 0.125, -0.040532)</td><td>(0, 0, -1) 垂直后右向上</td><td><code>-1</code></td></tr>
-            </tbody>
-          </table>
-        </div>
-
-        <h3>二次规划数学模型与源码核心逻辑</h3>
-        <p>动力分配的目标函数综合考虑<strong>期望力跟踪误差最小化</strong>与<strong>推进器功耗能量最小化</strong>：</p>
-        
-        <div class="code-wrapper">
-          <div class="code-header">
-            <span class="code-lang">C++ 核心代码片段：OSQP 矩阵装配与求解</span>
-            <button class="copy-btn">复制代码</button>
-          </div>
-          <pre><code>// internal/underwater_control/src/allocation/thrust_allocator.cpp
-// 构建推力配置矩阵 B (6x8): 每一列为推力单位向量与安装位置的力矩叉乘
-for (int i = 0; i < 8; ++i) {
-    Eigen::Vector3d r = positions[i] - thruster_center_; // 消除原点偏移
-    Eigen::Vector3d d = axes[i];                          // 单位推力方向
-    Eigen::Vector3d m = r.cross(d);                       // 力矩: r x d
-    B.block<3, 1>(0, i) = d; // 线性力 (Fx, Fy, Fz)
-    B.block<3, 1>(3, i) = m; // 力矩   (Mx, My, Mz)
-}
-
-// 二次规划目标函数: min 0.5 * u^T H u + g^T u
-// H = 2 * (B^T * W_v * B + W_u),  g = -2 * B^T * W_v * F_desired
-// 约束: u_min <= u <= u_max (推力上下界限幅)
-solver.updateHessianMatrix(H_sparse);
-solver.updateGradient(gradient);
-solver.solveProblem();
-Eigen::VectorXd thrust = solver.getSolution();
-
-// 死区与电机方向映射计算:
-for (int i = 0; i < 8; ++i) {
-    double raw_rpm = (thrust[i] / nominal_max_thrust_N) * max_rpm; // 线性推力-转速映射
-    if (std::abs(raw_rpm) < 1000.0) {
-        final_rpm[i] = 0; // 落在死区内停机，防止电机低频啸叫或发热
-    } else {
-        double clamped = std::clamp(std::abs(raw_rpm), 1000.0, 6000.0);
-        final_rpm[i] = std::copysign(clamped, raw_rpm) * motor_direction[i];
-    }
-}</code></pre>
-        </div>
-      </section>
-
-      <!-- 7. 底层协议流式解析 -->
-      <section id="algorithms-protocol" class="doc-section">
-        <h2>底层串口流式增量解析机制</h2>
-        <p class="lead-p">
-          机器人通过 USB CDC 虚拟串口以 921600 波特率高速传输二进制数据。工业现场中经常面临网络扰动、USB 中断重连、操作系统缓冲区粘包与分片等问题。本项目设计了<strong>有界增量流式解析器（Incremental Streaming Parser）</strong>。
-        </p>
-
+        <h2>分篇章节导读</h2>
         <div class="card-grid">
-          <div class="card">
-            <div class="card-title">AA55 帧族（CAN 与电机数据）</div>
-            <div class="card-desc">
-              <strong>格式</strong>: <code>AA 55 [BODY_LEN:u8] ... [CRC8:u8] 55 AA</code><br>
-              <strong>校验</strong>: CRC-8 (多项式 0x07, 初始值 0x00)。覆盖从长度字段到尾部前的全部字节。<br>
-              <strong>语义</strong>: 承载 CAN 节点反馈（0x201..0x208 电机状态）与下发电机指令（0x100 速度向量、0x11 运行掩码）。
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">AA58 帧族（网关遥测与流控）</div>
-            <div class="card-desc">
-              <strong>格式</strong>: <code>AA 58 ... [CRC16:u16]</code> (总长 20+N 字节)<br>
-              <strong>校验</strong>: CRC-16/CCITT-FALSE (多项式 0x1021, 初始值 0xFFFF，小端)。<br>
-              <strong>语义</strong>: 汇报 MCU 内部输入/输出 FIFO 队列占用率、CAN RX/TX 负载和硬件状态。
-            </div>
-          </div>
-          <div class="card">
-            <div class="card-title">AA5B 帧族（高精传感器遥测）</div>
-            <div class="card-desc">
-              <strong>格式</strong>: <code>AA 5B [VERSION=1] [TARGET] [CMD] ...</code><br>
-              <strong>子命令</strong>:
-              <ul>
-                <li><code>0x80</code>: IMU 原始角速度与加速度 ADC</li>
-                <li><code>0x81</code>: IMU 融合姿态欧拉角与状态位</li>
-                <li><code>0x82</code>: MS5837 压力与温度数据</li>
-                <li><code>0x83</code>: 深度计状态机与 I²C 阶段诊断</li>
-                <li><code>0x85</code>: 固件气压组（高度、参考气压、气压值）</li>
-              </ul>
-            </div>
-          </div>
-        </div>
-
-        <div class="callout warning">
-          <div class="callout-icon">⚠️</div>
-          <div class="callout-content">
-            <div class="callout-title">防粘包与单调重同步原则</div>
-            <p>
-              若遇到数据截断或校验失败，解析状态机绝不丢弃整个缓冲区，而是将滑动游标<strong>仅向后递增 1 字节</strong>重新寻找下一个候选帧头（<code>AA 55</code> / <code>AA 58</code> / <code>AA 5B</code>）。环形缓冲上限严格锁死在 65536 字节，半包等待超时设为 1.0 秒，彻底杜绝内存泄漏与死锁卡死。
-            </p>
-          </div>
+          <a href="architecture.html" class="card" style="text-decoration: none;">
+            <div class="card-title">🏛️ 2. 系统分层架构与 13 包 ➔</div>
+            <div class="card-desc">浏览 5 层分层架构视觉流向图，以及 13 个 ROS 2 源码包全景矩阵与职责定位。</div>
+          </a>
+          <a href="nodes.html" class="card" style="text-decoration: none;">
+            <div class="card-title">⚙️ 3. 核心节点详解 ➔</div>
+            <div class="card-desc">深入 10 大核心节点（网关、设备、控制分配、双目视觉、键盘交互等）的详细参数与底层机制。</div>
+          </a>
+          <a href="interfaces.html" class="card" style="text-decoration: none;">
+            <div class="card-title">📡 4. 话题、服务与消息总线 ➔</div>
+            <div class="card-desc">查阅全系统话题矩阵、自定义 IDL 消息字段（ImuState、DepthState 等）及核心服务。</div>
+          </a>
+          <a href="algorithms.html" class="card" style="text-decoration: none;">
+            <div class="card-title">📐 5. 算法原理与底层协议 ➔</div>
+            <div class="card-desc">探究八推进器 OSQP 推力分配、几何中心力矩消除、底层 AA55/58/5B 串口增量解包。</div>
+          </a>
+          <a href="tutorials.html" class="card" style="text-decoration: none;">
+            <div class="card-title">🛠️ 6. 初学者分步实操教程 ➔</div>
+            <div class="card-desc">从零开始的环境编译、传感器监视、双目推流、键盘操控、上位机 GUI 协同与数据落盘。</div>
+          </a>
+          <a href="troubleshooting.html" class="card" style="text-decoration: none;">
+            <div class="card-title">🚨 7. 实机排障与推力模拟器 ➔</div>
+            <div class="card-desc">实机避坑指南（WCH-Link 干扰、电机死区）与交互式推进器转速实时模拟器。</div>
+          </a>
         </div>
       </section>
 
-      <!-- 8. 新手实操教程 -->
-      <section id="tutorial-setup" class="doc-section">
-        <h2>教程 1：环境搭建与全量编译</h2>
-        <p>本项目在 Jetson Orin NX 16GB Super（Ubuntu 22.04 + ROS 2 Humble）实机环境验证通过。请按如下标准步骤操作：</p>
-
-        <div class="timeline">
-          <div class="timeline-item">
-            <div class="timeline-point"></div>
-            <div class="timeline-title">步骤 1：确认操作系统与 ROS 2 Humble 环境</div>
-            <p>打开终端，执行以下命令确认 ROS 2 基础环境已就绪：</p>
-            <div class="code-wrapper">
-              <div class="code-header"><span class="code-lang">BASH</span><button class="copy-btn">复制代码</button></div>
-              <pre><code>source /opt/ros/humble/setup.bash
-ros2 --version # 应输出 ros2 cli 版本</code></pre>
-            </div>
-          </div>
-
-          <div class="timeline-item">
-            <div class="timeline-point"></div>
-            <div class="timeline-title">步骤 2：进入工作空间并执行一键编译</div>
-            <p>项目根目录下已配置 <code>colcon_defaults.yaml</code>，自动设置构建参数，直接运行：</p>
-            <div class="code-wrapper">
-              <div class="code-header"><span class="code-lang">BASH</span><button class="copy-btn">复制代码</button></div>
-              <pre><code>cd /home/lamost/UnderWater-Robot-ROS2
-colcon build
-source install/setup.bash</code></pre>
-            </div>
-            <p class="card-desc">💡 构建系统会自动逐包构建 13 个项目包，启用 <code>--symlink-install</code> 符号链接安装与 <code>RelWithDebInfo</code> 优化等级。</p>
-          </div>
-
-          <div class="timeline-item">
-            <div class="timeline-point"></div>
-            <div class="timeline-title">步骤 3：核对编译产出</div>
-            <div class="code-wrapper">
-              <div class="code-header"><span class="code-lang">BASH</span><button class="copy-btn">复制代码</button></div>
-              <pre><code>colcon list # 应列出全部 13 个包且状态正常</code></pre>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 教程 2：日常开机与传感器监视 -->
-      <section id="tutorial-sensors" class="doc-section">
-        <h2>教程 2：日常开机与传感器监视</h2>
-        <p>当下位机 MCU 通过 USB 插入 Jetson Orin NX 时，最常用的操作是查看传感器状态并验证硬件连线：</p>
-
-        <div class="code-wrapper">
-          <div class="code-header"><span class="code-lang">BASH - 终端 1：启动传感器底层后台</span><button class="copy-btn">复制代码</button></div>
-          <pre><code>cd /home/lamost/UnderWater-Robot-ROS2
-source /opt/ros/humble/setup.bash
-source install/setup.bash
-
-# 启动串口网关与传感器解析节点（默认只读监听，不驱动电机）
-ros2 launch underwater_bringup base.launch.xml</code></pre>
-        </div>
-
-        <div class="code-wrapper">
-          <div class="code-header"><span class="code-lang">BASH - 终端 2：多传感器实时汇总查看</span><button class="copy-btn">复制代码</button></div>
-          <pre><code>source /opt/ros/humble/setup.bash
-source install/setup.bash
-
-# 运行传感器汇总终端，打印 IMU 姿态、温度、深度与压力
-ros2 run sensors_cpp sensors_sub</code></pre>
-        </div>
-
-        <div class="callout tip">
-          <div class="callout-icon">🌊</div>
-          <div class="callout-content">
-            <div class="callout-title">水面深度一键归零技巧</div>
-            <p>
-              若下水前因当天天气气压波动，深度读数不为 0（如显示 0.05m），在机器人平放于水面时执行：
-              <br><code>ros2 service call /underwater_robot/sensors/depth/zero std_srvs/Trigger</code>
-              <br>系统将自动采样当前大气压作为新的 $P_0$ 零点，立即归零！
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <!-- 教程 3：双目相机与网络推流 -->
-      <section id="tutorial-camera" class="doc-section">
-        <h2>教程 3：双目相机与网络推流</h2>
-        <p>系统配备 720P 双目 USB 相机。启动后，Orin NX 节点不仅发布左右目 ROS 话题，还会开启 TCP 9001 供上位机拉流：</p>
-
-        <div class="code-wrapper">
-          <div class="code-header"><span class="code-lang">BASH - 启动双目相机采集与推流</span><button class="copy-btn">复制代码</button></div>
-          <pre><code>source /opt/ros/humble/setup.bash
-source install/setup.bash
-
-# 启动全局双目相机节点
-ros2 launch global_camera stereo.launch.xml</code></pre>
-        </div>
-
-        <p><strong>上位机 (Windows/Qt) 接入指南</strong>：上位机通过 Socket 连接 <code>192.168.20.70:9001</code>。协议数据帧格式为 4 字节魔数 <code>0xAA 0xBB 0xCC 0xDD</code> + 4 字节数据长度 (大端) + JPEG 原始二进制字节流，直接通过 OpenCV <code>cv::imdecode</code> 即可解出彩色图像。</p>
-      </section>
-
-      <!-- 教程 4：键盘安全控制与隔离预览 -->
-      <section id="tutorial-control" class="doc-section">
-        <h2>教程 4：键盘安全控制与隔离预览</h2>
-        <div class="callout danger">
-          <div class="callout-icon">🛑</div>
-          <div class="callout-content">
-            <div class="callout-title">安全第一法则：先预览，后使能！</div>
-            <p>
-              在没有放入测试水池、或者没有接水下电机的空载陆上调试时，<strong>强烈建议开启 preview 隔离预览模式</strong>！预览模式下可以正常观察键盘按键对六轴力矩、推力分配与目标 RPM 的计算，但绝对不会向下位机发送实际转动指令。
-            </p>
-          </div>
-        </div>
-
-        <div class="code-wrapper">
-          <div class="code-header"><span class="code-lang">BASH - 终端 A：启动带控制栈的后台（关闭实际电机发送）</span><button class="copy-btn">复制代码</button></div>
-          <pre><code># motor_tx:=false 保证硬件电机不会转动
-ros2 launch underwater_bringup manual.launch.xml motor_tx:=false</code></pre>
-        </div>
-
-        <div class="code-wrapper">
-          <div class="code-header"><span class="code-lang">BASH - 终端 B：启动手动键盘控制</span><button class="copy-btn">复制代码</button></div>
-          <pre><code>ros2 run manual_control manual_control --ros-args -p auto_start:=false -p preview:=true</code></pre>
-        </div>
-
-        <h3>键盘操作键位映射速查表</h3>
-        <div class="table-container">
-          <table>
-            <thead>
-              <tr>
-                <th>按键 (Key)</th>
-                <th>控制自由度</th>
-                <th>动作效果</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr><td><code>W</code> / <code>S</code></td><td>$F_x$ 前进 / 后退</td><td>推进器 fan1~4 协同产生纵向推力</td></tr>
-              <tr><td><code>A</code> / <code>D</code></td><td>$F_y$ 左移 / 右移</td><td>推进器 fan1~4 协同产生横向推力</td></tr>
-              <tr><td><code>I</code> / <code>K</code></td><td>$F_z$ 上浮 / 下潜</td><td>垂直推进器 fan5~8 协同产生升沉推力</td></tr>
-              <tr><td><code>J</code> / <code>L</code></td><td>$M_z$ 左转 / 右转 (偏航 Yaw)</td><td>水平推进器差速产生回转力矩</td></tr>
-              <tr><td><code>Space</code> (空格)</td><td>急停</td><td>六轴力矩瞬间清零，推进器停转</td></tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-
-      <!-- 教程 5：上位机 GUI 与控制权协同 -->
-      <section id="tutorial-gui-tcp" class="doc-section">
-        <h2>教程 5：上位机 GUI 与控制权协同</h2>
-        <p>本项目支持 PC 端 <strong>Underwater_GUI</strong> 与板载 <strong>Orin NX</strong> 双模工作。通过独占控制权协议，彻底解决“上位机操作手与机载自动算法争夺电机”的工业难题：</p>
-
-        <div class="seq-container">
-          <div class="seq-step">
-            <div class="seq-num">1</div>
-            <div class="seq-content">
-              <div class="seq-title">
-                <span>握手连接建立</span>
-                <span class="badge badge-hardware">STATE NANO</span>
-              </div>
-              <div class="seq-desc">
-                上位机 TCP 9002 连接 Orin NX 时，Orin NX 立即回复 <code>STATE NANO</code>。此时控制权属于板载端，上位机初始为<strong>只读模式</strong>，可监视传感器，但不能向串口发送电机指令。
-              </div>
-            </div>
-          </div>
-
-          <div class="seq-step">
-            <div class="seq-num">2</div>
-            <div class="seq-content">
-              <div class="seq-title">
-                <span>上位机申请接管</span>
-                <span class="badge badge-warning">CLAIM GUI ➔ OK GUI</span>
-              </div>
-              <div class="seq-desc">
-                操作手在 GUI 界面点击“接管控制权”，GUI 发送 <code>CLAIM GUI</code>。Orin NX 立即<strong>停用本地 ROS 2 电机下发</strong>并返回 <code>OK GUI</code>。此时上位机获得独占写入权，可经由 TCP 9000 下发原始电机控制指令。
-              </div>
-            </div>
-          </div>
-
-          <div class="seq-step">
-            <div class="seq-num">3</div>
-            <div class="seq-content">
-              <div class="seq-title">
-                <span>释放控制权与断网保护</span>
-                <span class="badge badge-version">RELEASE GUI ➔ STATE NANO</span>
-              </div>
-              <div class="seq-desc">
-                操作手点击“释放控制权”（发送 <code>RELEASE GUI</code>）或当网络发生中断时，Orin NX 控制权看门狗自动触发急停保护，安全复位为 <code>STATE NANO</code>，恢复板载控制。
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <!-- 教程 6：10Hz 数据落盘与分析 -->
-      <section id="tutorial-recording" class="doc-section">
-        <h2>教程 6：10Hz 数据落盘与分析</h2>
-        <p>水下试验最宝贵的就是实验数据。系统内置了开箱即用的 10Hz 高速 CSV 记录工具：</p>
-
-        <div class="code-wrapper">
-          <div class="code-header"><span class="code-lang">BASH - 启动全量数据记录</span><button class="copy-btn">复制代码</button></div>
-          <pre><code># 启动记录工具，默认自动保存至工作空间 Recodes/ 目录
-ros2 run sensors_cpp sensors_sub_jilushuju</code></pre>
-        </div>
-
-        <p><strong>输出 CSV 字段格式</strong>：<code>时间戳, 水深(m), 水温(℃), 压力(Pa), 加速度X, 加速度Y, 加速度Z, 角速度X, 角速度Y, 角速度Z, 欧拉角Roll, 欧拉角Pitch, 欧拉角Yaw, 深度有效位, IMU有效位</code>。缺测或传感器离线字段自动填入 <code>NaN</code>，不伪造数据，可直接导入 MATLAB 或 Python Pandas 进行绘图与动力学辨识分析。</p>
-      </section>
-
-      <!-- 9. 常见故障排查手册 (FAQ) -->
-      <section id="troubleshooting" class="doc-section">
-        <h2>常见故障排查手册 (FAQ)</h2>
-        
-        <div class="callout danger">
-          <div class="callout-icon">❓</div>
-          <div class="callout-content">
-            <div class="callout-title">问题 1：启动提示找不到串口 /dev/ttyACM0 或 Permission denied</div>
-            <p>
-              <strong>原因</strong>: USB 线缆松动、未识别，或当前 Linux 用户没有 <code>dialout</code> 串口访问权限。<br>
-              <strong>解决步骤</strong>:
-              <br>1. 运行 <code>ls -l /dev/ttyACM*</code> 查看设备节点是否存在；
-              <br>2. 运行 <code>sudo usermod -aG dialout $USER</code> 将当前用户加入串口组，重新登录生效；
-              <br>3. 检查是否有旧进程占用串口：<code>fuser -v /dev/ttyACM0</code>，杀掉残留进程。
-            </p>
-          </div>
-        </div>
-
-        <div class="callout warning">
-          <div class="callout-icon">❓</div>
-          <div class="callout-content">
-            <div class="callout-title">问题 2：IMU 数据有效位显示 0，读数全部为 0 或卡死</div>
-            <p>
-              <strong>特别注意（实机血泪经验）</strong>: 如果主板上还插着 <strong>WCH-Link 下载调试器</strong>，WCH-Link 的引脚电平会干扰板载 IMU 串口通信！进行 IMU 验收和正常作业前，<strong>必须拔下 WCH-Link 下载器</strong>，重启下位机即可恢复。
-            </p>
-          </div>
-        </div>
-
-        <div class="callout info">
-          <div class="callout-icon">❓</div>
-          <div class="callout-content">
-            <div class="callout-title">问题 3：键盘有输入，但推进器完全不转动</div>
-            <p>
-              <strong>排查顺序</strong>:
-              <br>1. 检查启动时是否指定了 <code>motor_tx:=true</code>（默认出于安全考虑是 false 关闭电机输出的）；
-              <br>2. 检查推力是否落入了 1000 RPM 死区（输入力微小时，系统自动截断为 0 保护电机）；
-              <br>3. 检查控制权是否被上位机 GUI 占用（若处于 <code>STATE GUI</code>，机载 ROS 指令被硬件锁死拒绝）。
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <!-- 10. 交互小工具 -->
-      <section id="simulator" class="doc-section">
-        <h2>交互小工具：推进器转速与推力模拟器</h2>
-        <p>拖动下方滑块调整六自由度期望推力，实时观察八推进器的动力分配算法输出与死区判定：</p>
-
-        <div class="interactive-tool">
-          <div class="slider-group">
-            <div class="slider-header">
-              <span>纵向力 Fx (前进/后退):</span>
-              <strong id="simFxVal">0.0 N</strong>
-            </div>
-            <input type="range" id="simFx" min="-150" max="150" value="0" step="5">
-          </div>
-
-          <div class="slider-group">
-            <div class="slider-header">
-              <span>垂向力 Fz (下潜/上浮):</span>
-              <strong id="simFzVal">0.0 N</strong>
-            </div>
-            <input type="range" id="simFz" min="-150" max="150" value="0" step="5">
-          </div>
-
-          <div class="slider-group">
-            <div class="slider-header">
-              <span>偏航力矩 Mz (回转 Yaw):</span>
-              <strong id="simYawVal">0.0 N·m</strong>
-            </div>
-            <input type="range" id="simYaw" min="-30" max="30" value="0" step="1">
-          </div>
-
-          <h4>八路推进器实时计算状态：</h4>
-          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem; margin-top: 1rem;">
-            <div class="card" style="padding: 0.75rem;">
-              <div style="font-weight: 600; font-size: 0.85rem;">fan1 (水平前左)</div>
-              <div id="rpm_fan1" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
-              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan1" style="height: 100%; width: 0%;"></div></div>
-            </div>
-            <div class="card" style="padding: 0.75rem;">
-              <div style="font-weight: 600; font-size: 0.85rem;">fan2 (水平前右)</div>
-              <div id="rpm_fan2" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
-              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan2" style="height: 100%; width: 0%;"></div></div>
-            </div>
-            <div class="card" style="padding: 0.75rem;">
-              <div style="font-weight: 600; font-size: 0.85rem;">fan3 (水平后左)</div>
-              <div id="rpm_fan3" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
-              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan3" style="height: 100%; width: 0%;"></div></div>
-            </div>
-            <div class="card" style="padding: 0.75rem;">
-              <div style="font-weight: 600; font-size: 0.85rem;">fan4 (水平后右)</div>
-              <div id="rpm_fan4" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
-              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan4" style="height: 100%; width: 0%;"></div></div>
-            </div>
-            <div class="card" style="padding: 0.75rem;">
-              <div style="font-weight: 600; font-size: 0.85rem;">fan5 (垂直前左)</div>
-              <div id="rpm_fan5" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
-              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan5" style="height: 100%; width: 0%;"></div></div>
-            </div>
-            <div class="card" style="padding: 0.75rem;">
-              <div style="font-weight: 600; font-size: 0.85rem;">fan6 (垂直前右)</div>
-              <div id="rpm_fan6" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
-              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan6" style="height: 100%; width: 0%;"></div></div>
-            </div>
-            <div class="card" style="padding: 0.75rem;">
-              <div style="font-weight: 600; font-size: 0.85rem;">fan7 (垂直后左)</div>
-              <div id="rpm_fan7" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
-              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan7" style="height: 100%; width: 0%;"></div></div>
-            </div>
-            <div class="card" style="padding: 0.75rem;">
-              <div style="font-weight: 600; font-size: 0.85rem;">fan8 (垂直后右)</div>
-              <div id="rpm_fan8" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
-              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan8" style="height: 100%; width: 0%;"></div></div>
-            </div>
-          </div>
-        </div>
-      </section>
+      <!-- 页面翻页器 -->
+      <div class="page-nav">
+        <div></div>
+        <a href="architecture.html" class="page-nav-card next">
+          <span class="page-nav-label">下一篇</span>
+          <span class="page-nav-title">2. 系统分层架构与 13 包 ➔</span>
+        </a>
+      </div>
 
     </main>
 
     <!-- 右侧页面目录（TOC） -->
     <aside class="toc-panel">
-      <div class="toc-title">本页内容目录</div>
-      <a href="#overview" class="toc-link active">项目概览与硬件平台</a>
-      <a href="#architecture" class="toc-link">系统分层架构</a>
-      <a href="#workspace" class="toc-link">源码目录与 13 包</a>
-      <a href="#nodes" class="toc-link">核心节点详解</a>
-      <a href="#topics-services" class="toc-link">话题与服务总线</a>
-      <a href="#algorithms-alloc" class="toc-link">八推进器动力分配</a>
-      <a href="#algorithms-protocol" class="toc-link">串口增量流式解析</a>
-      <a href="#tutorial-setup" class="toc-link">教程 1：环境搭建编译</a>
-      <a href="#tutorial-sensors" class="toc-link">教程 2：传感器实时监视</a>
-      <a href="#tutorial-camera" class="toc-link">教程 3：双目相机推流</a>
-      <a href="#tutorial-control" class="toc-link">教程 4：键盘安全控制</a>
-      <a href="#tutorial-gui-tcp" class="toc-link">教程 5：上位机与控制权</a>
-      <a href="#tutorial-recording" class="toc-link">教程 6：10Hz 数据落盘</a>
-      <a href="#troubleshooting" class="toc-link">常见故障排查 (FAQ)</a>
-      <a href="#simulator" class="toc-link">推进器转速模拟器</a>
+      <div class="toc-title">本页内容</div>
+      <a href="#overview" class="toc-link active">项目概览</a>
     </aside>
 
   </div>

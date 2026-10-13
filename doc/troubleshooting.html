@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UnderWater-Robot-ROS2 水下机器人开发全景指南 | 实机排障与推力模拟器</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 顶部导航条 -->
+  <header class="top-header">
+    <div class="brand-section">
+      <button class="menu-toggle" id="menuToggle" aria-label="切换菜单">☰</button>
+      <div class="brand-logo">ROV</div>
+      <div class="brand-title">
+        <a href="index.html" style="color: inherit; text-decoration: none;">UnderWater-Robot-ROS2</a>
+        <span class="badge badge-version">v1.0.0</span>
+        <span class="badge badge-hardware">Jetson Orin NX 16GB</span>
+        <span class="badge badge-cpp">C++17</span>
+      </div>
+    </div>
+    
+    <div class="header-actions">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" class="search-input" placeholder="搜索排障问题或现象...">
+      </div>
+      <button class="theme-toggle" id="themeToggle" title="切换模式">☀️</button>
+    </div>
+  </header>
+
+  <!-- 主体容器 -->
+  <div class="app-container">
+    
+    <!-- 左侧侧边栏导航 (多页面跳转) -->
+    <nav class="sidebar" id="sidebar">
+      <div class="nav-group">
+        <div class="nav-group-title">知识体系导航</div>
+        <a href="index.html" class="nav-item"><span class="nav-item-icon">🚀</span> 1. 项目概览与硬件平台</a>
+        <a href="architecture.html" class="nav-item"><span class="nav-item-icon">🏛️</span> 2. 系统分层架构与 13 包</a>
+        <a href="nodes.html" class="nav-item"><span class="nav-item-icon">⚙️</span> 3. 核心节点（Nodes）详解</a>
+        <a href="interfaces.html" class="nav-item"><span class="nav-item-icon">📡</span> 4. 话题、服务与消息总线</a>
+        <a href="algorithms.html" class="nav-item"><span class="nav-item-icon">📐</span> 5. 算法原理与底层协议</a>
+        <a href="tutorials.html" class="nav-item"><span class="nav-item-icon">🛠️</span> 6. 初学者分步实操教程</a>
+        <a href="troubleshooting.html" class="nav-item active"><span class="nav-item-icon">🚨</span> 7. 实机排障与推力模拟器</a>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-title">快捷外部资源</div>
+        <a href="../README.md" class="nav-item"><span class="nav-item-icon">📄</span> 仓库 README</a>
+        <a href="../CHANGELOG.md" class="nav-item"><span class="nav-item-icon">📝</span> 更新发布日志</a>
+      </div>
+    </nav>
+
+    <!-- 中间主体内容区 -->
+    <main class="main-content">
+      
+      <!-- 9. 常见故障排查手册 (FAQ) -->
+      <section id="troubleshooting" class="doc-section">
+        <h1 class="doc-title">常见故障排查手册 (FAQ)</h1>
+        <p class="lead-p">
+          本手册汇总了水下机器人实机测试与调试过程中最容易遇到的高频硬件、网络与权限问题，帮助初学者快速排障：
+        </p>
+
+        <div class="callout danger">
+          <div class="callout-icon">❓</div>
+          <div class="callout-content">
+            <div class="callout-title">问题 1：启动提示找不到串口 /dev/ttyACM0 或 Permission denied</div>
+            <p>
+              <strong>原因</strong>: USB 数据线松动、未识别，或当前 Linux 用户没有 <code>dialout</code> 串口访问权限。<br>
+              <strong>解决步骤</strong>:
+              <br>1. 运行 <code>ls -l /dev/ttyACM*</code> 查看设备节点是否存在；
+              <br>2. 运行 <code>sudo usermod -aG dialout $USER</code> 将当前用户加入串口组，重新注销登录生效；
+              <br>3. 检查是否有旧进程占用串口：<code>fuser -v /dev/ttyACM0</code>，杀掉残留进程。
+            </p>
+          </div>
+        </div>
+
+        <div class="callout warning">
+          <div class="callout-icon">❓</div>
+          <div class="callout-content">
+            <div class="callout-title">问题 2：IMU 数据有效位显示 0，读数全部为 0 或卡死</div>
+            <p>
+              <strong>特别注意（实机血泪经验）</strong>: 如果控制板上还插着 <strong>WCH-Link 下载调试器</strong>，WCH-Link 的引脚电平会干扰板载 IMU 串口通信！进行 IMU 验收和正常作业前，<strong>必须拔下 WCH-Link 下载器</strong>，重启下位机即可恢复。
+            </p>
+          </div>
+        </div>
+
+        <div class="callout info">
+          <div class="callout-icon">❓</div>
+          <div class="callout-content">
+            <div class="callout-title">问题 3：键盘有输入，但推进器完全不转动</div>
+            <p>
+              <strong>排查顺序</strong>:
+              <br>1. 检查启动时是否指定了 <code>motor_tx:=true</code>（默认出于安全考虑是 false 关闭电机输出的）；
+              <br>2. 检查推力是否落入了 1000 RPM 死区（输入力微小时，系统自动截断为 0 保护电机）；
+              <br>3. 检查控制权是否被上位机 GUI 占用（若处于 <code>STATE GUI</code>，机载 ROS 指令被硬件锁死拒绝）。
+            </p>
+          </div>
+        </div>
+
+        <div class="callout tip">
+          <div class="callout-icon">❓</div>
+          <div class="callout-content">
+            <div class="callout-title">问题 4：上位机连接 TCP 9000 或 9001 报 Connection Refused</div>
+            <p>
+              <strong>解决步骤</strong>:
+              <br>1. 检查 Orin NX 与上位机是否处于同一网段（例如 Orin NX 为 192.168.20.70）；
+              <br>2. 检查节点是否已正常启动（运行 <code>ss -tuln | grep -E '9000|9001|9002'</code> 确认端口已处于 LISTEN 状态）；
+              <br>3. 确认 Ubuntu 防火墙未阻断端口（<code>sudo ufw status</code>）。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 10. 交互小工具 -->
+      <section id="simulator" class="doc-section">
+        <h2>交互小工具：推进器转速与推力模拟器</h2>
+        <p>拖动下方滑块调整六自由度期望推力，实时观察八推进器的动力分配算法输出与死区判定：</p>
+
+        <div class="interactive-tool">
+          <div class="slider-group">
+            <div class="slider-header">
+              <span>纵向力 Fx (前进/后退):</span>
+              <strong id="simFxVal">0.0 N</strong>
+            </div>
+            <input type="range" id="simFx" min="-150" max="150" value="0" step="5">
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-header">
+              <span>垂向力 Fz (下潜/上浮):</span>
+              <strong id="simFzVal">0.0 N</strong>
+            </div>
+            <input type="range" id="simFz" min="-150" max="150" value="0" step="5">
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-header">
+              <span>偏航力矩 Mz (回转 Yaw):</span>
+              <strong id="simYawVal">0.0 N·m</strong>
+            </div>
+            <input type="range" id="simYaw" min="-30" max="30" value="0" step="1">
+          </div>
+
+          <h4>八路推进器实时计算状态：</h4>
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem; margin-top: 1rem;">
+            <div class="card" style="padding: 0.75rem;">
+              <div style="font-weight: 600; font-size: 0.85rem;">fan1 (水平前左)</div>
+              <div id="rpm_fan1" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
+              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan1" style="height: 100%; width: 0%;"></div></div>
+            </div>
+            <div class="card" style="padding: 0.75rem;">
+              <div style="font-weight: 600; font-size: 0.85rem;">fan2 (水平前右)</div>
+              <div id="rpm_fan2" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
+              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan2" style="height: 100%; width: 0%;"></div></div>
+            </div>
+            <div class="card" style="padding: 0.75rem;">
+              <div style="font-weight: 600; font-size: 0.85rem;">fan3 (水平后左)</div>
+              <div id="rpm_fan3" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
+              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan3" style="height: 100%; width: 0%;"></div></div>
+            </div>
+            <div class="card" style="padding: 0.75rem;">
+              <div style="font-weight: 600; font-size: 0.85rem;">fan4 (水平后右)</div>
+              <div id="rpm_fan4" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
+              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan4" style="height: 100%; width: 0%;"></div></div>
+            </div>
+            <div class="card" style="padding: 0.75rem;">
+              <div style="font-weight: 600; font-size: 0.85rem;">fan5 (垂直前左)</div>
+              <div id="rpm_fan5" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
+              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan5" style="height: 100%; width: 0%;"></div></div>
+            </div>
+            <div class="card" style="padding: 0.75rem;">
+              <div style="font-weight: 600; font-size: 0.85rem;">fan6 (垂直前右)</div>
+              <div id="rpm_fan6" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
+              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan6" style="height: 100%; width: 0%;"></div></div>
+            </div>
+            <div class="card" style="padding: 0.75rem;">
+              <div style="font-weight: 600; font-size: 0.85rem;">fan7 (垂直后左)</div>
+              <div id="rpm_fan7" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
+              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan7" style="height: 100%; width: 0%;"></div></div>
+            </div>
+            <div class="card" style="padding: 0.75rem;">
+              <div style="font-weight: 600; font-size: 0.85rem;">fan8 (垂直后右)</div>
+              <div id="rpm_fan8" style="font-size: 0.8rem; margin: 0.25rem 0;">停机(死区)</div>
+              <div style="height: 6px; background: #374151; border-radius: 3px; overflow: hidden;"><div id="bar_fan8" style="height: 100%; width: 0%;"></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 页面翻页器 -->
+      <div class="page-nav">
+        <a href="tutorials.html" class="page-nav-card prev">
+          <span class="page-nav-label">上一篇</span>
+          <span class="page-nav-title">⏮ 6. 初学者分步实操教程</span>
+        </a>
+        <a href="index.html" class="page-nav-card next">
+          <span class="page-nav-label">返回首页</span>
+          <span class="page-nav-title">1. 项目概览与硬件平台 ➔</span>
+        </a>
+      </div>
+
+    </main>
+
+    <!-- 右侧页面目录（TOC） -->
+    <aside class="toc-panel">
+      <div class="toc-title">本页内容目录</div>
+      <a href="#troubleshooting" class="toc-link active">常见故障排查</a>
+      <a href="#simulator" class="toc-link">推力转速模拟器</a>
+    </aside>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

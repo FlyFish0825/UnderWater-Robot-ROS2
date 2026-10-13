@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UnderWater-Robot-ROS2 水下机器人开发全景指南 | 核心节点详解</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 顶部导航条 -->
+  <header class="top-header">
+    <div class="brand-section">
+      <button class="menu-toggle" id="menuToggle" aria-label="切换菜单">☰</button>
+      <div class="brand-logo">ROV</div>
+      <div class="brand-title">
+        <a href="index.html" style="color: inherit; text-decoration: none;">UnderWater-Robot-ROS2</a>
+        <span class="badge badge-version">v1.0.0</span>
+        <span class="badge badge-hardware">Jetson Orin NX 16GB</span>
+        <span class="badge badge-cpp">C++17</span>
+      </div>
+    </div>
+    
+    <div class="header-actions">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" class="search-input" placeholder="搜索节点名称、参数、接口...">
+      </div>
+      <button class="theme-toggle" id="themeToggle" title="切换模式">☀️</button>
+    </div>
+  </header>
+
+  <!-- 主体容器 -->
+  <div class="app-container">
+    
+    <!-- 左侧侧边栏导航 (多页面跳转) -->
+    <nav class="sidebar" id="sidebar">
+      <div class="nav-group">
+        <div class="nav-group-title">知识体系导航</div>
+        <a href="index.html" class="nav-item"><span class="nav-item-icon">🚀</span> 1. 项目概览与硬件平台</a>
+        <a href="architecture.html" class="nav-item"><span class="nav-item-icon">🏛️</span> 2. 系统分层架构与 13 包</a>
+        <a href="nodes.html" class="nav-item active"><span class="nav-item-icon">⚙️</span> 3. 核心节点（Nodes）详解</a>
+        <a href="interfaces.html" class="nav-item"><span class="nav-item-icon">📡</span> 4. 话题、服务与消息总线</a>
+        <a href="algorithms.html" class="nav-item"><span class="nav-item-icon">📐</span> 5. 算法原理与底层协议</a>
+        <a href="tutorials.html" class="nav-item"><span class="nav-item-icon">🛠️</span> 6. 初学者分步实操教程</a>
+        <a href="troubleshooting.html" class="nav-item"><span class="nav-item-icon">🚨</span> 7. 实机排障与推力模拟器</a>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-title">快捷外部资源</div>
+        <a href="../README.md" class="nav-item"><span class="nav-item-icon">📄</span> 仓库 README</a>
+        <a href="../CHANGELOG.md" class="nav-item"><span class="nav-item-icon">📝</span> 更新发布日志</a>
+      </div>
+    </nav>
+
+    <!-- 中间主体内容区 -->
+    <main class="main-content">
+      
+      <!-- 4. 核心节点详解 -->
+      <section id="nodes" class="doc-section">
+        <h1 class="doc-title">核心节点（Nodes）全景深度剖析</h1>
+        <p class="lead-p">
+          初学者学习机器人系统，最关键的就是建立清晰的<strong>“进程拓扑模型”</strong>：明确每一个节点（Node）的输入来源、算法处理、输出目的地以及故障时的降级策略。下面对系统内 10 大核心节点进行全方位的工程级详细拆解：
+        </p>
+
+        <!-- 节点 1: mcu_gateway_node -->
+        <div class="node-detail-card" id="node-gateway">
+          <div class="node-header-bar">
+            <div class="node-main-title">
+              <span>🔌 1. mcu_gateway_node</span>
+            </div>
+            <div class="node-tags-group">
+              <span class="badge badge-hardware">包: underwater_mcu_gateway</span>
+              <span class="badge badge-cpp">C++17</span>
+              <span class="badge badge-version">常驻守护进程</span>
+            </div>
+          </div>
+          <p class="node-summary-p">
+            <strong>核心职责</strong>：整个机器人系统的<strong>物理总线中枢与网络网关</strong>。负责独占打开与 STM32H750 MCU 连接的 USB CDC 虚拟串口（<code>/dev/ttyACM0</code>），运行有界增量流式解包状态机，向下位机下发电机转速指令；同时在本地开放 TCP 9000（串口透明转发）与 TCP 9002（独占控制权仲裁）端口，供上位机 Qt GUI 无缝接入。
+          </p>
+          
+          <div class="node-sub-heading">📥 接口总线矩阵 (Topics & Services)</div>
+          <div class="table-container">
+            <table class="param-table">
+              <thead><tr><th>类型</th><th>接口名</th><th>数据类型</th><th>作用与触发条件</th></tr></thead>
+              <tbody>
+                <tr><td>发布 (Pub)</td><td><code>gateway/frames</code></td><td>underwater_interfaces/GatewayFrame</td><td>发布校验合法的 AA55/AA58/AA5B 完整二进制帧，供设备层订阅</td></tr>
+                <tr><td>发布 (Pub)</td><td><code>gateway/status</code></td><td>underwater_interfaces/GatewayStatus</td><td>汇报串口连接状态、累计收发字节数/帧数、丢包率与缓冲区水位</td></tr>
+                <tr><td>发布 (Pub)</td><td><code>gateway/raw_serial</code></td><td>underwater_interfaces/RawSerial</td><td>原始字节流镜像（供调试记录或录包分析）</td></tr>
+                <tr><td>订阅 (Sub)</td><td><code>control/motor_command</code></td><td>underwater_interfaces/MotorSetpoint</td><td>订阅动力分配节点计算的 8 路电机转速指令，组装成 0x100 帧下发</td></tr>
+                <tr><td>服务 (Srv)</td><td><code>gateway/control_ownership</code></td><td>underwater_interfaces/ControlOwnership</td><td>查询或切换控制权所有者（Orin NX 本地 vs 上位机 GUI）</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="node-sub-heading">⚙️ 核心参数 (ROS Parameters)</div>
+          <div class="table-container">
+            <table class="param-table">
+              <thead><tr><th>参数名</th><th>默认值</th><th>类型</th><th>说明</th></tr></thead>
+              <tbody>
+                <tr><td><code>serial_port</code></td><td><code>/dev/serial/by-id/usb-...</code></td><td>string</td><td>MCU USB CDC 稳定设备路径（强烈推荐 by-id 路径，防止插拔后变 ttyACM1）</td></tr>
+                <tr><td><code>baud_rate</code></td><td><code>921600</code></td><td>int</td><td>底层串口物理波特率，必须与 STM32H750 固件配置严格匹配</td></tr>
+                <tr><td><code>tcp_enabled</code></td><td><code>true</code></td><td>bool</td><td>是否开启 TCP 9000 原始串口转发服务</td></tr>
+                <tr><td><code>tcp_port</code></td><td><code>9000</code></td><td>int</td><td>原始字节透明转发监听端口，支持单个 GUI 客户端连接</td></tr>
+                <tr><td><code>control_port</code></td><td><code>9002</code></td><td>int</td><td>控制权仲裁 TCP 端口（响应 <code>CLAIM GUI</code>、<code>RELEASE GUI</code> 等文本握手）</td></tr>
+                <tr><td><code>buffer_capacity</code></td><td><code>65536</code></td><td>int</td><td>环形缓冲区容量上限（64KB），防止网络或串口积压导致内存无限膨胀</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="highlight-box">
+            💡 <strong>初学者避坑关键</strong>：<code>mcu_gateway_node</code> 必须拥有对 <code>/dev/ttyACM0</code> 的独占访问权限！启动前若有遗留进程未退出，会导致 <code>Failed to open serial port</code>。排查命令：<code>fuser -v /dev/ttyACM0</code>。
+          </div>
+        </div>
+
+        <!-- 节点 2: devices_node -->
+        <div class="node-detail-card" id="node-devices">
+          <div class="node-header-bar">
+            <div class="node-main-title">
+              <span>🧭 2. devices_node</span>
+            </div>
+            <div class="node-tags-group">
+              <span class="badge badge-hardware">包: underwater_devices</span>
+              <span class="badge badge-cpp">C++17</span>
+              <span class="badge badge-version">设备抽象层</span>
+            </div>
+          </div>
+          <p class="node-summary-p">
+            <strong>核心职责</strong>：水下传感器的<strong>物理语义解释器</strong>。它不直接操作硬件串口，而是订阅 <code>mcu_gateway_node</code> 发出的 <code>gateway/frames</code> 二进制数据，将其精准反序列化为工程物理单位，并发布符合 ROS 2 工业标准的传感器状态话题。
+          </p>
+
+          <div class="node-sub-heading">📥 接口总线矩阵 (Topics & Services)</div>
+          <div class="table-container">
+            <table class="param-table">
+              <thead><tr><th>类型</th><th>接口名</th><th>数据类型</th><th>作用与触发条件</th></tr></thead>
+              <tbody>
+                <tr><td>订阅 (Sub)</td><td><code>gateway/frames</code></td><td>underwater_interfaces/GatewayFrame</td><td>接收网关解出的 AA5B（传感器）与 AA55（电机反馈）帧</td></tr>
+                <tr><td>发布 (Pub)</td><td><code>sensors/imu/state</code></td><td>underwater_interfaces/ImuState</td><td>发布九轴加速度（m/s²）、角速度（rad/s）、欧拉角、气压及有效位</td></tr>
+                <tr><td>发布 (Pub)</td><td><code>sensors/depth/state</code></td><td>underwater_interfaces/DepthState</td><td>发布水温（℃）、压力（Pa）、计算水深（m）、水面零点 P0 及错误码</td></tr>
+                <tr><td>发布 (Pub)</td><td><code>actuators/thrusters/state</code></td><td>underwater_interfaces/MotorState</td><td>发布 8 台推进器的实际转速、母线电压、工作电流与电调温度</td></tr>
+                <tr><td>服务 (Srv)</td><td><code>sensors/depth/zero</code></td><td>std_srvs/Trigger</td><td>触发水面深度归零校准（将当前大气压采样更新为基准 P0）</td></tr>
+                <tr><td>服务 (Srv)</td><td><code>sensors/imu/calibrate</code></td><td>underwater_interfaces/CalibrateImu</td><td>触发静止基准姿态采样，保存相对水平/朝向四元数偏移</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="highlight-box">
+            🔬 <strong>核心算法与物理模型</strong>：
+            <ul>
+              <li><strong>深度解算公式</strong>：$h = \frac{P - P_0}{\rho \cdot g}$，其中 $P$ 为 MS5837-02BA 实测绝对压力，$P_0$ 为水面参考气压（默认 100965 Pa），$\rho$ 为水体密度（淡水 1000 kg/m³，海水 1025 kg/m³），$g = 9.80665\,\text{m/s}^2$。</li>
+              <li><strong>MS5837 状态机高位诊断</strong>：当 0x83 状态帧返回异常时，自动拆解 `status` 字段第 24~31 位，定位是 I²C 硬件总线错误、CRC 校验失败还是缺少水面参考。</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- 节点 3: control_node -->
+        <div class="node-detail-card" id="node-control">
+          <div class="node-header-bar">
+            <div class="node-main-title">
+              <span>🎯 3. control_node</span>
+            </div>
+            <div class="node-tags-group">
+              <span class="badge badge-hardware">包: underwater_control</span>
+              <span class="badge badge-cpp">C++17</span>
+              <span class="badge badge-warning">高安全级门禁</span>
+            </div>
+          </div>
+          <p class="node-summary-p">
+            <strong>核心职责</strong>：六自由度<strong>动力分配求解与电机使能安全门禁</strong>。接收六轴力/力矩期望（$F_x, F_y, F_z, M_x, M_y, M_z$），通过内置 OSQP 二次规划求解器，计算 8 台推进器的最优推力，并完成死区处理与极性映射；节点内置双重安全锁：必须显式调用服务使能，且具备 500ms 丢包看门狗急停保护。
+          </p>
+
+          <div class="node-sub-heading">📥 接口总线矩阵 (Topics & Services)</div>
+          <div class="table-container">
+            <table class="param-table">
+              <thead><tr><th>类型</th><th>接口名</th><th>数据类型</th><th>作用与触发条件</th></tr></thead>
+              <tbody>
+                <tr><td>订阅 (Sub)</td><td><code>control/manual_request</code></td><td>geometry_msgs/Twist</td><td>键盘手动控制发布的期望六轴速度/档位</td></tr>
+                <tr><td>订阅 (Sub)</td><td><code>control/wrench_request</code></td><td>geometry_msgs/Wrench</td><td>自动控制或算法节点发布的标准力与力矩（牛顿 / 牛·米）</td></tr>
+                <tr><td>发布 (Pub)</td><td><code>control/motor_command</code></td><td>underwater_interfaces/MotorSetpoint</td><td>最终下发给 8 台电机的目标转速（RPM）与运行掩码</td></tr>
+                <tr><td>发布 (Pub)</td><td><code>control/allocation_status</code></td><td>underwater_interfaces/AllocationStatus</td><td>动力分配求解状态（迭代次数、残差、各路分配推力）</td></tr>
+                <tr><td>服务 (Srv)</td><td><code>control/enable</code></td><td>std_srvs/SetBool</td><td>电机动力输出总开关（发 <code>true</code> 允许电机转动，发 <code>false</code> 强制急停）</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="node-sub-heading">⚙️ 核心安全参数</div>
+          <div class="table-container">
+            <table class="param-table">
+              <thead><tr><th>参数名</th><th>默认值</th><th>类型</th><th>说明</th></tr></thead>
+              <tbody>
+                <tr><td><code>motor_tx</code></td><td><code>false</code></td><td>bool</td><td>全局发送许可。出于安全考虑默认必须通过 launch 显式开启</td></tr>
+                <tr><td><code>timeout_ms</code></td><td><code>500</code></td><td>int</td><td>指令超时看门狗阈值。若超过 500ms 未收到新控制指令，自动向推进器下发 0 RPM</td></tr>
+                <tr><td><code>deadzone_rpm</code></td><td><code>1000.0</code></td><td>double</td><td>电机死区下限。推力换算转速在 (-1000, 1000) 区间内直接截断归零</td></tr>
+                <tr><td><code>max_rpm</code></td><td><code>6000.0</code></td><td>double</td><td>单台水下推进器允许输出的最大转速限制</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="highlight-box">
+            🛡️ <strong>力矩基准消除虚假耦合</strong>：
+            动力分配严格以推进器几何中心 <code>thruster_center = (-0.012873, 0.0, -0.040532) m</code> 作为计算原点。在平移消除后，纯前进力 $F_x$ 分配将不会产生虚假的下沉力矩，确保 ROV 在水下直线航行时不发生“磕头”或“仰头”。
+          </div>
+        </div>
+
+        <!-- 节点 4: global_cam_pub -->
+        <div class="node-detail-card" id="node-camera">
+          <div class="node-header-bar">
+            <div class="node-main-title">
+              <span>📷 4. global_cam_pub</span>
+            </div>
+            <div class="node-tags-group">
+              <span class="badge badge-hardware">包: global_camera</span>
+              <span class="badge badge-cpp">C++17 + OpenCV</span>
+              <span class="badge badge-version">双目视觉引擎</span>
+            </div>
+          </div>
+          <p class="node-summary-p">
+            <strong>核心职责</strong>：<strong>全局快门双目立体相机的硬件采集与网络推流服务</strong>。通过 Linux V4L2 接口采集原生 2560x720@30FPS 宽幅双目画面，在内存中按中线零拷贝切割为左目（1280x720）与右目（1280x720），并分别发布标准 ROS 图像；同时内部集成独立 TCP 9001 服务器，支持向下位机或上位机低延迟推送压缩 JPEG 流。
+          </p>
+
+          <div class="node-sub-heading">📥 接口总线矩阵 (Topics & Network)</div>
+          <div class="table-container">
+            <table class="param-table">
+              <thead><tr><th>类型</th><th>接口名</th><th>数据类型 / 协议</th><th>作用说明</th></tr></thead>
+              <tbody>
+                <tr><td>发布 (Pub)</td><td><code>global_camera/left/image_raw</code></td><td>sensor_msgs/Image</td><td>左目 1280x720 原始彩色图像，时间戳严格同步</td></tr>
+                <tr><td>发布 (Pub)</td><td><code>global_camera/right/image_raw</code></td><td>sensor_msgs/Image</td><td>右目 1280x720 原始彩色图像，供立体深度匹配（Stereo BM/SGBM）</td></tr>
+                <tr><td>网络推流</td><td><code>TCP 0.0.0.0:9001</code></td><td>自定义二进制流</td><td>格式：<code>0xAABBCCDD (4B) + 数据长度 (4B 大端) + JPEG 数据</code></td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="highlight-box">
+            ⚡ <strong>性能优化亮点</strong>：
+            图像分割过程基于 <code>cv::Mat</code> 的子区域（ROI）视图实现，不触发整幅画面的内存复制（Zero-copy）。JPEG 编码在独立的工作线程中执行，彻底隔离相机 I/O 阻塞对主控制回路的影响，保证稳定的 25~30 FPS 输出。
+          </div>
+        </div>
+
+        <!-- 节点 5: manual_control -->
+        <div class="node-detail-card" id="node-manual">
+          <div class="node-header-bar">
+            <div class="node-main-title">
+              <span>🎮 5. manual_control</span>
+            </div>
+            <div class="node-tags-group">
+              <span class="badge badge-hardware">包: manual_control</span>
+              <span class="badge badge-cpp">C++17</span>
+              <span class="badge badge-version">人机操控终端</span>
+            </div>
+          </div>
+          <p class="node-summary-p">
+            <strong>核心职责</strong>：终端<strong>非阻塞键盘六自由度手动操控交互器</strong>。接管终端按键事件（W/S/A/D/I/K/J/L 等），将其转化为六轴档位并保持，首个方向键自动请求使能；支持 <code>preview:=true</code> 隔离安全预览模式，方便在陆上无水环境下进行控制逻辑验证。
+          </p>
+
+          <div class="node-sub-heading">📥 接口总线矩阵</div>
+          <div class="table-container">
+            <table class="param-table">
+              <thead><tr><th>类型</th><th>接口名</th><th>数据类型</th><th>作用说明</th></tr></thead>
+              <tbody>
+                <tr><td>发布 (Pub)</td><td><code>control/manual_request</code></td><td>geometry_msgs/Twist</td><td>按 10Hz 持续发布当前按键保持的六轴目标档位（-1.0 ~ +1.0）</td></tr>
+                <tr><td>客户端 (Client)</td><td><code>control/enable</code></td><td>std_srvs/SetBool</td><td>首次按下方向键时自动向控制节点发送使能请求（preview 模式下跳过）</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <div class="highlight-box">
+            🕹️ <strong>常用操控参数</strong>：
+            <br>• <code>preview:=true</code>：只计算推力与发布话题，不调用底层硬件使能服务，安全级别极高！
+            <br>• <code>auto_start:=false</code>：接入已有正在运行的后台，不自动在后台重复拉起节点。
+          </div>
+        </div>
+
+        <!-- 节点 6: sensors_sub_jilushuju -->
+        <div class="node-detail-card" id="node-record">
+          <div class="node-header-bar">
+            <div class="node-main-title">
+              <span>💾 6. sensors_sub_jilushuju</span>
+            </div>
+            <div class="node-tags-group">
+              <span class="badge badge-hardware">包: sensors_cpp</span>
+              <span class="badge badge-cpp">C++17</span>
+              <span class="badge badge-version">10Hz 定频落盘</span>
+            </div>
+          </div>
+          <p class="node-summary-p">
+            <strong>核心职责</strong>：水下试验<strong>高可靠定频数据记录仪（数据记录）</strong>。以严格 10.0 Hz 采样周期对 IMU 姿态、角速度、加速度、深度计压力、水温与计算深度进行时间戳多源对齐，并自动落盘生成 CSV 文件，存储至工作空间的 <code>Recodes/</code> 目录下。
+          </p>
+          <div class="highlight-box">
+            📊 <strong>数据对齐与完整性规范</strong>：
+            如果某一时刻某路传感器暂时未产生最新样本，该字段在 CSV 中严格写入 <code>NaN</code>，绝不复用历史脏数据或伪造零值；文件首行自动写入标准表头，文件名为生成时刻精确时间戳，完全满足国家级水下实验数据规范。
+          </div>
+        </div>
+
+        <!-- 节点 7: forces_pub -->
+        <div class="node-detail-card" id="node-forces">
+          <div class="node-header-bar">
+            <div class="node-main-title">
+              <span>📈 7. forces_pub</span>
+            </div>
+            <div class="node-tags-group">
+              <span class="badge badge-hardware">包: manual_control</span>
+              <span class="badge badge-cpp">C++17</span>
+              <span class="badge badge-warning">动力学辨识</span>
+            </div>
+          </div>
+          <p class="node-summary-p">
+            <strong>核心职责</strong>：<strong>预定时序水动力学激励信号发生器</strong>。在进行水动力学建模、推力拖曳试验或系统阶跃辨识时，按精确时间轴自动发布前向推力 $F_x$ 阶跃信号（默认执行 100 秒后自动请求停机），省去人工按键的不确定性。
+          </p>
+        </div>
+
+        <!-- 节点 8: backend_host -->
+        <div class="node-detail-card" id="node-backend">
+          <div class="node-header-bar">
+            <div class="node-main-title">
+              <span>🏭 8. backend_host / compat_runtime</span>
+            </div>
+            <div class="node-tags-group">
+              <span class="badge badge-hardware">包: sensors_cpp</span>
+              <span class="badge badge-cpp">C++17 动态库</span>
+              <span class="badge badge-version">兼容层架构</span>
+            </div>
+          </div>
+          <p class="node-summary-p">
+            <strong>核心职责</strong>：<strong>原项目 14 个兼容入口的统一宿主运行时</strong>。原项目中的 <code>depth</code>、<code>sensors_sub</code>、<code>camera_display</code>、<code>auto_control</code> 等命令全部链接至该共享库，运行期根据 <code>COMPAT_ENTRY</code> 宏分派。如果发现系统底层后台未启动，宿主具备进程单例发现与自动后台准备（<code>auto_start</code>）能力。
+          </p>
+        </div>
+
+        <!-- 节点 9: data_sub -->
+        <div class="node-detail-card" id="node-datasub">
+          <div class="node-header-bar">
+            <div class="node-main-title">
+              <span>👁️ 9. data_sub</span>
+            </div>
+            <div class="node-tags-group">
+              <span class="badge badge-hardware">包: global_camera</span>
+              <span class="badge badge-cpp">C++17 + HighGUI</span>
+              <span class="badge badge-version">图像监视验证</span>
+            </div>
+          </div>
+          <p class="node-summary-p">
+            <strong>核心职责</strong>：<strong>ROS 2 双目图像本地订阅与可视化检视工具</strong>。订阅 <code>left/image_raw</code> 与 <code>right/image_raw</code> 话题，实时通过 OpenCV 窗口渲染双目画面，并支持键盘按键一键捕获当前立体图像对并保存为 PNG 图片，供标定与离线算法评测使用。
+          </p>
+        </div>
+
+        <!-- 节点 10: depth_publisher & imu_publisher -->
+        <div class="node-detail-card" id="node-sensor-pubs">
+          <div class="node-header-bar">
+            <div class="node-main-title">
+              <span>📦 10. depth_publisher & imu_publisher</span>
+            </div>
+            <div class="node-tags-group">
+              <span class="badge badge-hardware">包: depth_py & imu_py</span>
+              <span class="badge badge-cpp">C++17 薄封装</span>
+              <span class="badge badge-version">独立单传感器入口</span>
+            </div>
+          </div>
+          <p class="node-summary-p">
+            <strong>核心职责</strong>：<strong>单传感器独立调试入口</strong>。允许只关心深度计或只关心 IMU 的开发者单独运行 <code>ros2 run depth_py depth_publisher</code> 或 <code>ros2 run imu_py imu_publisher</code>，底层自动挂接 <code>compat_runtime</code> 共享驱动，降低单一传感器故障排查的复杂度。
+          </p>
+        </div>
+
+      </section>
+
+      <!-- 页面翻页器 -->
+      <div class="page-nav">
+        <a href="architecture.html" class="page-nav-card prev">
+          <span class="page-nav-label">上一篇</span>
+          <span class="page-nav-title">⏮ 2. 系统分层架构与 13 包</span>
+        </a>
+        <a href="interfaces.html" class="page-nav-card next">
+          <span class="page-nav-label">下一篇</span>
+          <span class="page-nav-title">4. 话题、服务与消息总线 ➔</span>
+        </a>
+      </div>
+
+    </main>
+
+    <!-- 右侧页面目录（TOC） -->
+    <aside class="toc-panel">
+      <div class="toc-title">核心节点直达</div>
+      <a href="#node-gateway" class="toc-link">1. mcu_gateway_node</a>
+      <a href="#node-devices" class="toc-link">2. devices_node</a>
+      <a href="#node-control" class="toc-link">3. control_node</a>
+      <a href="#node-camera" class="toc-link">4. global_cam_pub</a>
+      <a href="#node-manual" class="toc-link">5. manual_control</a>
+      <a href="#node-record" class="toc-link">6. sensors_sub_jilushuju</a>
+      <a href="#node-forces" class="toc-link">7. forces_pub</a>
+      <a href="#node-backend" class="toc-link">8. backend_host</a>
+      <a href="#node-datasub" class="toc-link">9. data_sub</a>
+      <a href="#node-sensor-pubs" class="toc-link">10. 独立传感器入口</a>
+    </aside>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

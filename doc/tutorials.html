@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UnderWater-Robot-ROS2 水下机器人开发全景指南 | 初学者分步实操教程</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 顶部导航条 -->
+  <header class="top-header">
+    <div class="brand-section">
+      <button class="menu-toggle" id="menuToggle" aria-label="切换菜单">☰</button>
+      <div class="brand-logo">ROV</div>
+      <div class="brand-title">
+        <a href="index.html" style="color: inherit; text-decoration: none;">UnderWater-Robot-ROS2</a>
+        <span class="badge badge-version">v1.0.0</span>
+        <span class="badge badge-hardware">Jetson Orin NX 16GB</span>
+        <span class="badge badge-cpp">C++17</span>
+      </div>
+    </div>
+    
+    <div class="header-actions">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" class="search-input" placeholder="搜索教程步骤与命令...">
+      </div>
+      <button class="theme-toggle" id="themeToggle" title="切换模式">☀️</button>
+    </div>
+  </header>
+
+  <!-- 主体容器 -->
+  <div class="app-container">
+    
+    <!-- 左侧侧边栏导航 (多页面跳转) -->
+    <nav class="sidebar" id="sidebar">
+      <div class="nav-group">
+        <div class="nav-group-title">知识体系导航</div>
+        <a href="index.html" class="nav-item"><span class="nav-item-icon">🚀</span> 1. 项目概览与硬件平台</a>
+        <a href="architecture.html" class="nav-item"><span class="nav-item-icon">🏛️</span> 2. 系统分层架构与 13 包</a>
+        <a href="nodes.html" class="nav-item"><span class="nav-item-icon">⚙️</span> 3. 核心节点（Nodes）详解</a>
+        <a href="interfaces.html" class="nav-item"><span class="nav-item-icon">📡</span> 4. 话题、服务与消息总线</a>
+        <a href="algorithms.html" class="nav-item"><span class="nav-item-icon">📐</span> 5. 算法原理与底层协议</a>
+        <a href="tutorials.html" class="nav-item active"><span class="nav-item-icon">🛠️</span> 6. 初学者分步实操教程</a>
+        <a href="troubleshooting.html" class="nav-item"><span class="nav-item-icon">🚨</span> 7. 实机排障与推力模拟器</a>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-title">快捷外部资源</div>
+        <a href="../README.md" class="nav-item"><span class="nav-item-icon">📄</span> 仓库 README</a>
+        <a href="../CHANGELOG.md" class="nav-item"><span class="nav-item-icon">📝</span> 更新发布日志</a>
+      </div>
+    </nav>
+
+    <!-- 中间主体内容区 -->
+    <main class="main-content">
+      
+      <!-- 8. 新手实操教程 -->
+      <section id="tutorial-setup" class="doc-section">
+        <h1 class="doc-title">教程 1：环境搭建与全量编译</h1>
+        <p>本项目在 Jetson Orin NX 16GB Super（Ubuntu 22.04 + ROS 2 Humble）实机环境验证通过。请按如下标准步骤操作：</p>
+
+        <div class="timeline">
+          <div class="timeline-item">
+            <div class="timeline-point"></div>
+            <div class="timeline-title">步骤 1：确认操作系统与 ROS 2 Humble 环境</div>
+            <p>打开终端，执行以下命令确认 ROS 2 基础环境已就绪：</p>
+            <div class="code-wrapper">
+              <div class="code-header"><span class="code-lang">BASH</span><button class="copy-btn">复制代码</button></div>
+              <pre><code>source /opt/ros/humble/setup.bash
+ros2 --version # 应输出 ros2 cli 版本</code></pre>
+            </div>
+          </div>
+
+          <div class="timeline-item">
+            <div class="timeline-point"></div>
+            <div class="timeline-title">步骤 2：进入工作空间并执行一键编译</div>
+            <p>项目根目录下已配置 <code>colcon_defaults.yaml</code>，自动设置构建参数，直接运行：</p>
+            <div class="code-wrapper">
+              <div class="code-header"><span class="code-lang">BASH</span><button class="copy-btn">复制代码</button></div>
+              <pre><code>cd /home/lamost/UnderWater-Robot-ROS2
+colcon build
+source install/setup.bash</code></pre>
+            </div>
+            <p class="card-desc">💡 构建系统会自动逐包构建 13 个项目包，启用 <code>--symlink-install</code> 符号链接安装与 <code>RelWithDebInfo</code> 优化等级。</p>
+          </div>
+
+          <div class="timeline-item">
+            <div class="timeline-point"></div>
+            <div class="timeline-title">步骤 3：核对编译产出</div>
+            <div class="code-wrapper">
+              <div class="code-header"><span class="code-lang">BASH</span><button class="copy-btn">复制代码</button></div>
+              <pre><code>colcon list # 应列出全部 13 个包且状态正常</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 教程 2：日常开机与传感器监视 -->
+      <section id="tutorial-sensors" class="doc-section">
+        <h2>教程 2：日常开机与传感器监视</h2>
+        <p>当下位机 MCU 通过 USB 插入 Jetson Orin NX 时，最常用的操作是查看传感器状态并验证硬件连线：</p>
+
+        <div class="code-wrapper">
+          <div class="code-header"><span class="code-lang">BASH - 终端 1：启动传感器底层后台</span><button class="copy-btn">复制代码</button></div>
+          <pre><code>cd /home/lamost/UnderWater-Robot-ROS2
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+# 启动串口网关与传感器解析节点（默认只读监听，不驱动电机）
+ros2 launch underwater_bringup base.launch.xml</code></pre>
+        </div>
+
+        <div class="code-wrapper">
+          <div class="code-header"><span class="code-lang">BASH - 终端 2：多传感器实时汇总查看</span><button class="copy-btn">复制代码</button></div>
+          <pre><code>source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+# 运行传感器汇总终端，打印 IMU 姿态、温度、深度与压力
+ros2 run sensors_cpp sensors_sub</code></pre>
+        </div>
+
+        <div class="callout tip">
+          <div class="callout-icon">🌊</div>
+          <div class="callout-content">
+            <div class="callout-title">水面深度一键归零技巧</div>
+            <p>
+              若下水前因当天天气气压波动，深度读数不为 0（如显示 0.05m），在机器人平放于水面时执行：
+              <br><code>ros2 service call /underwater_robot/sensors/depth/zero std_srvs/Trigger</code>
+              <br>系统将自动采样当前大气压作为新的 $P_0$ 零点，立即归零！
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 教程 3：双目相机与网络推流 -->
+      <section id="tutorial-camera" class="doc-section">
+        <h2>教程 3：双目相机与网络推流</h2>
+        <p>系统配备 720P 双目 USB 相机。启动后，Orin NX 节点不仅发布左右目 ROS 话题，还会开启 TCP 9001 供上位机拉流：</p>
+
+        <div class="code-wrapper">
+          <div class="code-header"><span class="code-lang">BASH - 启动双目相机采集与推流</span><button class="copy-btn">复制代码</button></div>
+          <pre><code>source /opt/ros/humble/setup.bash
+source install/setup.bash
+
+# 启动全局双目相机节点
+ros2 launch global_camera stereo.launch.xml</code></pre>
+        </div>
+
+        <p><strong>上位机 (Windows/Qt) 接入指南</strong>：上位机通过 Socket 连接 <code>192.168.20.70:9001</code>。协议数据帧格式为 4 字节魔数 <code>0xAA 0xBB 0xCC 0xDD</code> + 4 字节数据长度 (大端) + JPEG 原始二进制字节流，直接通过 OpenCV <code>cv::imdecode</code> 即可解出彩色图像。</p>
+      </section>
+
+      <!-- 教程 4：键盘安全控制与隔离预览 -->
+      <section id="tutorial-control" class="doc-section">
+        <h2>教程 4：键盘安全控制与隔离预览</h2>
+        <div class="callout danger">
+          <div class="callout-icon">🛑</div>
+          <div class="callout-content">
+            <div class="callout-title">安全第一法则：先预览，后使能！</div>
+            <p>
+              在没有放入测试水池、或者没有接水下电机的空载陆上调试时，<strong>强烈建议开启 preview 隔离预览模式</strong>！预览模式下可以正常观察键盘按键对六轴力矩、推力分配与目标 RPM 的计算，但绝对不会向下位机发送实际转动指令。
+            </p>
+          </div>
+        </div>
+
+        <div class="code-wrapper">
+          <div class="code-header"><span class="code-lang">BASH - 终端 A：启动带控制栈的后台（关闭实际电机发送）</span><button class="copy-btn">复制代码</button></div>
+          <pre><code># motor_tx:=false 保证硬件电机不会转动
+ros2 launch underwater_bringup manual.launch.xml motor_tx:=false</code></pre>
+        </div>
+
+        <div class="code-wrapper">
+          <div class="code-header"><span class="code-lang">BASH - 终端 B：启动手动键盘控制</span><button class="copy-btn">复制代码</button></div>
+          <pre><code>ros2 run manual_control manual_control --ros-args -p auto_start:=false -p preview:=true</code></pre>
+        </div>
+
+        <h3>键盘操作键位映射速查表</h3>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>按键 (Key)</th>
+                <th>控制自由度</th>
+                <th>动作效果</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><code>W</code> / <code>S</code></td><td>$F_x$ 前进 / 后退</td><td>推进器 fan1~4 协同产生纵向推力</td></tr>
+              <tr><td><code>A</code> / <code>D</code></td><td>$F_y$ 左移 / 右移</td><td>推进器 fan1~4 协同产生横向推力</td></tr>
+              <tr><td><code>I</code> / <code>K</code></td><td>$F_z$ 上浮 / 下潜</td><td>垂直推进器 fan5~8 协同产生升沉推力</td></tr>
+              <tr><td><code>J</code> / <code>L</code></td><td>$M_z$ 左转 / 右转 (偏航 Yaw)</td><td>水平推进器差速产生回转力矩</td></tr>
+              <tr><td><code>Space</code> (空格)</td><td>急停</td><td>六轴力矩瞬间清零，推进器停转</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 教程 5：上位机 GUI 与控制权协同 -->
+      <section id="tutorial-gui-tcp" class="doc-section">
+        <h2>教程 5：上位机 GUI 与控制权协同</h2>
+        <p>本项目支持 PC 端 <strong>Underwater_GUI</strong> 与板载 <strong>Orin NX</strong> 双模工作。通过独占控制权协议，彻底解决“上位机操作手与机载自动算法争夺电机”的工业难题：</p>
+
+        <div class="seq-container">
+          <div class="seq-step">
+            <div class="seq-num">1</div>
+            <div class="seq-content">
+              <div class="seq-title">
+                <span>握手连接建立</span>
+                <span class="badge badge-hardware">STATE NANO</span>
+              </div>
+              <div class="seq-desc">
+                上位机 TCP 9002 连接 Orin NX 时，Orin NX 立即回复 <code>STATE NANO</code>。此时控制权属于板载端，上位机初始为<strong>只读模式</strong>，可监视传感器，但不能向串口发送电机指令。
+              </div>
+            </div>
+          </div>
+
+          <div class="seq-step">
+            <div class="seq-num">2</div>
+            <div class="seq-content">
+              <div class="seq-title">
+                <span>上位机申请接管</span>
+                <span class="badge badge-warning">CLAIM GUI ➔ OK GUI</span>
+              </div>
+              <div class="seq-desc">
+                操作手在 GUI 界面点击“接管控制权”，GUI 发送 <code>CLAIM GUI</code>。Orin NX 立即<strong>停用本地 ROS 2 电机下发</strong>并返回 <code>OK GUI</code>。此时上位机获得独占写入权，可经由 TCP 9000 下发原始电机控制指令。
+              </div>
+            </div>
+          </div>
+
+          <div class="seq-step">
+            <div class="seq-num">3</div>
+            <div class="seq-content">
+              <div class="seq-title">
+                <span>释放控制权与断网保护</span>
+                <span class="badge badge-version">RELEASE GUI ➔ STATE NANO</span>
+              </div>
+              <div class="seq-desc">
+                操作手点击“释放控制权”（发送 <code>RELEASE GUI</code>）或当网络发生中断时，Orin NX 控制权看门狗自动触发急停保护，安全复位为 <code>STATE NANO</code>，恢复板载控制。
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 教程 6：10Hz 数据落盘与分析 -->
+      <section id="tutorial-recording" class="doc-section">
+        <h2>教程 6：10Hz 数据落盘与分析</h2>
+        <p>水下试验最宝贵的就是实验数据。系统内置了开箱即用的 10Hz 高速 CSV 记录工具：</p>
+
+        <div class="code-wrapper">
+          <div class="code-header"><span class="code-lang">BASH - 启动全量数据记录</span><button class="copy-btn">复制代码</button></div>
+          <pre><code># 启动记录工具，默认自动保存至工作空间 Recodes/ 目录
+ros2 run sensors_cpp sensors_sub_jilushuju</code></pre>
+        </div>
+
+        <p><strong>输出 CSV 字段格式</strong>：<code>时间戳, 水深(m), 水温(℃), 压力(Pa), 加速度X, 加速度Y, 加速度Z, 角速度X, 角速度Y, 角速度Z, 欧拉角Roll, 欧拉角Pitch, 欧拉角Yaw, 深度有效位, IMU有效位</code>。缺测或传感器离线字段自动填入 <code>NaN</code>，不伪造数据，可直接导入 MATLAB 或 Python Pandas 进行绘图与动力学辨识分析。</p>
+      </section>
+
+      <!-- 页面翻页器 -->
+      <div class="page-nav">
+        <a href="algorithms.html" class="page-nav-card prev">
+          <span class="page-nav-label">上一篇</span>
+          <span class="page-nav-title">⏮ 5. 算法原理与底层协议</span>
+        </a>
+        <a href="troubleshooting.html" class="page-nav-card next">
+          <span class="page-nav-label">下一篇</span>
+          <span class="page-nav-title">7. 实机排障与推力模拟器 ➔</span>
+        </a>
+      </div>
+
+    </main>
+
+    <!-- 右侧页面目录（TOC） -->
+    <aside class="toc-panel">
+      <div class="toc-title">教程导航目录</div>
+      <a href="#tutorial-setup" class="toc-link active">1. 环境搭建与编译</a>
+      <a href="#tutorial-sensors" class="toc-link">2. 日常开机与监视</a>
+      <a href="#tutorial-camera" class="toc-link">3. 双目相机与推流</a>
+      <a href="#tutorial-control" class="toc-link">4. 键盘控制与预览</a>
+      <a href="#tutorial-gui-tcp" class="toc-link">5. 上位机与控制权</a>
+      <a href="#tutorial-recording" class="toc-link">6. 10Hz 数据落盘</a>
+    </aside>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

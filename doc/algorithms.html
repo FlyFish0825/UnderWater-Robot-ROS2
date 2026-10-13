@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UnderWater-Robot-ROS2 水下机器人开发全景指南 | 算法原理与底层协议</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 顶部导航条 -->
+  <header class="top-header">
+    <div class="brand-section">
+      <button class="menu-toggle" id="menuToggle" aria-label="切换菜单">☰</button>
+      <div class="brand-logo">ROV</div>
+      <div class="brand-title">
+        <a href="index.html" style="color: inherit; text-decoration: none;">UnderWater-Robot-ROS2</a>
+        <span class="badge badge-version">v1.0.0</span>
+        <span class="badge badge-hardware">Jetson Orin NX 16GB</span>
+        <span class="badge badge-cpp">C++17</span>
+      </div>
+    </div>
+    
+    <div class="header-actions">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" class="search-input" placeholder="搜索算法、状态机、矩阵...">
+      </div>
+      <button class="theme-toggle" id="themeToggle" title="切换模式">☀️</button>
+    </div>
+  </header>
+
+  <!-- 主体容器 -->
+  <div class="app-container">
+    
+    <!-- 左侧侧边栏导航 (多页面跳转) -->
+    <nav class="sidebar" id="sidebar">
+      <div class="nav-group">
+        <div class="nav-group-title">知识体系导航</div>
+        <a href="index.html" class="nav-item"><span class="nav-item-icon">🚀</span> 1. 项目概览与硬件平台</a>
+        <a href="architecture.html" class="nav-item"><span class="nav-item-icon">🏛️</span> 2. 系统分层架构与 13 包</a>
+        <a href="nodes.html" class="nav-item"><span class="nav-item-icon">⚙️</span> 3. 核心节点（Nodes）详解</a>
+        <a href="interfaces.html" class="nav-item"><span class="nav-item-icon">📡</span> 4. 话题、服务与消息总线</a>
+        <a href="algorithms.html" class="nav-item active"><span class="nav-item-icon">📐</span> 5. 算法原理与底层协议</a>
+        <a href="tutorials.html" class="nav-item"><span class="nav-item-icon">🛠️</span> 6. 初学者分步实操教程</a>
+        <a href="troubleshooting.html" class="nav-item"><span class="nav-item-icon">🚨</span> 7. 实机排障与推力模拟器</a>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-title">快捷外部资源</div>
+        <a href="../README.md" class="nav-item"><span class="nav-item-icon">📄</span> 仓库 README</a>
+        <a href="../CHANGELOG.md" class="nav-item"><span class="nav-item-icon">📝</span> 更新发布日志</a>
+      </div>
+    </nav>
+
+    <!-- 中间主体内容区 -->
+    <main class="main-content">
+      
+      <!-- 6. 核心函数与算法深度解析 -->
+      <section id="algorithms-alloc" class="doc-section">
+        <h1 class="doc-title">八推进器动力分配 (QP Allocation) 深度解析</h1>
+        <p class="lead-p">
+          机器人六自由度运动（前/后 $F_x$、左/右 $F_y$、上/下 $F_z$、横滚 $M_x$、俯仰 $M_y$、偏航 $M_z$）由 8 台推进器协同驱动。由于推进器数量（8）大于受控自由度（6），该系统属于<strong>过驱动系统（Over-actuated System）</strong>。本项目采用基于 OSQP 的二次规划算法进行最优推力分配。
+        </p>
+
+        <div class="callout info">
+          <div class="callout-icon">📌</div>
+          <div class="callout-content">
+            <div class="callout-title">力矩基准：thruster_center</div>
+            <p>
+              本系统严格以 8 台推进器安装坐标的算术平均中心作为力矩基准点，其相对于 URDF 原始 <code>base_link</code> 原点的平移量为：
+              <br><code>r_offset = (-0.012873, 0.0, -0.040532) m</code>。
+              所有推进器的位置矢量在分配计算前均统一减去此偏移量，消除绕底部原点计算带来的虚假俯仰/横滚力矩耦合！
+            </p>
+          </div>
+        </div>
+
+        <h2>推进器安装参数与几何矩阵</h2>
+        <p>模型采用<strong>北东地 (NED: +X 北, +Y 东, +Z 下)</strong> 约定，推进器具体布局如下：</p>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>推进器</th>
+                <th>CAN ID</th>
+                <th>URDF 安装坐标 (x, y, z) m</th>
+                <th>正转速推力单位向量 (nx, ny, nz)</th>
+                <th>极性 motor_direction</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>fan1</td><td>1</td><td>(0.23016, -0.18359, -0.040532)</td><td>(-0.70711, -0.70711, 0) 水平前左</td><td><code>+1</code></td></tr>
+              <tr><td>fan2</td><td>2</td><td>(0.23016, 0.18359, -0.040532)</td><td>(0.70711, -0.70711, 0) 水平前右</td><td><code>-1</code></td></tr>
+              <tr><td>fan3</td><td>3</td><td>(-0.25591, -0.18359, -0.040532)</td><td>(-0.70711, 0.70711, 0) 水平后左</td><td><code>-1</code></td></tr>
+              <tr><td>fan4</td><td>4</td><td>(-0.25591, 0.18359, -0.040532)</td><td>(0.70711, 0.70711, 0) 水平后右</td><td><code>+1</code></td></tr>
+              <tr><td>fan5</td><td>5</td><td>(0.062129, -0.125, -0.040532)</td><td>(0, 0, 1) 垂直前左向下</td><td><code>+1</code></td></tr>
+              <tr><td>fan6</td><td>6</td><td>(0.062129, 0.125, -0.040532)</td><td>(0, 0, 1) 垂直前右向下</td><td><code>+1</code></td></tr>
+              <tr><td>fan7</td><td>7</td><td>(-0.087871, -0.125, -0.040532)</td><td>(0, 0, -1) 垂直后左向上</td><td><code>-1</code></td></tr>
+              <tr><td>fan8</td><td>8</td><td>(-0.087871, 0.125, -0.040532)</td><td>(0, 0, -1) 垂直后右向上</td><td><code>-1</code></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2>二次规划数学模型与源码核心逻辑</h2>
+        <p>动力分配的目标函数综合考虑<strong>期望力跟踪误差最小化</strong>与<strong>推进器功耗能量最小化</strong>：</p>
+        
+        <div class="code-wrapper">
+          <div class="code-header">
+            <span class="code-lang">C++ 核心代码：OSQP 矩阵装配与求解</span>
+            <button class="copy-btn">复制代码</button>
+          </div>
+          <pre><code>// internal/underwater_control/src/allocation/thrust_allocator.cpp
+// 构建推力配置矩阵 B (6x8): 每一列为推力单位向量与安装位置的力矩叉乘
+for (int i = 0; i < 8; ++i) {
+    Eigen::Vector3d r = positions[i] - thruster_center_; // 消除原点偏移
+    Eigen::Vector3d d = axes[i];                          // 单位推力方向
+    Eigen::Vector3d m = r.cross(d);                       // 力矩: r x d
+    B.block<3, 1>(0, i) = d; // 线性力 (Fx, Fy, Fz)
+    B.block<3, 1>(3, i) = m; // 力矩   (Mx, My, Mz)
+}
+
+// 二次规划目标函数: min 0.5 * u^T H u + g^T u
+// H = 2 * (B^T * W_v * B + W_u),  g = -2 * B^T * W_v * F_desired
+// 约束: u_min <= u <= u_max (推力上下界限幅)
+solver.updateHessianMatrix(H_sparse);
+solver.updateGradient(gradient);
+solver.solveProblem();
+Eigen::VectorXd thrust = solver.getSolution();
+
+// 死区与电机方向映射计算:
+for (int i = 0; i < 8; ++i) {
+    double raw_rpm = (thrust[i] / nominal_max_thrust_N) * max_rpm; // 线性推力-转速映射
+    if (std::abs(raw_rpm) < 1000.0) {
+        final_rpm[i] = 0; // 落在死区内停机，防止电机低频啸叫或发热
+    } else {
+        double clamped = std::clamp(std::abs(raw_rpm), 1000.0, 6000.0);
+        final_rpm[i] = std::copysign(clamped, raw_rpm) * motor_direction[i];
+    }
+}</code></pre>
+        </div>
+      </section>
+
+      <!-- 7. 底层协议流式解析 -->
+      <section id="algorithms-protocol" class="doc-section">
+        <h1 class="doc-title">底层串口流式增量解析机制</h1>
+        <p class="lead-p">
+          机器人通过 USB CDC 虚拟串口以 921600 波特率高速传输二进制数据。工业现场中经常面临网络扰动、USB 中断重连、操作系统缓冲区粘包与分片等问题。本项目设计了<strong>有界增量流式解析器（Incremental Streaming Parser）</strong>。
+        </p>
+
+        <div class="card-grid">
+          <div class="card">
+            <div class="card-title">AA55 帧族（CAN 与电机数据）</div>
+            <div class="card-desc">
+              <strong>格式</strong>: <code>AA 55 [BODY_LEN:u8] ... [CRC8:u8] 55 AA</code><br>
+              <strong>校验</strong>: CRC-8 (多项式 0x07, 初始值 0x00)。覆盖从长度字段到尾部前的全部字节。<br>
+              <strong>语义</strong>: 承载 CAN 节点反馈（0x201..0x208 电机状态）与下发电机指令（0x100 速度向量、0x11 运行掩码）。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">AA58 帧族（网关遥测与流控）</div>
+            <div class="card-desc">
+              <strong>格式</strong>: <code>AA 58 ... [CRC16:u16]</code> (总长 20+N 字节)<br>
+              <strong>校验</strong>: CRC-16/CCITT-FALSE (多项式 0x1021, 初始值 0xFFFF，小端)。<br>
+              <strong>语义</strong>: 汇报 MCU 内部输入/输出 FIFO 队列占用率、CAN RX/TX 负载和硬件状态。
+            </div>
+          </div>
+          <div class="card">
+            <div class="card-title">AA5B 帧族（高精传感器遥测）</div>
+            <div class="card-desc">
+              <strong>格式</strong>: <code>AA 5B [VERSION=1] [TARGET] [CMD] ...</code><br>
+              <strong>子命令</strong>:
+              <ul>
+                <li><code>0x80</code>: IMU 原始角速度与加速度 ADC</li>
+                <li><code>0x81</code>: IMU 融合姿态欧拉角与状态位</li>
+                <li><code>0x82</code>: MS5837 压力与温度数据</li>
+                <li><code>0x83</code>: 深度计状态机与 I²C 阶段诊断</li>
+                <li><code>0x85</code>: 固件气压组（高度、参考气压、气压值）</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="callout warning">
+          <div class="callout-icon">⚠️</div>
+          <div class="callout-content">
+            <div class="callout-title">防粘包与单调重同步原则</div>
+            <p>
+              若遇到数据截断或校验失败，解析状态机绝不丢弃整个缓冲区，而是将滑动游标<strong>仅向后递增 1 字节</strong>重新寻找下一个候选帧头（<code>AA 55</code> / <code>AA 58</code> / <code>AA 5B</code>）。环形缓冲上限严格锁死在 65536 字节，半包等待超时设为 1.0 秒，彻底杜绝内存泄漏与死锁卡死。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 页面翻页器 -->
+      <div class="page-nav">
+        <a href="interfaces.html" class="page-nav-card prev">
+          <span class="page-nav-label">上一篇</span>
+          <span class="page-nav-title">⏮ 4. 话题、服务与消息总线</span>
+        </a>
+        <a href="tutorials.html" class="page-nav-card next">
+          <span class="page-nav-label">下一篇</span>
+          <span class="page-nav-title">6. 初学者分步实操教程 ➔</span>
+        </a>
+      </div>
+
+    </main>
+
+    <!-- 右侧页面目录（TOC） -->
+    <aside class="toc-panel">
+      <div class="toc-title">本页内容目录</div>
+      <a href="#algorithms-alloc" class="toc-link active">动力分配二次规划</a>
+      <a href="#algorithms-protocol" class="toc-link">底层串口流式解析</a>
+    </aside>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

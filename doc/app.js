@@ -32,7 +32,6 @@ document.addEventListener('DOMContentLoaded', () => {
       sidebar.classList.toggle('open');
     });
 
-    // 点击外部关闭侧边栏
     document.addEventListener('click', (e) => {
       if (window.innerWidth <= 860 && 
           !sidebar.contains(e.target) && 
@@ -43,11 +42,26 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 3. 代码复制功能
+  // 3. 多页面侧边栏高亮联动
+  const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+  const navLinks = document.querySelectorAll('.nav-item');
+  navLinks.forEach(link => {
+    const href = link.getAttribute('href');
+    if (href && (href === currentPath || href.startsWith(currentPath + '#') || (currentPath === '' && href === 'index.html'))) {
+      link.classList.add('active');
+    } else {
+      link.classList.remove('active');
+    }
+  });
+
+  // 4. 代码复制功能
   const copyButtons = document.querySelectorAll('.copy-btn');
   copyButtons.forEach(btn => {
     btn.addEventListener('click', async () => {
-      const code = btn.closest('.code-wrapper').querySelector('code').innerText;
+      const codeWrapper = btn.closest('.code-wrapper');
+      const codeElem = codeWrapper ? codeWrapper.querySelector('code') : null;
+      if (!codeElem) return;
+      const code = codeElem.innerText;
       try {
         await navigator.clipboard.writeText(code);
         const originalText = btn.innerText;
@@ -63,46 +77,37 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // 4. 侧边栏与 TOC 高亮联动
+  // 5. 右侧目录 (TOC) 滚动高亮
   const sections = document.querySelectorAll('section.doc-section');
-  const navLinks = document.querySelectorAll('.nav-item');
   const tocLinks = document.querySelectorAll('.toc-link');
 
-  const observerOptions = {
-    root: null,
-    rootMargin: '-80px 0px -70% 0px',
-    threshold: 0
-  };
+  if (sections.length > 0 && tocLinks.length > 0) {
+    const observerOptions = {
+      root: null,
+      rootMargin: '-80px 0px -70% 0px',
+      threshold: 0
+    };
 
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting) {
-        const id = entry.target.getAttribute('id');
-        
-        // 更新左侧导航栏
-        navLinks.forEach(link => {
-          if (link.getAttribute('href') === `#${id}`) {
-            link.classList.add('active');
-          } else {
-            link.classList.remove('active');
-          }
-        });
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const id = entry.target.getAttribute('id');
+          tocLinks.forEach(link => {
+            const href = link.getAttribute('href');
+            if (href === `#${id}` || href.endsWith(`#${id}`)) {
+              link.classList.add('active');
+            } else {
+              link.classList.remove('active');
+            }
+          });
+        }
+      });
+    }, observerOptions);
 
-        // 更新右侧目录
-        tocLinks.forEach(link => {
-          if (link.getAttribute('href') === `#${id}`) {
-            link.classList.add('active');
-          } else {
-            link.classList.remove('active');
-          }
-        });
-      }
-    });
-  }, observerOptions);
+    sections.forEach(sec => observer.observe(sec));
+  }
 
-  sections.forEach(sec => observer.observe(sec));
-
-  // 5. 关键词搜索过滤功能
+  // 6. 页面内关键词实时搜索过滤
   const searchInput = document.getElementById('searchInput');
   if (searchInput) {
     searchInput.addEventListener('input', (e) => {
@@ -123,7 +128,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // 6. 交互式推进器 RPM 模拟换算器
+  // 7. 推进器 RPM 模拟换算器初始化（若当前页面包含该组件）
   initThrusterSimulator();
 });
 
@@ -139,18 +144,18 @@ function initThrusterSimulator() {
     const fz = parseFloat(fzSlider.value);
     const yaw = parseFloat(yawSlider.value);
 
-    document.getElementById('simFxVal').innerText = fx.toFixed(1) + ' N';
-    document.getElementById('simFzVal').innerText = fz.toFixed(1) + ' N';
-    document.getElementById('simYawVal').innerText = yaw.toFixed(1) + ' N·m';
+    const fxVal = document.getElementById('simFxVal');
+    const fzVal = document.getElementById('simFzVal');
+    const yawVal = document.getElementById('simYawVal');
 
-    // 简单 8 推进器几何与极性映射模型
-    // motor_direction=[1, -1, -1, 1, 1, 1, -1, -1]
-    // fan1..4 水平（Fx, Fy, Mz），fan5..8 垂直（Fz, Mx, My）
+    if (fxVal) fxVal.innerText = fx.toFixed(1) + ' N';
+    if (fzVal) fzVal.innerText = fz.toFixed(1) + ' N';
+    if (yawVal) yawVal.innerText = yaw.toFixed(1) + ' N·m';
+
     const nominalMaxThrust = 500.0;
     const maxRpm = 6000.0;
-    const rpmPerN = maxRpm / nominalMaxThrust; // 12 rpm/N
+    const rpmPerN = maxRpm / nominalMaxThrust;
 
-    // 计算各路标称力
     const f1 = (-0.355 * fx + 0.5 * yaw);
     const f2 = (-0.355 * fx - 0.5 * yaw);
     const f3 = (0.352 * fx + 0.5 * yaw);
@@ -168,7 +173,6 @@ function initThrusterSimulator() {
       let finalRpm = 0;
       let status = '停机(死区)';
 
-      // 死区判定：|raw_rpm| < 1000 时停机
       if (Math.abs(rawRpm) >= 1000) {
         let clamped = Math.min(Math.max(Math.abs(rawRpm), 1000), 6000);
         finalRpm = Math.sign(rawRpm) * clamped * motorDirections[i];

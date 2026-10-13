@@ -862,6 +862,66 @@ pre code {
   line-height: 1.55;
 }
 
+/* 页面翻页器样式 */
+.page-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 1.5rem;
+  margin-top: 3.5rem;
+  padding-top: 2rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.page-nav-card {
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: all 0.2s ease;
+  flex: 1;
+  min-width: 200px;
+}
+
+.page-nav-card:hover {
+  border-color: var(--accent-color);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  text-decoration: none;
+}
+
+.page-nav-card.prev {
+  text-align: left;
+}
+
+.page-nav-card.next {
+  text-align: right;
+}
+
+.page-nav-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 700;
+  margin-bottom: 0.25rem;
+}
+
+.page-nav-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--accent-color);
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.page-nav-card.next .page-nav-title {
+  justify-content: flex-end;
+}
+
 /* 交互小工具 */
 .interactive-tool {
   background: var(--bg-secondary);
