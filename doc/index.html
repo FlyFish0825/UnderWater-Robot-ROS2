@@ -135,46 +135,158 @@
       <!-- 2. 系统分层架构与数据流 -->
       <section id="architecture" class="doc-section">
         <h2>系统分层架构与数据流</h2>
-        <p>本项目严格遵循现代机器人系统的关注点分离（Separation of Concerns）原则，从物理硬件到顶层应用分为四个清晰层次：</p>
+        <p>本项目严格遵循现代机器人系统的关注点分离（Separation of Concerns）原则，从物理硬件到顶层应用分为五个清晰层次：</p>
 
-        <div class="diagram-box">
-+-----------------------------------------------------------------------------------------+
-|                                顶层人机交互与外部应用                                    |
-|   [Windows/Linux Qt 上位机 (Underwater_GUI)]   |   [ROS 2 键盘操作 / 自动化脚本]          |
-+-----------------------------------------------------------------------------------------+
-       | TCP 9000 (原始字节)   | TCP 9002 (控制权仲裁)   | TCP 9001 (双目 JPEG 流)      | ROS 2
-       v                       v                         v                              | 话题/服务
-+-----------------------------------------------------------------------------------------+
-|                               Orin NX: 业务与应用层 (src/)                              |
-|  - sensors_cpp: 兼容命令分派 (depth, sensors_sub, sensors_sub_jilushuju 10Hz CSV)       |
-|  - manual_control: 键盘六轴档位输入、Forces 激励生成、预览隔离                         |
-|  - global_camera: V4L2 双目图像采集、左右分割、ROS Image 发布、TCP JPEG 推流服务         |
-+-----------------------------------------------------------------------------------------+
-                                       ^
-                                       | /underwater_robot/ 命名空间总线
-                                       v
-+-----------------------------------------------------------------------------------------+
-|                            Orin NX: 核心算法与设备层 (internal/)                        |
-|  - underwater_control: OSQP 二次规划动力分配 (thruster_center 几何中心)、死区与极性映射  |
-|  - underwater_devices: MS5837-02BA 状态机诊断、IMU 姿态相对基准校准、电机遥测解析     |
-|  - underwater_description: 机器人北东地 (NED) URDF 模型、base_link 到 thruster_center   |
-+-----------------------------------------------------------------------------------------+
-                                       ^
-                                       | 内部 GatewayFrame / RawSerial 话题
-                                       v
-+-----------------------------------------------------------------------------------------+
-|                        Orin NX: 通信网关层 (underwater_mcu_gateway)                     |
-|  - 串口底层驱动: 带超时与自动重连的 USB CDC (ttyACM0) 驱动                              |
-|  - 增量解包状态机: AA55 (CAN反馈/指令), AA58 (网关状态), AA5B (传感器), AA59            |
-|  - 网络转发引擎: TCP 9000 (透明串口桥接), TCP 9002 (GUI / 板载 Orin NX 独占控制权仲裁)   |
-+-----------------------------------------------------------------------------------------+
-                                       ^
-                                       | 物理 USB CDC 数据线 (921600 波特率)
-                                       v
-+-----------------------------------------------------------------------------------------+
-|                                 下位机嵌入式硬件 (MCU)                                  |
-|   [STM32H750 MCU] ↔ I²C 深度计 | 串口 IMU | 8x CAN 总线无刷电机驱动器                   |
-+-----------------------------------------------------------------------------------------+
+        <div class="arch-container">
+          
+          <!-- Layer 4: 顶层交互 -->
+          <div class="arch-layer">
+            <div class="arch-layer-header">
+              <div class="arch-layer-title">🖥️ 顶层人机交互与外部应用</div>
+              <span class="arch-layer-badge">Application & UI Layer</span>
+            </div>
+            <div class="arch-modules">
+              <div class="arch-module-card">
+                <div class="arch-module-name">Windows / Linux Qt 上位机</div>
+                <div class="arch-module-desc">Underwater_GUI：TCP 9000 原始数据透传、TCP 9002 控制权请求与状态握手、3D 姿态与仪表盘显示。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">ROS 2 键盘操作 / 自动化脚本</div>
+                <div class="arch-module-desc">终端键盘六轴手动控制、Forces 激励时序发生器、自主巡航任务状态机。</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 通道 1 -->
+          <div class="arch-connector">
+            <div class="arch-connector-line">
+              <span>↕ 通信通道：</span>
+              <span class="arch-channel-tag">TCP 9000 (原始字节)</span>
+              <span>|</span>
+              <span class="arch-channel-tag">TCP 9002 (控制权仲裁)</span>
+              <span>|</span>
+              <span class="arch-channel-tag">TCP 9001 (双目 JPEG 流)</span>
+              <span>|</span>
+              <span class="arch-channel-tag">ROS 2 话题总线</span>
+            </div>
+          </div>
+
+          <!-- Layer 3: 业务与外设兼容层 -->
+          <div class="arch-layer">
+            <div class="arch-layer-header">
+              <div class="arch-layer-title">📦 Orin NX: 业务与外设兼容层 (src/)</div>
+              <span class="arch-layer-badge">User & Peripheral Layer</span>
+            </div>
+            <div class="arch-modules">
+              <div class="arch-module-card">
+                <div class="arch-module-name">sensors_cpp 兼容层</div>
+                <div class="arch-module-desc">复刻原 14 个兼容命令分派、<code>sensors_sub</code> 汇总查看、<code>sensors_sub_jilushuju</code> 10Hz CSV 实时落盘。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">manual_control 控制交互</div>
+                <div class="arch-module-desc">终端键盘六轴档位输入解析、forces 时序激励发生、<code>preview</code> 隔离预览安全门禁。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">global_camera 双目视觉</div>
+                <div class="arch-module-desc">V4L2 双目图像采集驱动、左右目画面实时拆分发布、内置 TCP 9001 JPEG 压缩推流服务。</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 通道 2 -->
+          <div class="arch-connector">
+            <div class="arch-connector-line">
+              <span>↕ 内部 ROS 2 话题总线：</span>
+              <span class="arch-channel-tag">/underwater_robot/ (ImuState, DepthState, MotorState, AllocationStatus, manual_request)</span>
+            </div>
+          </div>
+
+          <!-- Layer 2: 核心算法与设备层 -->
+          <div class="arch-layer">
+            <div class="arch-layer-header">
+              <div class="arch-layer-title">🧠 Orin NX: 核心算法与设备层 (internal/)</div>
+              <span class="arch-layer-badge">Core Algorithms & Devices Layer</span>
+            </div>
+            <div class="arch-modules">
+              <div class="arch-module-card">
+                <div class="arch-module-name">underwater_control 动力分配</div>
+                <div class="arch-module-desc">基于 OSQP 二次规划的最优推力分配算法、<code>thruster_center</code> 几何中心力矩计算、1000~6000 RPM 死区与极性映射。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">underwater_devices 设备抽象</div>
+                <div class="arch-module-desc">MS5837 深度状态机与水面归零服务、IMU 姿态相对基准校准、0x201..0x208 电机遥测解析。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">underwater_description 机器人模型</div>
+                <div class="arch-module-desc">北东地 (NED) 坐标系 URDF 刚体模型、<code>base_link</code> 到 <code>thruster_center</code> 静态 TF 变换。</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 通道 3 -->
+          <div class="arch-connector">
+            <div class="arch-connector-line">
+              <span>↕ 内部数据流：</span>
+              <span class="arch-channel-tag">gateway/frames (AA55/58/5B 解码帧)</span>
+              <span>|</span>
+              <span class="arch-channel-tag">gateway/status (网关遥测)</span>
+              <span>|</span>
+              <span class="arch-channel-tag">下行电机控制报文</span>
+            </div>
+          </div>
+
+          <!-- Layer 1: 通信网关层 -->
+          <div class="arch-layer">
+            <div class="arch-layer-header">
+              <div class="arch-layer-title">🔌 Orin NX: 通信网关层 (underwater_mcu_gateway)</div>
+              <span class="arch-layer-badge">Transport & Protocol Gateway</span>
+            </div>
+            <div class="arch-modules">
+              <div class="arch-module-card">
+                <div class="arch-module-name">串口底层驱动</div>
+                <div class="arch-module-desc">带超时检测与自动重连的 USB CDC 虚拟串口（/dev/ttyACM0）驱动，波特率 921600。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">增量解包状态机</div>
+                <div class="arch-module-desc">64KB 环形缓冲区、AA55 (CAN/电机)、AA58 (网关状态)、AA5B (传感器遥测)、单调滑动重同步机制。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">网络转发与控制权仲裁</div>
+                <div class="arch-module-desc">TCP 9000 原始串口透明桥接服务、TCP 9002 独占控制权状态机（Orin NX 与 GUI 互斥）。</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 通道 4 -->
+          <div class="arch-connector">
+            <div class="arch-connector-line">
+              <span>↕ 物理接口：</span>
+              <span class="arch-channel-tag">USB CDC 虚拟串口数据线 (921600 Baud, /dev/ttyACM0)</span>
+            </div>
+          </div>
+
+          <!-- Layer 0: 下位机硬件 -->
+          <div class="arch-layer">
+            <div class="arch-layer-header">
+              <div class="arch-layer-title">⚙️ 下位机嵌入式硬件 (MCU)</div>
+              <span class="arch-layer-badge">Hardware & Microcontroller</span>
+            </div>
+            <div class="arch-modules">
+              <div class="arch-module-card">
+                <div class="arch-module-name">STM32H750 主控 MCU</div>
+                <div class="arch-module-desc">负责高频硬件中断、看门狗安全定时器、串口协议帧封装下发。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">I²C & 串口传感器</div>
+                <div class="arch-module-desc">MS5837-02BA 耐压水深计（I²C 约 25Hz 采样）、高精九轴姿态 IMU 模块。</div>
+              </div>
+              <div class="arch-module-card">
+                <div class="arch-module-name">8 路 CAN 电机驱动</div>
+                <div class="arch-module-desc">CAN 总线连接 8 台水下推进器 (fan1 ~ fan8)，实时反馈转速、电压、电流和温度。</div>
+              </div>
+            </div>
+          </div>
+
         </div>
       </section>
 
@@ -721,19 +833,45 @@ ros2 launch underwater_bringup manual.launch.xml motor_tx:=false</code></pre>
         <h2>教程 5：上位机 GUI 与控制权协同</h2>
         <p>本项目支持 PC 端 <strong>Underwater_GUI</strong> 与板载 <strong>Orin NX</strong> 双模工作。通过独占控制权协议，彻底解决“上位机操作手与机载自动算法争夺电机”的工业难题：</p>
 
-        <div class="diagram-box">
-[上位机 GUI] ----------------- TCP 9002 (控制权握手) -----------------> [Orin NX: mcu_gateway]
-      |                                                                         |
-      |  1. 连接建立时:                                                         |
-      |     Orin NX 返回 "STATE NANO" (初始板载持有控制权，GUI 仅能只读查看传感器)   |
-      |                                                                         |
-      |  2. 操作手在 GUI 界面点击 "接管控制权" 时:                                |
-      |     GUI 发送 "CLAIM GUI" ---------------------------------------------> |
-      |     Orin NX 停用本地 ROS 电机发送，返回 "OK GUI" ----------------------< |
-      |     (此时 GUI 拥有独占写入权限，可经由 TCP 9000 下发原始电机控制包)         |
-      |                                                                         |
-      |  3. 操作手在 GUI 界面点击 "释放控制权" 或网络意外断开时:                   |
-      |     Orin NX 检测到释放或 TCP 断链，自动复位为 "STATE NANO"，并执行急停保护 |
+        <div class="seq-container">
+          <div class="seq-step">
+            <div class="seq-num">1</div>
+            <div class="seq-content">
+              <div class="seq-title">
+                <span>握手连接建立</span>
+                <span class="badge badge-hardware">STATE NANO</span>
+              </div>
+              <div class="seq-desc">
+                上位机 TCP 9002 连接 Orin NX 时，Orin NX 立即回复 <code>STATE NANO</code>。此时控制权属于板载端，上位机初始为<strong>只读模式</strong>，可监视传感器，但不能向串口发送电机指令。
+              </div>
+            </div>
+          </div>
+
+          <div class="seq-step">
+            <div class="seq-num">2</div>
+            <div class="seq-content">
+              <div class="seq-title">
+                <span>上位机申请接管</span>
+                <span class="badge badge-warning">CLAIM GUI ➔ OK GUI</span>
+              </div>
+              <div class="seq-desc">
+                操作手在 GUI 界面点击“接管控制权”，GUI 发送 <code>CLAIM GUI</code>。Orin NX 立即<strong>停用本地 ROS 2 电机下发</strong>并返回 <code>OK GUI</code>。此时上位机获得独占写入权，可经由 TCP 9000 下发原始电机控制指令。
+              </div>
+            </div>
+          </div>
+
+          <div class="seq-step">
+            <div class="seq-num">3</div>
+            <div class="seq-content">
+              <div class="seq-title">
+                <span>释放控制权与断网保护</span>
+                <span class="badge badge-version">RELEASE GUI ➔ STATE NANO</span>
+              </div>
+              <div class="seq-desc">
+                操作手点击“释放控制权”（发送 <code>RELEASE GUI</code>）或当网络发生中断时，Orin NX 控制权看门狗自动触发急停保护，安全复位为 <code>STATE NANO</code>，恢复板载控制。
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

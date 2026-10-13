@@ -599,9 +599,9 @@ pre code {
   border: none;
 }
 
-/* 流程图和拓扑容器 */
+/* 流程图和拓扑容器（保留纯文本格式，防止自动折行错位） */
 .diagram-box {
-  background: var(--bg-secondary);
+  background: var(--code-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   padding: 1.5rem;
@@ -611,7 +611,170 @@ pre code {
   line-height: 1.45;
   color: #38bdf8;
   overflow-x: auto;
+  white-space: pre;
+  word-break: normal;
+  tab-size: 4;
   box-shadow: inset 0 2px 4px rgba(0,0,0,0.2);
+}
+
+/* 现代系统分层架构视图 */
+.arch-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin: 2rem 0;
+}
+
+.arch-layer {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.arch-layer:hover {
+  border-color: var(--accent-color);
+  box-shadow: var(--shadow-md);
+}
+
+.arch-layer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.arch-layer-title {
+  font-size: 1rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-primary);
+}
+
+.arch-layer-badge {
+  font-size: 0.72rem;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  background: rgba(56, 189, 248, 0.12);
+  color: var(--accent-color);
+  border: 1px solid rgba(56, 189, 248, 0.25);
+}
+
+.arch-modules {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 0.85rem;
+}
+
+.arch-module-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: 0.85rem;
+}
+
+.arch-module-name {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--accent-color);
+  margin-bottom: 0.35rem;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.arch-module-desc {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+.arch-connector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 0.25rem 0;
+}
+
+.arch-connector-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-color);
+  border-radius: 9999px;
+  padding: 0.35rem 1.25rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  box-shadow: var(--shadow-sm);
+}
+
+.arch-channel-tag {
+  color: var(--accent-color);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+/* 时序交互流程图 */
+.seq-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  margin: 1.5rem 0;
+}
+
+.seq-step {
+  display: flex;
+  gap: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  align-items: flex-start;
+}
+
+.seq-num {
+  width: 28px;
+  height: 28px;
+  background: var(--accent-color);
+  color: #0b0f19;
+  font-weight: 800;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+}
+
+.seq-content {
+  flex: 1;
+}
+
+.seq-title {
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 0.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.seq-desc {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
 }
 
 /* 交互小工具 */
