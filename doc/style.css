@@ -777,6 +777,91 @@ pre code {
   line-height: 1.5;
 }
 
+/* 节点深度卡片样式 */
+.node-detail-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  margin: 1.75rem 0;
+  box-shadow: var(--shadow-sm);
+  transition: all 0.2s ease;
+}
+
+.node-detail-card:hover {
+  border-color: var(--accent-color);
+  box-shadow: var(--shadow-md);
+}
+
+.node-header-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.node-main-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-family: var(--font-mono);
+}
+
+.node-tags-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.node-summary-p {
+  font-size: 0.92rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+  line-height: 1.6;
+}
+
+.node-sub-heading {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--accent-color);
+  margin: 1rem 0 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.param-table {
+  width: 100%;
+  margin: 0.5rem 0 1rem;
+  font-size: 0.82rem;
+}
+
+.param-table th {
+  background: var(--bg-tertiary);
+  padding: 0.5rem 0.75rem;
+}
+
+.param-table td {
+  padding: 0.5rem 0.75rem;
+}
+
+.highlight-box {
+  background: rgba(56, 189, 248, 0.05);
+  border-left: 3px solid var(--accent-color);
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+  margin: 0.75rem 0;
+  font-size: 0.85rem;
+  line-height: 1.55;
+}
+
 /* 交互小工具 */
 .interactive-tool {
   background: var(--bg-secondary);
