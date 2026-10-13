@@ -14,7 +14,10 @@
   --success-color: #10b981;
   --warning-color: #f59e0b;
   --danger-color: #ef4444;
-  --code-bg: #030712;
+  --code-bg: #090d16;
+  --code-text: #f1f5f9;
+  --code-border: #1f2937;
+  --code-comment: #94a3b8;
   --sidebar-width: 290px;
   --toc-width: 240px;
   --header-height: 64px;
@@ -44,7 +47,10 @@
   --success-color: #059669;
   --warning-color: #d97706;
   --danger-color: #dc2626;
-  --code-bg: #1e293b;
+  --code-bg: #0f172a;
+  --code-text: #f8fafc;
+  --code-border: #334155;
+  --code-comment: #94a3b8;
   --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 }
@@ -579,7 +585,24 @@ pre {
   font-family: var(--font-mono);
   font-size: 0.85rem;
   line-height: 1.6;
-  color: #e2e8f0;
+  color: var(--code-text);
+  background: var(--code-bg);
+  border-radius: var(--radius-sm);
+}
+
+.card-desc pre {
+  margin-top: 0.5rem;
+  border: 1px solid var(--code-border);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
+}
+
+.code-comment {
+  color: var(--code-comment);
+}
+
+.code-type {
+  color: #38bdf8;
+  font-weight: 600;
 }
 
 code {

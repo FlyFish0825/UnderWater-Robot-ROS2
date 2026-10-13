@@ -163,57 +163,57 @@
         </div>
 
         <h2>3. 自定义消息 (IDL Messages) 字段深度拆解</h2>
-        <div class="card-grid">
+        <div class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));">
           
           <div class="card">
             <div class="card-title"><code>ImuState.msg</code></div>
             <div class="card-desc">
-              <pre><code>std_msgs/Header header
-geometry_msgs/Vector3 linear_acceleration  # m/s^2
-geometry_msgs/Vector3 angular_velocity     # rad/s
-geometry_msgs/Quaternion orientation       # 四元数
-float64 roll                               # 横滚角 (度)
-float64 pitch                              # 俯仰角 (度)
-float64 yaw                                # 偏航角 (度)
-float64 pressure                           # 气压 (Pa)
-uint32 validity_flags                      # 有效性掩码位</code></pre>
+              <pre><code><span class="code-type">std_msgs/Header</span> header
+<span class="code-type">geometry_msgs/Vector3</span> linear_acceleration  <span class="code-comment"># m/s^2</span>
+<span class="code-type">geometry_msgs/Vector3</span> angular_velocity     <span class="code-comment"># rad/s</span>
+<span class="code-type">geometry_msgs/Quaternion</span> orientation       <span class="code-comment"># 四元数</span>
+<span class="code-type">float64</span> roll                               <span class="code-comment"># 横滚角 (度)</span>
+<span class="code-type">float64</span> pitch                              <span class="code-comment"># 俯仰角 (度)</span>
+<span class="code-type">float64</span> yaw                                <span class="code-comment"># 偏航角 (度)</span>
+<span class="code-type">float64</span> pressure                           <span class="code-comment"># 气压 (Pa)</span>
+<span class="code-type">uint32</span> validity_flags                      <span class="code-comment"># 有效性掩码位</span></code></pre>
             </div>
           </div>
 
           <div class="card">
             <div class="card-title"><code>DepthState.msg</code></div>
             <div class="card-desc">
-              <pre><code>std_msgs/Header header
-float64 depth           # 计算水深 (米, m)
-float64 temperature     # 水温 (摄氏度, °C)
-float64 pressure        # 实测绝对压强 (Pa)
-float64 surface_p0      # 当前采用的水面大气压基准 (Pa)
-bool is_valid           # 深度数据有效性
-uint32 status_flags     # MS5837 状态机高位诊断错误码</code></pre>
+              <pre><code><span class="code-type">std_msgs/Header</span> header
+<span class="code-type">float64</span> depth           <span class="code-comment"># 计算水深 (米, m)</span>
+<span class="code-type">float64</span> temperature     <span class="code-comment"># 水温 (摄氏度, °C)</span>
+<span class="code-type">float64</span> pressure        <span class="code-comment"># 实测绝对压强 (Pa)</span>
+<span class="code-type">float64</span> surface_p0      <span class="code-comment"># 当前采用的水面大气压基准 (Pa)</span>
+<span class="code-type">bool</span> is_valid           <span class="code-comment"># 深度数据有效性</span>
+<span class="code-type">uint32</span> status_flags     <span class="code-comment"># MS5837 状态机高位诊断错误码</span></code></pre>
             </div>
           </div>
 
           <div class="card">
             <div class="card-title"><code>MotorState.msg</code></div>
             <div class="card-desc">
-              <pre><code>std_msgs/Header header
-int16[8] rpm            # 8 路推进器当前实时转速
-float32[8] voltage      # 各路母线电压 (V)
-float32[8] current      # 各路母线电流 (A)
-float32[8] temperature  # 各路电调/MCU 温度 (°C)
-bool[8] online          # 8 个 CAN 节点在线状态</code></pre>
+              <pre><code><span class="code-type">std_msgs/Header</span> header
+<span class="code-type">int16[8]</span> rpm            <span class="code-comment"># 8 路推进器当前实时转速</span>
+<span class="code-type">float32[8]</span> voltage      <span class="code-comment"># 各路母线电压 (V)</span>
+<span class="code-type">float32[8]</span> current      <span class="code-comment"># 各路母线电流 (A)</span>
+<span class="code-type">float32[8]</span> temperature  <span class="code-comment"># 各路电调/MCU 温度 (°C)</span>
+<span class="code-type">bool[8]</span> online          <span class="code-comment"># 8 个 CAN 节点在线状态</span></code></pre>
             </div>
           </div>
 
           <div class="card">
             <div class="card-title"><code>AllocationStatus.msg</code></div>
             <div class="card-desc">
-              <pre><code>std_msgs/Header header
-geometry_msgs/Wrench requested_wrench # 期望力与力矩
-float64[8] allocated_thrust          # 各路计算推力 (N)
-int16[8] target_rpm                  # 最终映射目标转速
-bool in_deadzone                     # 是否落在死区内停机
-uint32 osqp_iterations               # QP 求解器迭代次数</code></pre>
+              <pre><code><span class="code-type">std_msgs/Header</span> header
+<span class="code-type">geometry_msgs/Wrench</span> requested_wrench <span class="code-comment"># 期望力与力矩</span>
+<span class="code-type">float64[8]</span> allocated_thrust          <span class="code-comment"># 各路计算推力 (N)</span>
+<span class="code-type">int16[8]</span> target_rpm                  <span class="code-comment"># 最终映射目标转速</span>
+<span class="code-type">bool</span> in_deadzone                     <span class="code-comment"># 是否落在死区内停机</span>
+<span class="code-type">uint32</span> osqp_iterations               <span class="code-comment"># QP 求解器迭代次数</span></code></pre>
             </div>
           </div>
 
