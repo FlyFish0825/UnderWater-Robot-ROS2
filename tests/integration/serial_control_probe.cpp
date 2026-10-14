@@ -30,7 +30,11 @@ namespace wire=underwater::wire;
 namespace ui=underwater_interfaces::msg;
 using Clock=std::chrono::steady_clock;
 using namespace std::chrono_literals;
-void require(bool b,const char * reason) { if(!b) throw std::runtime_error(reason); } // 断言失败即抛异常，由 main 捕获后返回 1
+void require(bool b, const char *reason) {
+  if (!b) {
+    throw std::runtime_error(reason);
+  }
+} // 断言失败即抛异常，由 main 捕获后返回 1
 // 伪串口夹具：创建 pty 并用子进程拉起 manual.launch.xml，析构时结束子进程并清理临时目录。
 struct Fixture {
   std::string directory,port,ns;
@@ -55,7 +59,12 @@ struct Fixture {
       _exit(127);
     }
   }
-  void disconnect() { if(master>=0) { close(master); master=-1; } }
+  void disconnect() {
+    if (master >= 0) {
+      close(master);
+      master = -1;
+    }
+  }
   void reconnect() {
     disconnect(); int slave=-1; char name[128]{};
     require(openpty(&master,&slave,name,nullptr,nullptr)==0,"openpty failed");

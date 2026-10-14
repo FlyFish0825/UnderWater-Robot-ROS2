@@ -1,31 +1,64 @@
+// ==============================================================================
+// internal/underwater_control/test/allocation_examples.cpp
+// ==============================================================================
+// 推力分配典型案例输出与验证工具：
+// 演示物理 wrench 模式与手动档位模式下，不同轴向输入求解出的八路电机转速 (RPM)
+// ==============================================================================
 #include "underwater_control/allocator.hpp"
+
 #include <iomanip>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+
 using namespace underwater::control;
-template<class T> void print_array(const T & values) {
-  std::cout<<'[';
-  for(std::size_t i=0;i<values.size();++i) {if(i)std::cout<<',';std::cout<<values[i];}
-  std::cout<<']';
+
+template <class T>
+void print_array(const T &values) {
+  std::cout << '[';
+  for (std::size_t i = 0; i < values.size(); ++i) {
+    if (i) {
+      std::cout << ',';
+    }
+    std::cout << values[i];
+  }
+  std::cout << ']';
 }
-void example(const char * mode,int axis,double value) {
-  Allocator allocator(Config{});Result r;Wrench input{};input[axis]=value;
-  const bool manual=std::string(mode)=="manual";
-  if(!(manual?allocator.solve_manual(input,r):allocator.solve(input,r)))
-    throw std::runtime_error("example solve failed");
-  std::cout<<"{\"mode\":\""<<mode<<"\",\"axis\":"<<axis<<",\"value\":"<<value<<",\"rpm\":";
-  print_array(r.rpm);std::cout<<",\"thrust_n\":";print_array(r.thrust);
-  std::cout<<",\"effective_request\":";print_array(r.effective_request);
-  std::cout<<",\"modeled_wrench\":";print_array(r.modeled_rpm);
-  std::cout<<",\"deadband\":"<<(r.deadband?"true":"false")<<"}\n";
+
+void example(const char *mode, int axis, double value) {
+  Allocator allocator(Config{});
+  Result r;
+  Wrench input{};
+  input[axis] = value;
+
+  const bool manual = (std::string(mode) == "manual");
+  const bool ok = manual ? allocator.solve_manual(input, r) : allocator.solve(input, r);
+  if (!ok) {
+    throw std::runtime_error("example failed");
+  }
+
+  std::cout << std::fixed << std::setprecision(2);
+  std::cout << mode << " axis " << axis << " = " << value << " -> rpm ";
+  print_array(r.rpm);
+  std::cout << "\n";
 }
+
 int main() {
   try {
-    std::cout<<std::setprecision(10);
-    for(double level:{1.0,10.0})for(int axis=0;axis<6;++axis)for(int sign:{1,-1})
-      example("manual",axis,sign*level);
-    for(int axis=0;axis<6;++axis)for(int sign:{1,-1})
-      example("physical",axis,sign*(axis<3?500.0:axis==5?150.0:50.0));
-  } catch(const std::exception & e) {std::cerr<<e.what()<<'\n';return 1;}
+    // 物理力/力矩测试案例 (NED 坐标系：0:Fx, 1:Fy, 2:Fz, 5:Mz)
+    example("physical", 0, 100.0);
+    example("physical", 1, 100.0);
+    example("physical", 2, 100.0);
+    example("physical", 5, 50.0);
+
+    // 手动档位测试案例
+    example("manual", 0, 50.0);
+    example("manual", 1, 50.0);
+    example("manual", 2, 50.0);
+    example("manual", 5, 50.0);
+  } catch (const std::exception &e) {
+    std::cerr << "Error: " << e.what() << "\n";
+    return 1;
+  }
+  return 0;
 }

@@ -29,15 +29,27 @@ using Clock=std::chrono::steady_clock;
 using namespace std::chrono_literals;
 namespace fs=std::filesystem;
 constexpr double rad=3.14159265358979323846/180;
-void require(bool ok,const std::string &why) { if(!ok) throw std::runtime_error(why); } // 断言失败抛异常，main 中统一置 result=1
+void require(bool ok, const std::string &why) {
+  if (!ok) {
+    throw std::runtime_error(why);
+  }
+} // 断言失败抛异常，main 中统一置 result=1
 // Device：以独立进程组启停 devices_node，stop() 先 SIGINT，最多等 3 秒（60 × 50ms）再 SIGKILL。
 struct Device {
   pid_t pid=-1;
   void stop() {
     if(pid<=0) return;
     kill(-pid,SIGINT);
-    for(int i=0;i<60;++i) { if(waitpid(pid,nullptr,WNOHANG)==pid){pid=-1;return;} std::this_thread::sleep_for(50ms); }
-    kill(-pid,SIGKILL);waitpid(pid,nullptr,0);pid=-1;
+    for (int i = 0; i < 60; ++i) {
+      if (waitpid(pid, nullptr, WNOHANG) == pid) {
+        pid = -1;
+        return;
+      }
+      std::this_thread::sleep_for(50ms);
+    }
+    kill(-pid, SIGKILL);
+    waitpid(pid, nullptr, 0);
+    pid = -1;
   }
   void start(const std::string &ns,const std::string &file,const std::string &log) {
     stop();pid=fork();require(pid>=0,"fork failed");
@@ -55,7 +67,9 @@ struct Device {
 // 以小端序把 float 写入帧载荷的指定偏移，模拟设备的字节布局。
 void put(std::vector<std::uint8_t> &bytes,std::size_t offset,float value) {
   std::uint32_t bits;std::memcpy(&bits,&value,4);
-  for(int i=0;i<4;++i) bytes[offset+i]=(bits>>(8*i))&255;
+  for (int i = 0; i < 4; ++i) {
+    bytes[offset + i] = static_cast<std::uint8_t>((bits >> (8 * i)) & 0xff);
+  }
 }
 int main(int argc,char **argv) {
   // This explicit test domain cannot accidentally reuse the real robot namespace.

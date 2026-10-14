@@ -32,3 +32,10 @@ __pycache__/
 .env
 .env.*
 !.env.example
+
+# Local Clangd compilation database
+compile_commands.json
+command_compile.json
+
+# Local tool and index cache
+.cache/

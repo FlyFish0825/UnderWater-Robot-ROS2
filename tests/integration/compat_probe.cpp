@@ -32,15 +32,26 @@ struct Child{pid_t pid;int terminal;std::string label;};
 // 拉起一个被测节点：auto_start:=false 让节点等外部输入，tty=true 时用 forkpty 以便模拟按键。
 Child launch(const std::string &pkg,const std::string &name,const std::vector<std::string> &params,bool tty=false) {
   std::vector<std::string> args{"ros2","run",pkg,name,"--ros-args","-p","auto_start:=false","-p","robot_namespace:=/compat_fixture"};
-  for(const auto &p:params){args.push_back("-p");args.push_back(p);}
-  std::vector<char*> argv;for(auto &s:args)argv.push_back(s.data());argv.push_back(nullptr);
+  for (const auto &p : params) {
+    args.push_back("-p");
+    args.push_back(p);
+  }
+  std::vector<char*> argv;
+  for (auto &s : args) {
+    argv.push_back(s.data());
+  }
+  argv.push_back(nullptr);
   int terminal=-1;pid_t pid=tty?forkpty(&terminal,nullptr,nullptr,nullptr):fork();
-  if(pid<0)throw std::runtime_error("fork failed");
+  if (pid < 0) {
+    throw std::runtime_error("fork failed");
+  }
   if(pid==0){
     if(!tty){int fd=open("/dev/null",O_WRONLY);dup2(fd,1);dup2(fd,2);close(fd);}
     execvp("ros2",argv.data());_exit(127);
   }
-  if(terminal>=0)fcntl(terminal,F_SETFL,O_NONBLOCK);
+  if (terminal >= 0) {
+    fcntl(terminal, F_SETFL, O_NONBLOCK);
+  }
   return {pid,terminal,name};
 }
 int main(int argc,char **argv) {

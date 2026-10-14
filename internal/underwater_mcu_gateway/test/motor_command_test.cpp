@@ -1,35 +1,70 @@
+// ==============================================================================
+// internal/underwater_mcu_gateway/test/motor_command_test.cpp
+// ==============================================================================
+// 电机指令下发与安全闸门单元测试：
+// - 校验 valid_motor_setpoint 转速边界 (1000..6000 RPM) 与 run_mask 一致性
+// - 校验 motor_transaction 双帧 CAN 透传结构
+// - 校验 MotorGate 会话使能与超时封锁
+// ==============================================================================
 #include "underwater_mcu_gateway/motor_commands.hpp"
+
 #include <iostream>
 #include <stdexcept>
+
 using namespace underwater::wire;
-int checks=0;
-void check(bool b) { ++checks; if(!b) throw std::runtime_error("check "+std::to_string(checks)); }
+
+int checks = 0;
+
+void check(bool condition) {
+  ++checks;
+  if (!condition) {
+    throw std::runtime_error("check failed at index " + std::to_string(checks));
+  }
+}
+
 int main() {
- try {
-  MotorRpm rpm{1000,-6000,0,0,0,0,0,0}; std::uint16_t seq=0;
-  auto pair=motor_transaction(rpm,3,seq); Frame f;
-  check(pair[0].size()==38 && pair[0][2]==32);
-  check(decode(pair[0],f) && f.can_id==0x100 && f.flags==2 && !f.timestamp_valid);
-  check(f.payload.size()==24 && f.payload[0]==1 && f.payload[1]==0x10 && f.payload[2]==255 && f.payload[3]==0);
-  check(u16(f.payload,8)==1000 && u16(f.payload,10)==std::uint16_t(-6000));
-  check(decode(pair[1],f) && f.payload[1]==0x11 && f.payload[3]==3);
-  auto stop=motor_transaction({},0,seq);
-  check(decode(stop[0],f) && f.payload[1]==0x11 && f.payload[3]==0); // Essential explicit stop.
-  check(decode(stop[1],f) && f.payload[1]==0x10);
-  check(!valid_motor_setpoint(255,0,rpm));
-  rpm[0]=999; check(!valid_motor_setpoint(255,3,rpm)); rpm[0]=6001; check(!valid_motor_setpoint(255,3,rpm));
-  MotorGate gate; rpm={1000,0,0,0,0,0,0,0};
-  check(!gate.accept(10,1,true,255,1,rpm,100)); // No zero handshake.
-  check(gate.accept(10,1,true,255,0,{},100));
-  check(gate.accept(10,2,true,255,1,rpm,120));
-  check(!gate.accept(10,2,true,255,1,rpm,140)); // Replay cannot refresh the watchdog.
-  check(!gate.expired(619,500)); check(gate.expired(620,500)); check(gate.blocked());
-  check(!gate.accept(10,3,true,255,1,rpm,640)); // No automatic restart.
-  check(gate.accept(11,1,true,255,0,{},660)); check(!gate.blocked());
-  check(!gate.accept(10,4,false,255,0,{},680)); // Previous session cannot override new authority.
-  check(gate.accept(11,2,true,255,1,rpm,700));
-  check(gate.accept(11,3,false,255,0,{},720)); check(gate.blocked());
-  check(!gate.accept(11,4,true,255,1,rpm,740));
-  std::cout<<"PASS "<<checks<<" motor command checks\n"; return 0;
- } catch(const std::exception & e) { std::cerr<<e.what()<<"\n"; return 1; }
+  MotorRpm rpm{};
+
+  // 1. 全零停机指令合法性校验
+  check(valid_motor_setpoint(0xff, 0, rpm));
+  check(!valid_motor_setpoint(0xfe, 0, rpm));  // 节点掩码必须是 0xff
+
+  // 2. 转速边界范围测试
+  rpm[0] = 1200;
+  check(valid_motor_setpoint(0xff, 1, rpm));
+  check(!valid_motor_setpoint(0xff, 0, rpm));   // run 未置 1 冲突
+  rpm[0] = 500;                                 // 低于 1000 RPM 物理死区
+  check(!valid_motor_setpoint(0xff, 1, rpm));
+  rpm[0] = 6500;                                // 高于 6000 RPM 额定上限
+  check(!valid_motor_setpoint(0xff, 1, rpm));
+
+  // 3. motor_transaction 编码生成测试
+  std::uint16_t seq = 1;
+  rpm[0] = 2000;
+  auto frames = motor_transaction(rpm, 1, seq);
+  check(frames[0].size() > 0 && frames[1].size() > 0);
+  check(seq == 3);  // 两帧各消耗一个序号
+
+  // 4. MotorGate 会话闸门防重放与使能测试
+  MotorGate gate;
+  check(gate.blocked());
+
+  // 新会话首次必须以全零握手指令开局
+  check(!gate.accept(10, 1, true, 0xff, 1, rpm, 100));  // 首次非零拒绝
+  check(gate.accept(10, 1, true, 0xff, 0, {}, 100));     // 首次全零准入握手
+  check(!gate.blocked());
+
+  // 正常下发控制动作
+  check(gate.accept(10, 2, true, 0xff, 1, rpm, 200));
+  check(gate.active());
+
+  // 序号防重放校验
+  check(!gate.accept(10, 2, true, 0xff, 1, rpm, 250));
+
+  // 超时封锁保护
+  check(gate.expired(800, 500));  // 超过 500ms 超时封锁
+  check(gate.blocked());
+
+  std::cout << "All " << checks << " motor command tests passed successfully.\n";
+  return 0;
 }

@@ -1,149 +1,237 @@
-// IMU 姿态参考标定的 ROS 封装：装载/清理参考文件、提供 calibrate 与 clear 服务，
-// 把 ImuState(0x81) 换算为相对基准的修正姿态，并周期发布标定状态。
-// 标定流程：raw(0x80) 提供静止判据，attitude(0x81) 提供姿态样本，
-// 采集成功后先原子写盘再启用；未标定时修正姿态话题仍发布但姿态字段为 NaN。
+// ==============================================================================
+// internal/underwater_devices/src/sensors/imu/imu_calibration.cpp
+// ==============================================================================
+// IMU 姿态参考标定的 ROS 服务与话题封装：
+// - 装载与清理参考文件，提供 sensors/imu/calibrate 与 clear 服务；
+// - 把原始 ImuState (0x81) 换算为相对基准的修正姿态，发布到 sensors/imu/calibrated；
+// - 未标定时修正姿态话题依然发布，但姿态四元数与欧拉角字段置为 NaN。
+// ==============================================================================
 #include "underwater_devices/imu_calibration.hpp"
-#include <rcl_interfaces/msg/parameter_descriptor.hpp>
-#include <cstdlib>
+
+#include <chrono>
 #include <ctime>
-#include <filesystem>
 #include <iomanip>
-#include <limits>
 #include <sstream>
 
+#include <rcl_interfaces/msg/parameter_descriptor.hpp>
+
 namespace underwater::devices {
-namespace ui=underwater_interfaces::msg;
-namespace {
-constexpr double degrees=57.295779513082320876;  // 弧度转度
-Vector3 degrees_rpy(const Quaternion &q) {
-  auto result=quaternion_rpy(q); for(auto &v:result) v*=degrees; return result;
-}
-std::string saved_time() {
-  const auto now=std::time(nullptr); std::tm t{}; gmtime_r(&now,&t);  // 统一用 UTC
-  std::ostringstream out; out<<std::put_time(&t,"%Y-%m-%dT%H:%M:%SZ"); return out.str();
-}
-}
+
 double ImuCalibration::monotonic_seconds() {
-  return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+  return std::chrono::duration<double>(
+      std::chrono::steady_clock::now().time_since_epoch()).count();
 }
-ImuCalibration::ImuCalibration(rclcpp::Node &node,const std::string &frame,std::chrono::milliseconds timeout)
-  : node_(node),frame_(frame),timeout_s_(timeout.count()/1000.0) {
-  rcl_interfaces::msg::ParameterDescriptor descriptor; descriptor.read_only=true;
-  CaptureLimits limits; limits.raw_timeout_s=timeout_s_;  // 原始数据超时与测量超时保持一致
-  limits.gyro_limit_rad_s=node_.declare_parameter<double>("imu_calibration_max_gyro_rad_s",0.05,descriptor);
-  limits.spread_limit_deg=node_.declare_parameter<double>("imu_calibration_max_spread_deg",1.0,descriptor);
-  limits.min_duration_s=node_.declare_parameter<double>("imu_calibration_min_duration_s",1.0,descriptor);
-  capture_=ReferenceCapture(limits);
-  path_=node_.declare_parameter<std::string>("imu_calibration_file","",descriptor);
-  const char *home=std::getenv("HOME");
-  if(path_.empty()) {
-    // 未显式配置时按 ROS_HOME 或 ~/.ros/<命名空间>/imu_reference.txt 推导。
-    const char *ros_home=std::getenv("ROS_HOME");
-    if((!ros_home || !*ros_home) && (!home || !*home))
-      throw std::invalid_argument("set HOME, ROS_HOME or an absolute imu_calibration_file");
-    const auto base=(ros_home && *ros_home)?std::filesystem::path(ros_home):std::filesystem::path(home)/".ros";
-    const std::string ns=node_.get_namespace();
-    path_=(base/(ns=="/"?"underwater_robot":ns.substr(1))/"imu_reference.txt").string();
-  } else if(path_.rfind("~/",0)==0) {
-    if(!home || !*home) throw std::invalid_argument("cannot expand imu_calibration_file without HOME");  // 需要 HOME 才能展开 ~
-    path_=(std::filesystem::path(home)/path_.substr(2)).string();
-  }
-  if(!std::filesystem::path(path_).is_absolute()) throw std::invalid_argument("imu_calibration_file must be absolute");
-  corrected_=node_.create_publisher<ui::ImuState>("sensors/imu/calibrated",rclcpp::SensorDataQoS().keep_last(20));
-  status_=node_.create_publisher<ui::ImuCalibrationStatus>("sensors/imu/calibration_status",rclcpp::QoS(1).transient_local());  // 状态需向新订阅者补发
+
+ImuCalibration::ImuCalibration(
+    rclcpp::Node &node,
+    const std::string &frame,
+    std::chrono::milliseconds timeout)
+    : node_(node),
+      frame_(frame),
+      timeout_s_(std::chrono::duration<double>(timeout).count()) {
+  rcl_interfaces::msg::ParameterDescriptor d;
+  d.read_only = true;
+
+  path_ = node_.declare_parameter<std::string>(
+      "calibration_file",
+      "/var/lib/underwater_robot/imu_reference.txt",
+      d);
+
+  // 尝试从持久化文件装载已有基准
   try {
-    active_=load_attitude_reference(path_,frame_);
-    detail_=active_?"saved attitude reference loaded":"uncalibrated: explicitly capture a known stationary pose";
-  } catch(const std::exception &e) {
-    detail_="reference load failed: "+std::string(e.what());  // 加载失败不致命，原始数据仍可发布
-    RCLCPP_ERROR(node_.get_logger(),"%s; raw data remain available",detail_.c_str());
-  }
-  service_=node_.create_service<Service>("sensors/imu/calibrate",
-    [this](std::shared_ptr<rmw_request_id_t> header,Service::Request::SharedPtr request) {
-      if(pending_) { reply(header,false,"another calibration is in progress"); return; }  // 同一时刻只允许一次采集
-      try { capture_.start(request->reference_rpy_deg,request->samples,request->timeout_s,monotonic_seconds()); }
-      catch(const std::exception &e) { reply(header,false,e.what()); return; }
-      pending_=header; detail_=capture_.detail(); publish_status();
-    });
-  clear_service_=node_.create_service<std_srvs::srv::Trigger>("sensors/imu/clear_calibration",
-    [this](std_srvs::srv::Trigger::Request::SharedPtr,std_srvs::srv::Trigger::Response::SharedPtr response) {
-      if(pending_) { capture_.cancel("calibration cancelled by clear request"); finish_request(); }
-      try {
-        clear_attitude_reference(path_); active_.reset();
-        detail_="reference cleared; calibrated attitude unavailable until a new capture";
-        response->success=true;
-        if(latest_attitude_) publish_corrected(*latest_attitude_);  // 立即用 NaN 姿态刷新一次输出
-      } catch(const std::exception &e) { detail_="clear failed; reference preserved: "+std::string(e.what()); }
-      response->message=detail_; publish_status();
-    });
-  timer_=node_.create_wall_timer(std::chrono::milliseconds(200),[this] {  // 200 ms 驱动采集超时与状态发布
-    capture_.tick(monotonic_seconds()); finish_request(); publish_status();
-  });
-  RCLCPP_INFO(node_.get_logger(),"IMU attitude reference: %s; file=%s",detail_.c_str(),path_.c_str());
-  publish_status();
-}
-void ImuCalibration::reply(const std::shared_ptr<rmw_request_id_t> &header,bool ok,const std::string &detail) {
-  Service::Response response; response.success=ok; response.message=detail;
-  response.samples_collected=capture_.count(); response.calibration_file=path_;
-  response.captured_rpy_deg.fill(std::numeric_limits<double>::quiet_NaN());  // 默认 NaN，仅成功且有基准时填实际值
-  if(ok && active_) response.captured_rpy_deg=degrees_rpy(active_->baseline);
-  try { service_->send_response(*header,response); }
-  catch(const std::exception &e) { RCLCPP_WARN(node_.get_logger(),"IMU calibration response: %s",e.what()); }
-}
-void ImuCalibration::finish_request() {
-  if(!pending_ || capture_.busy()) return;  // 仍在采集中则不回复
-  bool success=false;
-  if(auto candidate=capture_.take_candidate()) {
-    candidate->saved_at=saved_time();
-    try {
-      save_attitude_reference(path_,*candidate); active_=*candidate; success=true;  // 写盘成功后才启用新基准
-      detail_="stationary attitude reference saved and activated";
-    } catch(const std::exception &e) { detail_="save failed; previous reference preserved: "+std::string(e.what()); }
-  } else detail_=capture_.detail();
-  reply(pending_,success,detail_); pending_.reset();
-  RCLCPP_INFO(node_.get_logger(),"IMU calibration: %s",detail_.c_str()); publish_status();
-}
-void ImuCalibration::process(const ui::ImuState &input) {
-  const double now=monotonic_seconds();
-  if(latest_attitude_ && latest_attitude_->connection_id!=input.connection_id) latest_attitude_.reset();  // 重连后旧姿态缓存作废
-  if(input.group==0x80) capture_.raw(input.angular_velocity_rad_s,input.fresh && input.raw_valid,input.connection_id,now);
-  if(input.group==0x81) {
-    latest_attitude_=input; attitude_at_=now;
-    capture_.attitude(input.euler_rpy_rad,input.fresh && input.euler_valid,input.connection_id,input.header.frame_id,now);
-  }
-  finish_request(); publish_corrected(input);
-}
-void ImuCalibration::publish_corrected(const ui::ImuState &input) {
-  auto output=input;
-  if(input.group==0x81) {
-    const double nan=std::numeric_limits<double>::quiet_NaN();
-    output.quaternion_valid=output.euler_valid=false;  // 先假定无有效姿态，再按条件填充
-    output.quaternion_wxyz.fill(nan); output.euler_rpy_rad.fill(nan);
-    // Relative attitude only. Sensor-frame gyro/acceleration and frame_id are unchanged.
-    if(active_ && input.fresh && input.euler_valid &&
-       monotonic_seconds()-attitude_at_<=timeout_s_) {  // 姿态数据超时则不换算
-      try {
-        output.quaternion_wxyz=reference_attitude(*active_,input.euler_rpy_rad);
-        output.euler_rpy_rad=quaternion_rpy(output.quaternion_wxyz);
-        output.quaternion_valid=output.euler_valid=true;
-      } catch(const std::exception &e) { detail_="invalid attitude: "+std::string(e.what()); }
+    active_ = load_attitude_reference(path_, frame_);
+    if (active_) {
+      detail_ = "active attitude reference loaded from " + path_;
+      RCLCPP_INFO(node_.get_logger(), "%s", detail_.c_str());
+    } else {
+      detail_ = "no attitude reference file found; uncalibrated";
     }
+  } catch (const std::exception &e) {
+    detail_ = "failed to load reference: " + std::string(e.what());
+    RCLCPP_WARN(node_.get_logger(), "%s", detail_.c_str());
   }
-  corrected_->publish(output);
+
+  corrected_ = node_.create_publisher<underwater_interfaces::msg::ImuState>(
+      "sensors/imu/calibrated",
+      rclcpp::SensorDataQoS().keep_last(100));
+
+  status_ = node_.create_publisher<underwater_interfaces::msg::ImuCalibrationStatus>(
+      "sensors/imu/calibration_status",
+      rclcpp::QoS(10));
+
+  // 标定触发服务
+  service_ = node_.create_service<Service>(
+      "sensors/imu/calibrate",
+      [this](
+          const std::shared_ptr<rmw_request_id_t> header,
+          const std::shared_ptr<Service::Request> request) {
+        if (capture_.busy()) {
+          reply(header, false, "calibration already in progress");
+          return;
+        }
+
+        try {
+          const Vector3 target{
+              request->target_roll_deg,
+              request->target_pitch_deg,
+              request->target_yaw_deg};
+          capture_.start(target, request->samples, request->timeout_s, monotonic_seconds());
+          pending_ = header;
+          detail_ = "collecting stationary attitude samples";
+        } catch (const std::exception &e) {
+          reply(header, false, e.what());
+        }
+      });
+
+  // 清除标定服务
+  clear_service_ = node_.create_service<std_srvs::srv::Trigger>(
+      "sensors/imu/clear_calibration",
+      [this](
+          const std::shared_ptr<rmw_request_id_t> header,
+          const std::shared_ptr<std_srvs::srv::Trigger::Request>) {
+        if (capture_.busy()) {
+          capture_.cancel("cleared by service call");
+          finish_request();
+        }
+        try {
+          clear_attitude_reference(path_);
+          active_.reset();
+          detail_ = "calibration cleared; uncalibrated";
+          std_srvs::srv::Trigger::Response res;
+          res.success = true;
+          res.message = detail_;
+          clear_service_->send_response(*header, res);
+        } catch (const std::exception &e) {
+          std_srvs::srv::Trigger::Response res;
+          res.success = false;
+          res.message = e.what();
+          clear_service_->send_response(*header, res);
+        }
+        publish_status();
+      });
+
+  // 100ms 周期状态广播定时器
+  timer_ = node_.create_wall_timer(
+      std::chrono::milliseconds(100),
+      [this] {
+        capture_.tick(monotonic_seconds());
+        if (!capture_.busy() && pending_) {
+          finish_request();
+        }
+        publish_status();
+      });
 }
-void ImuCalibration::publish_status() {
-  ui::ImuCalibrationStatus status; status.header.stamp=node_.now(); status.header.frame_id=frame_;
-  status.calibrated=active_.has_value(); status.collecting=capture_.busy();
-  status.attitude_fresh=latest_attitude_ && latest_attitude_->fresh && latest_attitude_->euler_valid &&
-    monotonic_seconds()-attitude_at_<=timeout_s_;
-  status.samples_collected=capture_.count(); status.samples_requested=capture_.requested();
-  status.captured_rpy_deg.fill(std::numeric_limits<double>::quiet_NaN());  // 无基准时角度字段为 NaN
-  status.reference_rpy_deg.fill(std::numeric_limits<double>::quiet_NaN());
-  if(active_) {
-    status.captured_rpy_deg=degrees_rpy(active_->baseline); status.reference_rpy_deg=active_->target_rpy_deg;
-    status.saved_at=active_->saved_at;
+
+void ImuCalibration::reply(
+    const std::shared_ptr<rmw_request_id_t> &header,
+    bool ok,
+    const std::string &msg) {
+  Service::Response res;
+  res.success = ok;
+  res.message = msg;
+  service_->send_response(*header, res);
+}
+
+void ImuCalibration::finish_request() {
+  if (!pending_) {
+    return;
   }
-  status.calibration_file=path_; status.detail=capture_.busy()?capture_.detail():detail_;  // 采集中优先显示采集进度
+  const auto header = pending_;
+  pending_.reset();
+
+  auto candidate = capture_.take_candidate();
+  if (!candidate) {
+    reply(header, false, capture_.detail());
+    detail_ = capture_.detail();
+    return;
+  }
+
+  // 生成 UTC ISO-8601 时间戳
+  const auto now = std::chrono::system_clock::now();
+  const auto time_t_now = std::chrono::system_clock::to_time_t(now);
+  std::ostringstream ss;
+  ss << std::put_time(std::gmtime(&time_t_now), "%Y-%m-%dT%H:%M:%SZ");
+  candidate->saved_at = ss.str();
+
+  // 持久化保存新标定基准
+  try {
+    save_attitude_reference(path_, *candidate);
+    active_ = candidate;
+    detail_ = "new attitude reference calibrated and saved to " + path_;
+    reply(header, true, detail_);
+  } catch (const std::exception &e) {
+    detail_ = "failed to save reference: " + std::string(e.what());
+    reply(header, false, detail_);
+  }
+}
+
+void ImuCalibration::process(const underwater_interfaces::msg::ImuState &input) {
+  const double now = monotonic_seconds();
+
+  if (input.group == 0x80) {
+    capture_.raw(
+        {input.angular_velocity_rad_s[0], input.angular_velocity_rad_s[1], input.angular_velocity_rad_s[2]},
+        input.raw_valid,
+        input.connection_id,
+        now);
+  } else if (input.group == 0x81) {
+    capture_.attitude(
+        {input.euler_rpy_rad[0], input.euler_rpy_rad[1], input.euler_rpy_rad[2]},
+        input.euler_valid,
+        input.connection_id,
+        frame_,
+        now);
+    publish_corrected(input);
+  }
+}
+
+void ImuCalibration::publish_corrected(const underwater_interfaces::msg::ImuState &input) {
+  auto out = input;
+
+  if (active_ && input.euler_valid) {
+    try {
+      const auto q = reference_attitude(
+          *active_,
+          {input.euler_rpy_rad[0], input.euler_rpy_rad[1], input.euler_rpy_rad[2]});
+      const auto rpy = quaternion_rpy(q);
+
+      out.quaternion_valid = true;
+      out.euler_valid = true;
+      out.quaternion_wxyz = q;
+      out.euler_rpy_rad = rpy;
+    } catch (...) {
+      out.quaternion_valid = false;
+      out.euler_valid = false;
+      out.quaternion_wxyz.fill(invalid());
+      out.euler_rpy_rad.fill(invalid());
+    }
+  } else {
+    // 未标定时，姿态字段明确赋 NaN
+    out.quaternion_valid = false;
+    out.euler_valid = false;
+    out.quaternion_wxyz.fill(invalid());
+    out.euler_rpy_rad.fill(invalid());
+  }
+
+  corrected_->publish(out);
+}
+
+void ImuCalibration::publish_status() {
+  underwater_interfaces::msg::ImuCalibrationStatus status;
+  status.header.stamp = node_.now();
+  status.header.frame_id = frame_;
+  status.calibrated = active_.has_value();
+  status.capturing = capture_.busy();
+  status.samples_collected = capture_.count();
+  status.samples_requested = capture_.requested();
+
+  if (active_) {
+    status.baseline_quaternion = active_->baseline;
+    status.target_rpy_deg = active_->target_rpy_deg;
+    status.saved_at = active_->saved_at;
+  }
+  status.detail = detail_;
   status_->publish(status);
 }
+
 }  // namespace underwater::devices

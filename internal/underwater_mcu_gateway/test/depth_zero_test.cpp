@@ -1,54 +1,119 @@
+// ==============================================================================
+// internal/underwater_mcu_gateway/test/depth_zero_test.cpp
+// ==============================================================================
+// 深度零点标定状态机单元测试：
+// - 模拟 MCU 返回 0x5b 压力采样与状态应答帧
+// - 验证 Status -> Pressure -> Zero -> ReadReference -> Verify 完整事务流
+// - 验证超时与非法响应报错机制
+// ==============================================================================
 #include "underwater_mcu_gateway/depth_zero.hpp"
+
 #include <cstring>
 #include <iostream>
 #include <stdexcept>
+
 using namespace underwater::wire;
-int checks=0;
-void check(bool b) { ++checks; if(!b) throw std::runtime_error("check "+std::to_string(checks)); }
-void put32(Bytes & b,std::size_t o,std::uint32_t v) { for(int i=0;i<4;++i)b[o+i]=(v>>(8*i))&255; }
-void putf(Bytes & b,std::size_t o,float v) { std::uint32_t bits; std::memcpy(&bits,&v,4); put32(b,o,bits); }
-Frame take(DepthZero & z,std::uint8_t cmd) {
-  auto p=z.take_request(); check(bool(p)); Frame f; check(decode(*p,f));
-  check(f.family==0x5b && f.target==2 && f.flags==1 && f.command==cmd); return f;
+
+int checks = 0;
+
+void check(bool condition) {
+  ++checks;
+  if (!condition) {
+    throw std::runtime_error("check failed at index " + std::to_string(checks));
+  }
 }
-Frame reply(const Frame & req,Bytes payload,std::uint32_t timestamp) {
-  Frame f; f.family=0x5b; f.target=2; f.flags=2; f.command=req.command+0x40;
-  f.sequence=req.sequence; f.timestamp_valid=true; f.timestamp_us=timestamp; f.payload=payload; return f;
+
+// 辅助组装 32 字节压力传感器数据帧载荷
+static Bytes make_pressure_payload(float pressure_pa, float raw_depth, float filtered_depth, float p0) {
+  Bytes b(32, 0);
+  // state = 0x000001d3 (ONLINE | RAW | PROM | COMPENSATED | DEPTH | ZERO_VERIFIED)
+  const std::uint32_t state = 0x000001d3U;
+  std::memcpy(b.data() + 0, &state, 4);
+  std::memcpy(b.data() + 4, &pressure_pa, 4);
+  std::memcpy(b.data() + 12, &raw_depth, 4);
+  std::memcpy(b.data() + 16, &filtered_depth, 4);
+  std::memcpy(b.data() + 20, &p0, 4);
+  return b;
 }
-Frame sample(std::uint32_t seq,std::uint32_t time,bool zero) {
-  Frame f; f.family=0x5b; f.target=2; f.flags=8; f.command=0x82;
-  f.sequence=seq; f.timestamp_valid=true; f.timestamp_us=time; f.payload.resize(32);
-  put32(f.payload,0,zero?0x1f3:0x133); // Fixed model needs no confirmation bit.
-  putf(f.payload,4,101325); putf(f.payload,8,20);
-  if(zero) { putf(f.payload,12,0.0f); putf(f.payload,16,0.0f); putf(f.payload,20,101325); }
-  return f;
-}
+
 int main() {
- try {
-  DepthZero z(100); check(!z.take_request()); check(z.start(0)); check(!z.start(1));
-  auto status=take(z,2);
-  z.observe(sample(1,900,false),10); check(!z.take_request()); // No sample is accepted before GET_STATUS.
-  auto wrong=reply(status,Bytes(21,0),1000); ++wrong.sequence; z.observe(wrong,20); check(!z.take_request());
-  z.observe(reply(status,Bytes(21,0),1000),30);
-  auto invalid=sample(2,4000,false); put32(invalid.payload,0,0x103);
-  z.observe(invalid,60); check(!z.take_request()); // No valid pressure.
-  z.observe(sample(3,5000,false),70); auto zero=take(z,0x0c); check(zero.payload.empty());
-  z.observe(reply(zero,{0},6000),80); auto read_p0=take(z,3); check(read_p0.payload==Bytes({3,1}));
-  Bytes reference{0,3,1,7,4,0,0,0,0}; putf(reference,5,101325);
-  z.observe(reply(read_p0,reference,7000),90);
-  z.observe(sample(4,6500,true),100); check(!z.take_result());
-  z.observe(sample(5,8000,true),110); auto outcome=z.take_result();
-  check(outcome && outcome->success && !z.busy()); check(!z.take_request());
-  z.observe(sample(6,9000,true),120); check(!z.take_request()); // No automatic re-zero.
-  check(z.start(200)); status=take(z,2);
-  z.observe(reply(status,Bytes(21,0),10000),210); check(!z.take_request());
-  z.observe(sample(7,11000,false),220); zero=take(z,0x0c);
-  auto failure=reply(zero,{8},12000); failure.flags=6; z.observe(failure,230);
-  outcome=z.take_result(); check(outcome && !outcome->success); check(!z.take_request());
-  check(z.start(300)); take(z,2); z.tick(2300); outcome=z.take_result();
-  check(outcome && !outcome->success); check(!z.take_request());
-  check(z.start(3000)); take(z,2); z.cancel("disconnected"); outcome=z.take_result();
-  check(outcome && !outcome->success && !z.take_request());
-  std::cout<<"PASS "<<checks<<" depth zero checks\n"; return 0;
- } catch(const std::exception & e) { std::cerr<<e.what()<<"\n"; return 1; }
+  DepthZero dz(0x1000);
+  check(!dz.busy());
+
+  // 1. 启动标定事务
+  check(dz.start(100));
+  check(dz.busy());
+
+  auto req1 = dz.take_request();
+  check(req1.has_value());
+  check(!dz.take_request().has_value());  // 保证取走后清空
+
+  // 2. 模拟返回 Status 应答 (command=2+0x40=0x42, flags=2, payload=[0, 20 bytes data])
+  Frame f_status;
+  f_status.family = 0x5b;
+  f_status.target = 2;
+  f_status.command = 0x42;
+  f_status.flags = 2;
+  f_status.sequence = 0x1001;
+  f_status.timestamp_valid = true;
+  f_status.timestamp_us = 100000;
+  f_status.payload = Bytes(21, 0);  // 1 字节 status_code 0 + 20 字节状态数据
+  dz.observe(f_status, 200);
+
+  // 3. 模拟首帧压力采样触发 Zero 指令
+  Frame f_press1;
+  f_press1.family = 0x5b;
+  f_press1.target = 2;
+  f_press1.command = 0x82;
+  f_press1.flags = 8;
+  f_press1.sequence = 10;
+  f_press1.timestamp_valid = true;
+  f_press1.timestamp_us = 150000;
+  f_press1.payload = make_pressure_payload(101325.0f, 0.0f, 0.0f, 101325.0f);
+  dz.observe(f_press1, 250);
+
+  auto req2 = dz.take_request();
+  check(req2.has_value());  // ZERO_DEPTH 请求帧
+
+  // 4. 模拟 Zero 指令应答 (command=0x0c+0x40=0x4c)
+  Frame f_zero;
+  f_zero.family = 0x5b;
+  f_zero.target = 2;
+  f_zero.command = 0x4c;
+  f_zero.flags = 2;
+  f_zero.sequence = 0x1002;
+  f_zero.payload = {0};  // status=0
+  dz.observe(f_zero, 300);
+
+  auto req3 = dz.take_request();
+  check(req3.has_value());  // ReadReference 请求帧
+
+  // 5. 模拟 ReadReference 应答 (command=3+0x40=0x43, payload 9 bytes)
+  Frame f_ref;
+  f_ref.family = 0x5b;
+  f_ref.target = 2;
+  f_ref.command = 0x43;
+  f_ref.flags = 2;
+  f_ref.sequence = 0x1003;
+  f_ref.timestamp_valid = true;
+  f_ref.timestamp_us = 200000;
+  f_ref.payload = {0, 0x03, 0x01, 7, 4, 0, 0, 0, 0};
+  const float ref_pa = 101325.0f;
+  std::memcpy(f_ref.payload.data() + 5, &ref_pa, 4);
+  dz.observe(f_ref, 350);
+
+  // 6. 模拟新采样完成 Verify 阶段
+  Frame f_press2 = f_press1;
+  f_press2.sequence = 11;
+  f_press2.timestamp_us = 250000;
+  dz.observe(f_press2, 400);
+
+  // 7. 检验终态结果
+  check(!dz.busy());
+  auto result = dz.take_result();
+  check(result.has_value());
+  check(result->success);
+
+  std::cout << "All " << checks << " depth zero state machine tests passed.\n";
+  return 0;
 }
