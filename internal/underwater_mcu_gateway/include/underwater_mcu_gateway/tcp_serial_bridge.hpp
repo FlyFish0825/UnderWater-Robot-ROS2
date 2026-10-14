@@ -38,7 +38,7 @@ public:
   std::uint64_t sessions() const {return sessions_;}
   const std::string &detail() const {return detail_;}
 private:
-  void drop(const std::string &reason);
+  void drop(const std::string &reason,bool holder_disconnect=true);
   void flush();
   int listener_=-1,client_=-1;
   std::uint16_t port_=0;

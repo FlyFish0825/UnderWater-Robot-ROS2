@@ -95,6 +95,23 @@ int main() {
     const auto expired = ControlOwnership::Clock::now() + std::chrono::seconds(4);
     check(ownership.expire_gui(expired) && ownership.owner() == ControllerOwner::Nano,
           "lost GUI heartbeat expires the lease");
+
+    check(request(server, gui1, "TAKEOVER GUI_MANUAL\n").rfind("OK GUI_MANUAL ", 0) == 0,
+          "business takeover is available over the real management socket");
+    const auto manual_token = ownership.gui_token();
+    check(request(server, gui1, "PING " + manual_token + "\n") == "HEARTBEAT GUI_MANUAL\n",
+          "business heartbeat reports its actual owner on the socket");
+    check(request(server, gui2, "PING " + manual_token + "\n") == "REVOKED GUI_MANUAL\n",
+          "another socket cannot heartbeat the copied business credential");
+    check(request(server, gui1, "CLAIM GUI\n").rfind("BUSY GUI_MANUAL", 0) == 0,
+          "business owner cannot silently switch to raw mode");
+    check(request(server, gui1, "TAKEOVER GUI\n").rfind("OK GUI ", 0) == 0
+          && ownership.gui_token() != manual_token,
+          "explicit socket mode switch rotates the token");
+    check(request(server, gui1, "TAKEOVER GUI_MANUAL\n").rfind("OK GUI_MANUAL ", 0) == 0,
+          "business takeover restores the correct owner");
+    check(request(server, gui1, "RELEASE GUI_MANUAL\n").rfind("OK NANO", 0) == 0,
+          "business release over TCP restores Nano");
     ::close(gui1);
     ::close(gui2);
     server.close();
@@ -148,6 +165,35 @@ int main() {
     check(request(control_port, manager, "PING " + lease + "\n").rfind("REVOKED NANO", 0) == 0,
           "the old GUI management session sees its revoked lease");
     ::close(data);
+
+    check(request(control_port, manager, "TAKEOVER GUI\n").rfind("OK GUI ", 0) == 0,
+          "raw holder acquired for credential replacement regression");
+    serial_port.take_disconnect();
+    serial_port.take_write_disconnect();
+    serial_port.set_controller(integration.owner(), integration.gui_token());
+    const int old_raw = connect_client(serial_port.port());
+    const std::string old_hello = "OWNER " + integration.gui_token() + "\n";
+    check(::send(old_raw, old_hello.data(), old_hello.size(), MSG_NOSIGNAL)
+          == static_cast<ssize_t>(old_hello.size()), "authenticate old raw holder");
+    serial_port.poll();
+    check(::recv(old_raw, bytes, sizeof(bytes), 0) == 7 && serial_port.write_authorized(),
+          "old raw holder authenticated before takeover");
+    const int new_manager = connect_client(control_port.port());
+    check(request(control_port, new_manager, "TAKEOVER GUI\n").rfind("OK GUI ", 0) == 0,
+          "second management session acquires replacement raw authority");
+    const auto replacement_token = integration.gui_token();
+    serial_port.set_controller(integration.owner(), replacement_token);
+    check(::recv(old_raw, bytes, sizeof(bytes), 0) == 0, "replacement takeover closes old raw client");
+    // Mirror the gateway's disconnect consumption: only a genuine current
+    // holder's loss may return ownership to Nano.
+    if(serial_port.take_write_disconnect() && integration.owner() == ControllerOwner::Gui)
+      integration.claim_nano(true);
+    check(integration.owner() == ControllerOwner::Gui && integration.gui_token() == replacement_token,
+          "old raw revocation does not revoke the new GUI owner");
+    check(request(control_port, new_manager, "PING " + replacement_token + "\n") == "HEARTBEAT GUI\n",
+          "replacement raw management holder remains live");
+    ::close(old_raw);
+    ::close(new_manager);
     ::close(manager);
     serial_port.close();
     control_port.close();

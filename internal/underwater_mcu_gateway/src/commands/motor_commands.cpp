@@ -46,6 +46,7 @@ std::array<Bytes,2> motor_transaction(const MotorRpm & rpm,std::uint8_t run,std:
 bool MotorGate::accept(std::uint64_t session,std::uint64_t seq,bool armed,std::uint8_t nodes,
   std::uint8_t run,const MotorRpm & rpm,std::uint64_t now) {
   if(!session || !seq || !valid_motor_setpoint(nodes,run,rpm) || (!armed && run!=0)) return false;
+  if(session<=retired_session_) return false;
   if(session<session_) return false;
   if(session>session_) { // 新会话：必须以全零指令开局
     // Every new/restarted authority must begin with a zero command handshake.

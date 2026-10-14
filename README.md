@@ -10,6 +10,11 @@ C++17
 
 业务入口采用 `fc_sensors_ros2` 的包名和程序名，原有 `underwater_*` 实现放在 `internal`，原调试命令与原生消息继续可用。
 
+业务级六自由度远程控制更新位于 `codex/dashboard-controller-input` 功能分支：
+GUI 持有操作权，Nano 保留动力分配和电机执行链。使用前阅读
+[远程操控教程](docs/usage/10-remote-manual-control.md)；两端必须匹配 TCP 9003 v2。
+本次提交的范围、离线核验和待验收项见 [2026-10-12 整理记录](docs/experiments/2026-10-12-remote-manual-verification.md)。
+
 ## 文档索引
 
 **日常转发操作从 [串口与相机转发手册](docs/usage/09-forwarding-handbook.md) 开始；完整使用教程见 [教程总目录](docs/usage/README.md)。** 新机器按安装、传感器、控制、维护的顺序阅读；
@@ -29,6 +34,7 @@ C++17
 | 固定局域网 IP、随 ROS 2 同启两条转发、远程回退与同时接收验收 | [08 局域网与 TCP 恢复](docs/usage/08-lan-recovery.md) |
 | 双目相机采集、左右图、JPEG 转发与上位机接口 | [07 双目相机](docs/usage/07-stereo-camera.md)、[上位机接入报告](docs/architecture/deployment/stereo-camera-host-report.md) |
 | 隔离预览、键盘档位、实际控制、停机与反馈 | [03 手动控制](docs/usage/03-manual-control.md) |
+| 上位机业务操作权 / Nano 执行链、TCP 9003 v2、会话确认与断线停止 | [10 业务级远程手动控制](docs/usage/10-remote-manual-control.md) |
 | 配置修改、重新编译、测试、更新与故障排查 | [04 维护与故障排查](docs/usage/04-maintenance.md) |
 | 编译与运行命令 | [编译和环境](#编译和环境)、[沿用原命令](#沿用原命令) |
 | 键盘按键、档位与启停 | [键盘控制](#键盘控制)、[动力分配与手动转速控制](docs/architecture/deployment/thrust-allocation.md) |
@@ -39,6 +45,7 @@ C++17
 | 深度归零与硬件范围 | [深度归零](docs/architecture/deployment/depth-zero.md)、[当前硬件](docs/hardware/current-hardware.md) |
 | 验证方法与兼容入口 | [验证说明](docs/architecture/deployment/validation.md)、[兼容入口验证](docs/architecture/deployment/entry-compatibility.md) |
 | 软件结构与发布范围 | [架构说明](docs/architecture/architecture.md)、[发布说明](CHANGELOG.md) |
+| 分支、提交范围、生成文件与验证要求 | [开发和提交规范](CONTRIBUTING.md) |
 
 ## 当前目录
 
@@ -77,7 +84,7 @@ git clone --branch main https://github.com/FlyFish0825/UnderWater-Robot-ROS2.git
 cd UnderWater-Robot-ROS2
 ```
 
-`main` 已包含相机转发、控制权和传感器修复，本地与 Jetson Orin NX 均统一使用这个主分支。`v1.0.0` 是历史固定发布标签，不包含上述后续功能。已有工作空间时进入原项目目录，按[维护教程](docs/usage/04-maintenance.md)核对版本和未提交内容后再更新。以下命令以当前 Jetson 的部署路径为例：
+`main` 已包含相机转发、控制权、传感器修复与上位机远程业务操控（TCP 9003 v2），本地与 Jetson Orin NX 均统一使用这个主分支。`v1.0.0` 是历史固定发布标签，不包含上述后续功能。已有工作空间时进入原项目目录，按[维护教程](docs/usage/04-maintenance.md)核对版本和未提交内容后再更新。以下命令以当前 Jetson 的部署路径为例：
 
 ```bash
 cd /home/lamost/UnderWater-Robot-ROS2
@@ -90,7 +97,7 @@ source install/setup.bash
 项目自带 `colcon_defaults.yaml`，自动设置 src/internal 包搜索范围、逐包构建、符号链接安装和 RelWithDebInfo，
 无需再手动添加构建参数；不会将 third_party、artifacts 或 tmp 中的源码/备份识别为额外包。
 查看包列表直接使用 `colcon list`。
-Windows 保存同一份源码，编译和设备验证在 Jetson Orin NX 完成；build/install/log 是生成目录。
+Windows 保存同一份源码并可核验不依赖 ROS 的控制核心和协议，完整 ROS 编译、POSIX 网络及设备验证在 Jetson Orin NX 完成；build/install/log 是生成目录。
 
 ## 沿用原命令
 
@@ -168,9 +175,9 @@ Fz=1 为 `[0,0,0,0,1200,1200,-1200,-1200]` RPM；回到六轴全零立即请求�
 
 ## 共享后台
 
-入口先检测网关，存在则复用，不重启或改变它的配置。
+入口先检测网关，外部启动的后台只复用，不重启或改变其配置；自动管理的后台可按下述条件切换。
 不存在时，自动启动原 manual.launch.xml 的网关、设备解析和分配器。
-传感器、查看、记录及预览入口使用 motor_tx=false，不发送电机命令。
+传感器、查看、记录及预览入口使用 motor_tx=false，不发送运动指令；网关启动/停止仍可能发送保护性停止帧。
 实际控制入口请求 motor_tx=true，但分配器初始 disarmed，先发送停机握手。
 若自动后台此前为监测模式，控制入口会请求其管理器重启为允许发送的模式；
 期间传感器可能短暂显示无效，随后恢复。外部启动的后台不自动切换模式。
@@ -231,11 +238,3 @@ bash tools/validate.sh allocation
 | 推进器模型 | 实测推力–RPM 曲线、限制策略、电机端看门狗 |
 | 相机与视觉 | 驱动、显示、保存、双目、全局相机、轨迹采集；需型号与标定 |
 | 其他传感器 | 激光雷达、声呐、DVL、声学定位、GNSS、水质、漏水、电源、缆绳 |
-| 其他执行器 | 照明、云台、机械臂、浮力调节、泵阀、电源开关、绞车 |
-| 外部通信 | 遥测、命令、视频、发现、批量数据、旧接口适配 |
-| 算法与任务 | 状态估计、感知、导航、SLAM、任务状态机、行为及结果管理 |
-| 运行与仿真 | 健康、记录、实验配置、URDF/TF、几何/惯量、标定及仿真 |
-
-IMU 气压需匹配 MCU 固件，气压高度不替代水深。简化 URDF 定义 base_link 与八推进器中心 thruster_center，
-尚未建模完整惯量与传感器外参。
-历史实验记录保留当时状态；当前范围以 README、源码和实时状态为准。

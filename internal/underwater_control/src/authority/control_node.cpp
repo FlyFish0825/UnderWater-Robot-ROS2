@@ -3,6 +3,7 @@
 // 安全门限：必须显式 control/enable、网关已连接且 tx_enabled、零点握手完成、
 // wrench 输入新鲜且只有一个发布者；任一条件失效立即解除武装并发送停机指令。
 #include "underwater_control/allocator.hpp"
+#include "underwater_control/manual_authority.hpp"
 #include <chrono>
 #include <algorithm>
 #include <optional>
@@ -68,7 +69,8 @@ public:
       [this](geometry_msgs::msg::WrenchStamped::ConstSharedPtr w){ wrench(*w,true); });
     gateway_sub_=create_subscription<ui::GatewayStatus>("gateway/status",10,
       [this](ui::GatewayStatus::ConstSharedPtr s){
-        if(gateway_ && gateway_->connection_id!=s->connection_id) disable("serial connection changed");  // 串口重连即解除武装
+        if(gateway_ && (gateway_->connection_id!=s->connection_id || gateway_->control_owner!=s->control_owner))
+          disable("serial connection or control authority changed");  // 串口重连或控制权变更即解除武装
         gateway_=*s; gateway_at_=Clock::now();
         if(armed_ && (!s->connected || !s->tx_enabled)) disable("gateway unavailable");
         if(armed_ && s->motor_session_id==session_) {
@@ -102,7 +104,15 @@ private:
   }
   bool gateway_ready() const {
     return gateway_ && Clock::now()-gateway_at_<2500ms && gateway_->connected &&  // 状态自身 2.5 s 内新鲜
-      !gateway_->settling && gateway_->tx_enabled && gateway_->heartbeat_age_ms>=0 && gateway_->heartbeat_age_ms<2500;  // 心跳 2.5 s 内
+      !gateway_->settling && gateway_->tx_enabled && gateway_->heartbeat_age_ms>=0 && gateway_->heartbeat_age_ms<2500 && source_authorized();  // 心跳 2.5 s 内且来源授权
+  }
+  bool source_authorized() const {
+    if(!gateway_) return false;
+    const auto manual=get_publishers_info_by_topic("control/manual_request");
+    const auto wrench=count_publishers("control/wrench_request");
+    const bool remote_only=manual.size()==1 && manual.front().node_name()=="remote_manual" &&
+        manual.front().node_namespace()==get_namespace();
+    return uc::remote::authorized_source(gateway_->control_owner,manual.size(),wrench,remote_only);
   }
   bool fresh() const { return input_valid_ && Clock::now()-input_at_<timeout_; }  // wrench 输入是否在超时窗口内
   void disable(const std::string & reason) {
@@ -113,7 +123,8 @@ private:
     const auto age=(now()-stamp).nanoseconds();
     // 校验坐标系、时钟容差(未来 100 ms/过去 250 ms)、时间戳严格递增以及单一发布者。
     if(w.header.frame_id!=frame_id_ || age< -100000000LL || age>250000000LL ||
-       (last_stamp_ && stamp<=*last_stamp_) || command_sources()>1) {
+       (last_stamp_ && stamp<=*last_stamp_) || command_sources()>1 || !source_authorized() ||
+       (gateway_->control_owner=="GUI_MANUAL" && !manual)) {
       input_valid_=false; disable("invalid frame, stale/duplicate timestamp or multiple publishers"); publish_command(); return;
     }
     last_stamp_=stamp;

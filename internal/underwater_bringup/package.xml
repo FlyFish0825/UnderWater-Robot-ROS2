@@ -22,6 +22,7 @@
 
   <!-- 集成探针（tests/integration）所需的测试期依赖 -->
   <test_depend>rclcpp</test_depend>
+  <test_depend>python3</test_depend>
   <test_depend>sensor_msgs</test_depend>
   <test_depend>underwater_interfaces</test_depend>
   <test_depend>geometry_msgs</test_depend>

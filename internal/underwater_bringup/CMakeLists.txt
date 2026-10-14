@@ -8,6 +8,10 @@ find_package(ament_cmake REQUIRED)  # ROS 2 构建基础
 install(DIRECTORY launch config DESTINATION share/${PROJECT_NAME})
 # 集成探针：仅 -DBUILD_TESTING=ON 时编译，不参与正常运行
 if(BUILD_TESTING)
+  enable_testing()
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  add_test(NAME remote_manual_launch_contract
+    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/test/remote_manual_launch_test.py)
   find_package(rclcpp REQUIRED)
   find_package(sensor_msgs REQUIRED)
   find_package(underwater_interfaces REQUIRED)

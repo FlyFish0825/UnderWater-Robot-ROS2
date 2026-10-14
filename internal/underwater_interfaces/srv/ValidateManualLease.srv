@@ -1,0 +1,5 @@
+string token
+---
+bool valid
+uint64 generation
+string detail

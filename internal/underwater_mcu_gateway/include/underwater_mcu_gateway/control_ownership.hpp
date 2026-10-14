@@ -9,7 +9,7 @@
 
 namespace underwater {
 
-enum class ControllerOwner : std::uint8_t { None = 0, Nano = 1, Gui = 2 };
+enum class ControllerOwner : std::uint8_t { None = 0, Nano = 1, Gui = 2, GuiManual = 3 };
 
 const char * controller_name(ControllerOwner owner) noexcept;
 
@@ -20,8 +20,8 @@ struct OwnershipResult {
   std::string message;
 };
 
-// Serializes all writers to the MCU UART. The GUI token is bound to its control
-// TCP session and expires when its heartbeat is lost.
+// Raw GUI owns UART writes; GUI_MANUAL delegates bounded ROS output to Nano.
+// Both leases are bound to their management TCP session, never interchangeable.
 class ControlOwnership {
 public:
   using Clock = std::chrono::steady_clock;
@@ -30,14 +30,18 @@ public:
   // takeover=false 时只在空闲（None）下才能获取，否则返回 success=false。
   OwnershipResult claim_nano(bool takeover);
   OwnershipResult release_nano();
-  // session 为控制 TCP 的 fd；同一 session 重复声明是幂等的，并返回原 token。
-  OwnershipResult claim_gui(int session, bool takeover);
+  // session 为控制 TCP 的 fd；同一 session 重复声明是幂等的，并返回原 token。manual=true 表示 GUI_MANUAL 业务控制权。
+  OwnershipResult claim_gui(int session, bool takeover, bool manual = false);
   OwnershipResult release_gui(int session);
   // 校验 session + token 后续期心跳；token 不符返回 false。
   bool heartbeat_gui(int session, const std::string &token);
   bool disconnect_gui(int session);
   // 心跳超过 3s 未更新则收回控制权；now 可注入以便测试。
   bool expire_gui(Clock::time_point now = Clock::now());
+  std::uint64_t validate_manual_lease(const std::string &token,
+                                    Clock::time_point now = Clock::now());
+  bool manual_authorized(Clock::time_point now = Clock::now()) const noexcept;
+  std::uint64_t generation() const noexcept { return generation_; }
 
   ControllerOwner owner() const noexcept { return owner_; }
   const std::string &gui_token() const noexcept { return token_; }
@@ -51,6 +55,8 @@ private:
   int gui_session_ = -1;
   std::string token_;
   Clock::time_point last_heartbeat_{};
+  Clock::time_point manual_until_{};
+  std::uint64_t generation_ = 1;
   std::uint64_t token_sequence_ = 0;
 };
 

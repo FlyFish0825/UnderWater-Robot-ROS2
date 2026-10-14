@@ -1,5 +1,14 @@
 # 发布记录
 
+## 未发布 — GUI 操作权与 Nano 执行链（2026-10-12）
+
+- TCP 9002 新增互斥的 `GUI_MANUAL` 业务权限；原 `GUI` 原始串口权限继续保留，两种模式不能同时驱动电机。
+- TCP 9003 v2 用私有租约授权业务连接，显式启用后将六轴整数档位交给原 Nano 分配器；不改原终端键位和分配数学。
+- 新增内部 `ValidateManualLease` 服务，控制节点与网关分别核验操作权、会话、新鲜度和零输出握手；权限失效后必须重新显式启用。
+- 增加有界收发、断线/超时停用、迟到启用回调的补偿停用及纯核心、网关、ROS 适配和启动配置回归测试。
+- 启动入口源码默认 `motor_tx=false`；远程命令不能改变发送门禁。v1 客户端不能绕过 v2 授权。
+- 补齐[操控教程](docs/usage/10-remote-manual-control.md)、[提交规范](CONTRIBUTING.md)和[验证边界](docs/experiments/2026-10-12-remote-manual-verification.md)。不把 Windows 离线通过等同于真实手柄、八推进器运动或失联物理停机验收。
+
 ## 未发布 — 全量构建默认配置
 
 - 增加项目级 colcon_defaults.yaml，直接 `colcon build` 全量构建 src/internal 的 13 个包。
