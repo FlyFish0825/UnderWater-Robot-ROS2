@@ -6,7 +6,38 @@
 // 安全门限：必须显式 control/enable、网关已连接且 tx_enabled、零点握手完成、
 // wrench 输入新鲜且只有一个发布者；任一条件失效立即解除武装并发送停机指令。
 // ==============================================================================
+// ------------------------------------------------------------------------------
+// 【初学者导读】本文件是推力分配的 ROS 2 节点（可执行程序），类名 ControlNode，
+// 节点名 "thrust_allocator"。所属：internal/underwater_control。
+// 它做什么：订阅上层发来的期望 wrench（物理量）或手动档位，调用 Allocator 求解，
+//          再向执行机构发布每台电机的目标转速。
+// 与谁交互（ROS 2 话题/服务）：
+//   订阅 control/wrench_request  (geometry_msgs/WrenchStamped)，物理力/力矩输入；
+//   订阅 control/manual_request  (geometry_msgs/WrenchStamped)，手动档位输入；
+//   订阅 gateway/status          (underwater_interfaces/GatewayStatus)，MCU 网关健康状态；
+//   发布 actuators/thrusters/setpoint (MotorSetpoint)，给电机的最终指令；
+//   发布 control/allocation      (AllocationStatus)，调试与可视化状态；
+//   提供服务 control/enable      (std_srvs/SetBool)，操作手使能/紧急停止。
+// ROS 2 概念白话：
+//   Node（节点）＝一个能收发话题、调用服务的独立小程序；
+//   Publisher/Subscription＝发布/订阅某类消息的通道；
+//   Service＝一次请求-应答的调用，适合“开/关”这类动作；
+//   Parameter＝启动时可配置的参数（只读参数用 read_only 标记）；
+//   QoS(1)＝队列深度 1，只保留最新一条，适合实时指令；
+//   Executor/spin＝事件循环，负责把回调依次取出来执行；
+//   Timer＝周期性触发的回调（这里 20ms 一次，同时兼作看门狗）。
+// C++ 概念白话：
+//   std::unique_ptr＝独占所有权的智能指针，离开作用域自动释放；
+//   std::shared_ptr＝引用计数共享所有权；
+//   lambda＝匿名函数，[] 捕获外部变量，(参数){函数体}，常作为回调；
+//   std::optional＝“可能有值也可能没有”的容器，用 if(x) 判断是否存在；
+//   override＝明确表示重写了基类的虚函数；
+//   RAII＝构造时获取资源、析构时自动释放，是 C++ 管理资源的惯用法。
+// 安全设计：必须显式 control/enable、网关就绪、零点握手完成、输入新鲜且发布者唯一，
+//          任一条件失效立即解除武装并下发零转速，属于“失效即安全”。
+// ------------------------------------------------------------------------------
 #include "underwater_control/allocator.hpp"
+// 本包公共头文件：分配器与手动权限校验。
 #include "underwater_control/manual_authority.hpp"
 
 #include <algorithm>
@@ -16,6 +47,7 @@
 #include <string>
 #include <vector>
 
+// ROS 2 客户端库 rclcpp 与各类消息头文件。
 #include <rclcpp/rclcpp.hpp>
 #include <rcl_interfaces/msg/parameter_descriptor.hpp>
 #include <geometry_msgs/msg/wrench_stamped.hpp>
@@ -24,19 +56,27 @@
 #include <underwater_interfaces/msg/gateway_status.hpp>
 #include <underwater_interfaces/msg/motor_setpoint.hpp>
 
+// 起别名让代码更短：uc=内部控制命名空间，ui=消息命名空间。
+// Clock=steady_clock 单调时钟（不受系统时间调整影响），适合测超时；
+// using namespace std::chrono_literals 让 "20ms" 这种写法可用。
 namespace uc = underwater::control;
 namespace ui = underwater_interfaces::msg;
 using Clock = std::chrono::steady_clock;
 using namespace std::chrono_literals;
 
+// ControlNode：推力分配节点本体。继承 rclcpp::Node；final 表示不再被继承。
 class ControlNode final : public rclcpp::Node {
 public:
+// 构造函数：声明参数、创建话题/服务/定时器，并进入默认安全状态（未武装）。
+// 坑位：参数尺寸不对或数值非法会抛异常，导致整个节点启动失败。
   ControlNode() : Node("thrust_allocator") {
     rcl_interfaces::msg::ParameterDescriptor d;
     d.read_only = true;
 
     uc::Config cfg;
 
+// 小工具 lambda：把 Config 里的数组声明成只读 ROS parameter 并返回其值。
+// declare_parameter 会在参数未提供时使用 initial 作为默认值。
     auto numbers = [&](const char *name, const auto &initial) {
       return declare_parameter<std::vector<double>>(
           name, std::vector<double>(initial.begin(), initial.end()), d);
@@ -108,13 +148,16 @@ public:
     frame_id_ = declare_parameter<std::string>("wrench_frame_id", "thruster_center", d);
 
     // 构造几何分配器
+// 用配置构造 Allocator；unique_ptr 表示本节点独占拥有它，析构时自动释放。
     allocator_ = std::make_unique<uc::Allocator>(cfg);
 
     // 创建电机控制指令与分配状态发布者
+// 发布者：output_ 是发给电机的指令（QoS 1 实时优先），status_ 是状态广播。
     output_ = create_publisher<ui::MotorSetpoint>("actuators/thrusters/setpoint", rclcpp::QoS(1));
     status_ = create_publisher<ui::AllocationStatus>("control/allocation", 10);
 
     // 订阅物理 wrench 与手动档位输入
+// 订阅物理 wrench 输入；回调用 lambda 捕获 this，以便调用成员函数 wrench()。
     input_ = create_subscription<geometry_msgs::msg::WrenchStamped>(
         "control/wrench_request",
         rclcpp::QoS(1),
@@ -122,6 +165,7 @@ public:
           wrench(*w, false);
         });
 
+// 手动档位输入走另一个话题，回调第二个参数 true 表示手动模式。
     manual_input_ = create_subscription<geometry_msgs::msg::WrenchStamped>(
         "control/manual_request",
         rclcpp::QoS(1),
@@ -130,6 +174,7 @@ public:
         });
 
     // 订阅 MCU 网关状态
+// 订阅网关状态，用于判断串口连接与控制权是否发生变化。
     gateway_sub_ = create_subscription<ui::GatewayStatus>(
         "gateway/status",
         10,
@@ -155,6 +200,7 @@ public:
         });
 
     // 使能控制服务
+// 使能服务：data=true 请求使能；data=false 表示操作手主动停车。
     enable_ = create_service<std_srvs::srv::SetBool>(
         "control/enable",
         [this](std_srvs::srv::SetBool::Request::SharedPtr req, std_srvs::srv::SetBool::Response::SharedPtr res) {
@@ -198,6 +244,7 @@ public:
         });
 
     // 20ms 看门狗与高频指令心跳定时器
+// 20ms 周期定时器：既周期性重发指令，也充当看门狗检测超时。
     timer_ = create_wall_timer(20ms, [this] { tick(); });
 
     RCLCPP_INFO(get_logger(), "Allocator ready: actual URDF geometry in NED, confirmed motor polarity, provisional linear RPM curve, disarmed");
@@ -206,6 +253,7 @@ public:
     RCLCPP_INFO(get_logger(), "Wrench origin: thruster centroid [%.6f %.6f %.6f] m in base_link", center[0], center[1], center[2]);
   }
 
+// 析构函数：进程退出前尽力停车（disable 并补发零指令），保证安全。
   ~ControlNode() override {
     try {
       disable("shutdown");
@@ -217,11 +265,13 @@ public:
 
 private:
   // 计算输入话题发布者总数
+// command_sources：统计两个输入话题上的发布者总数，用于排他性检查。
   std::size_t command_sources() const {
     return count_publishers("control/wrench_request") + count_publishers("control/manual_request");
   }
 
   // 判定 MCU 网关是否处于稳定就绪状态 (心跳 < 2.5s，已完成串口稳定期)
+// gateway_ready：网关是否“已连接且稳定且有心跳且允许发送且授权通过”。
   bool gateway_ready() const {
     return gateway_ &&
            (Clock::now() - gateway_at_ < 2500ms) &&
@@ -234,6 +284,7 @@ private:
   }
 
   // 判定控制源排他授权合法性
+// source_authorized：收集发布者信息后交给纯逻辑函数 authorized_source 判定。
   bool source_authorized() const {
     if (!gateway_) {
       return false;
@@ -247,11 +298,13 @@ private:
   }
 
   // 判定 wrench 输入是否处于新鲜期内
+// fresh：输入是否仍在 input_timeout_ms 新鲜窗口内。
   bool fresh() const {
     return input_valid_ && (Clock::now() - input_at_ < timeout_);
   }
 
   // 安全解除武装
+// disable：解除武装（armed_=false），此后只发零转速，直到再次使能。
   void disable(const std::string &reason) {
     armed_ = false;
     acknowledged_ = false;
@@ -260,6 +313,8 @@ private:
   }
 
   // 接收并解算 wrench 或手动档位输入
+// wrench：两个输入话题共用的处理函数。manual=true 走手动档位，否则走物理 wrench。
+// 先做严格校验（坐标系/时间戳/发布者数量/授权），任一不满足就停机。
   void wrench(const geometry_msgs::msg::WrenchStamped &w, bool manual) {
     const rclcpp::Time stamp(w.header.stamp);
     const auto age = (now() - stamp).nanoseconds();
@@ -312,6 +367,8 @@ private:
   }
 
   // 发布底层电机转速指令
+// publish_command：组装并发布 MotorSetpoint。只有所有安全门限都满足时，
+// 才会填入非零 RPM；任意一条不满足就发布零/未武装指令。
   void publish_command() {
     if (!gateway_) {
       return;
@@ -341,6 +398,7 @@ private:
   }
 
   // 20ms 看门狗轮询与状态广播
+// tick：定时器回调，先做看门狗检查，再发指令，最后每隔 100ms 广播一次状态。
   void tick() {
     if (armed_) {
       if (!gateway_ready()) {
@@ -380,6 +438,8 @@ private:
     status_->publish(s);
   }
 
+// 以下为节点成员变量：求解器、最近输入、时间戳与各种安全标志。
+// 注意 session_ 用开机以来的纳秒数初始化，保证会话 ID 单调且唯一。
   std::unique_ptr<uc::Allocator> allocator_;
   uc::Result result_;
   uc::Wrench desired_{};
@@ -417,6 +477,8 @@ private:
   rclcpp::TimerBase::SharedPtr timer_;
 };
 
+// 程序入口：初始化 rclcpp，创建节点并 spin（进入事件循环），直到 Ctrl+C 退出。
+// 构造节点时若参数非法会抛异常，这里捕获并打印后返回错误码。
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
   try {

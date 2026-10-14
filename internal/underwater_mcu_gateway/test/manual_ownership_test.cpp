@@ -1,3 +1,11 @@
+// ==============================================================================
+// internal/underwater_mcu_gateway/test/manual_ownership_test.cpp
+// ==============================================================================
+// 【初学者导读】本文件聚焦“GUI_MANUAL 手动业务权限”的租约规则，属于
+// internal/underwater_mcu_gateway/test。验证令牌格式、500ms 证明有效期、
+// 其他管理连接无法冒用/释放、模式切换轮换令牌、断线与 Nano 抢占回收权限等。
+// 纯逻辑测试，不启动 ROS 或网络。涉及概念：32 位十六进制随机令牌、
+// generation 授权代号、ControllerOwner 枚举、std::chrono 时间点。
 #include "underwater_mcu_gateway/control_ownership.hpp"
 
 #include <chrono>
@@ -8,11 +16,13 @@
 using namespace underwater;
 namespace {
 int checks = 0;
+// 断言：失败即抛异常，由 main 捕获。
 void check(bool ok, const char *why) {
   ++checks;
   if (!ok) throw std::runtime_error(why);
 }
 
+// 手动业务权限的核心契约检查：在一个函数里集中验证多条规则。
 void manual_contract(ControlOwnership &owner) {
   using Clock = ControlOwnership::Clock;
   using namespace std::chrono_literals;
@@ -84,6 +94,7 @@ void manual_contract(ControlOwnership &owner) {
 }
 }
 
+// 先验证控制器名字映射与同一会话重复抢占会轮换令牌，再进入完整契约检查。
 int main() {
   try {
     check(std::string(controller_name(static_cast<ControllerOwner>(3))) == "GUI_MANUAL",

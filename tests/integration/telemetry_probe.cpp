@@ -5,6 +5,15 @@
 //   live 模式为 bash tools/validate.sh live [serial_port]，只订阅真机数据、不发送任何指令。
 // 通过标准：退出码 0 且打印 "PASS ... integration"；synthetic 另要求各通道超时失效计数 > 0。
 // 是否需要真实硬件：synthetic 不需要；live 需要真机串口在线，但本探针仅接收。
+//
+// ── 初学者导读 ────────────────────────────────────────────────────────────
+// 这是“遥测链路”集成测试：订阅设备层发布的各类话题，统计数量并检查两条关键约定：
+//   1) 无效值必须用 NaN / 有效位=false 表达，不能残留旧值；
+//   2) 标准 sensor_msgs 话题只在数据有效时才发布。
+// synthetic 模式自己注入合成网关帧（不接真机）；live 模式只订阅真机数据、不发指令。
+// ROS 2 概念：Node；Subscription。create_subscription<类型>(话题, QoS, 回调)。
+// C++ 概念：lambda [this]、std::chrono 超时、按小端写 float（memcpy + 位移）。
+// ─────────────────────────────────────────────────────────────────────────
 #include <chrono>
 #include <cmath>
 #include <cstring>
@@ -21,6 +30,7 @@
 #include <underwater_interfaces/msg/motor_state.hpp>
 namespace ui=underwater_interfaces::msg;
 using Clock=std::chrono::steady_clock;
+// Probe：把所有遥测话题订阅与计数器集中在一起的测试节点。
 class Probe final : public rclcpp::Node {
 public:
   // 构造函数只订阅与统计，不做断言；synthetic 参数决定期望值是否参与校验。
@@ -134,6 +144,7 @@ private:
   rclcpp::Subscription<sensor_msgs::msg::Temperature>::SharedPtr baro_temperature_sub;
 };
 // 主循环最多运行 10 秒：synthetic 在第 2 秒注入一次合成帧，之后每 200ms 刷新 IMU 原始帧。
+// 入口：synthetic 时注入一帧并周期刷新；循环 10 秒后统一汇总判定。
 int main(int argc,char ** argv) {
   rclcpp::init(argc,argv); auto node=std::make_shared<Probe>();
   const auto start=Clock::now(); bool sent=false;

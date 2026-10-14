@@ -4,6 +4,17 @@
 // 运行方式：bash tools/validate.sh imu-calibration（等价于 ros2 run underwater_bringup imu_calibration_probe）。
 // 通过标准：退出码 0 且打印 "PASS IMU calibration integration"；证据（参考文件、devices.log）留在 /tmp 目录。
 // 是否需要真实硬件：不需要。只启动 underwater_devices 的 devices_node，用合成网关帧驱动，不接触串口与控制器。
+//
+// ── 初学者导读 ────────────────────────────────────────────────────────────
+// 这是 IMU 姿态基准标定的端到端集成测试：用合成网关帧驱动真的 devices_node，验证
+// “采集参考姿态 → 校正生效 → 运动中拒绝 → 偏航回绕 → 过期失效 → 重启加载 → 清除标定”。
+// 关键手法：
+//   - fork/execvp + setpgid：在独立进程组里启停 devices_node；
+//   - create_publisher<GatewayFrame>：伪造 MCU 帧；-r __ns:=... 重映射命名空间；
+//   - create_client + async_send_request：调用标定/清除服务；
+//   - transient_local QoS：晚加入的订阅者也能收到最近一次标定状态。
+// C++ 概念：std::function、lambda [&] 捕获、std::filesystem、memcpy 按小端写字节。
+// ─────────────────────────────────────────────────────────────────────────
 #include <rclcpp/rclcpp.hpp>
 #include <std_srvs/srv/trigger.hpp>
 #include <underwater_interfaces/msg/gateway_frame.hpp>
@@ -71,6 +82,7 @@ void put(std::vector<std::uint8_t> &bytes,std::size_t offset,float value) {
     bytes[offset + i] = static_cast<std::uint8_t>((bits >> (8 * i)) & 0xff);
   }
 }
+// 测试入口：设定独立 ROS 域，启动 devices_node，逐个用例断言标定行为。
 int main(int argc,char **argv) {
   // This explicit test domain cannot accidentally reuse the real robot namespace.
   setenv("ROS_DOMAIN_ID","184",1);setenv("ROS_LOCALHOST_ONLY","1",1);
@@ -106,6 +118,7 @@ int main(int argc,char **argv) {
     auto client=node->create_client<Service>("sensors/imu/calibrate");
     auto clear=node->create_client<std_srvs::srv::Trigger>("sensors/imu/clear_calibration");
     // until：在给定超时内反复 spin，条件满足即返回 true。
+    // until：在给定超时内反复 spin，条件满足即返回 true，否则超时返回 false。
     auto until=[&](const std::function<bool()> &condition,double timeout) {
       const auto end=Clock::now()+std::chrono::duration<double>(timeout);
       while(Clock::now()<end){rclcpp::spin_some(node);if(condition())return true;std::this_thread::sleep_for(5ms);}return false;

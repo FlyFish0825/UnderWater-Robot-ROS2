@@ -6,6 +6,12 @@
 // - 校验 motor_transaction 双帧 CAN 透传结构
 // - 校验 MotorGate 会话使能与超时封锁
 // ==============================================================================
+// 【初学者导读】本文件测试电机指令的编码与安全闸门，属于 internal/underwater_mcu_gateway/test。
+// 主要有三个对象：valid_motor_setpoint（校验转速/掩码是否合法）、
+// motor_transaction（把一次指令编码成两帧要发往 MCU 的字节）、
+// MotorGate（会话状态机：新会话必须先用全零握手，序号递增防重放，超时自动封锁）。
+// 纯逻辑测试，不需要硬件。涉及概念：位运算掩码(node_mask/run_mask)、RPM 物理边界、
+// 防重放序号、看门狗超时。
 #include "underwater_mcu_gateway/motor_commands.hpp"
 
 #include <iostream>
@@ -13,8 +19,10 @@
 
 using namespace underwater::wire;
 
+// 断言计数。
 int checks = 0;
 
+// 断言：失败时报告第几个检查出错。
 void check(bool condition) {
   ++checks;
   if (!condition) {
@@ -22,6 +30,7 @@ void check(bool condition) {
   }
 }
 
+// 依次验证停机合法性、转速边界、双帧编码、闸门握手与超时。
 int main() {
   MotorRpm rpm{};
 

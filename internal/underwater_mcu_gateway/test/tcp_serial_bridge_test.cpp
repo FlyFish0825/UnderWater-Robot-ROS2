@@ -1,3 +1,12 @@
+// ==============================================================================
+// internal/underwater_mcu_gateway/test/tcp_serial_bridge_test.cpp
+// ==============================================================================
+// 【初学者导读】本文件测试 9000 端口“原始串口 TCP 桥”TcpSerialBridge，属于
+// internal/underwater_mcu_gateway/test。它把 MCU 原始字节在 TCP 与串口之间透传，
+// 并强制“先认证后写”：Nano 默认拥有控制权时客户端只能只读监听；
+// 只有带正确 OWNER <token> 的持有者才能写串口，令牌轮换会踢掉旧连接。
+// 纯网络测试，不接真实硬件。涉及概念：TCP socket、认证握手、背压(慢客户端)上限、
+// 控制权 ControllerOwner、断线事件 take_disconnect/take_write_disconnect。
 #include "underwater_mcu_gateway/protocol.hpp"
 #include "underwater_mcu_gateway/tcp_serial_bridge.hpp"
 
@@ -12,11 +21,14 @@
 
 using namespace underwater;
 namespace {
+// 断言计数。
 int checks = 0;
+// 断言：失败即抛异常，由 main 捕获。
 void check(const bool ok, const char *why) {
   ++checks;
   if (!ok) throw std::runtime_error(why);
 }
+// 创建并连接一个 TCP 客户端；source 可指定本地源地址，用于模拟不同来源的客户端。
 int connect_client(const std::uint16_t port, const char *source = nullptr) {
   const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
   check(fd >= 0, "socket");
@@ -37,6 +49,7 @@ int connect_client(const std::uint16_t port, const char *source = nullptr) {
         "connect");
   return fd;
 }
+// 向 9000 端口发送 "OWNER <token>\n" 完成认证，并确认服务器返回 "OK GUI\n"。
 void authenticate(TcpSerialBridge &server, const int fd, const std::string &token) {
   const std::string request = "OWNER " + token + "\n";
   check(::send(fd, request.data(), request.size(), MSG_NOSIGNAL)
@@ -50,6 +63,7 @@ void authenticate(TcpSerialBridge &server, const int fd, const std::string &toke
 }
 }
 
+// 端到端验证只读监听、令牌认证、令牌轮换与断线事件。
 int main() {
   try {
     TcpSerialBridge server;

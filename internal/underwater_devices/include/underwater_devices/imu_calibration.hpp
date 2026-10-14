@@ -1,6 +1,18 @@
 // IMU 姿态参考标定组件：负责 sensors/imu/calibrate 服务、参考文件的装载与清理，
 // 并把原始 ImuState 换算成“相对标定基准”的修正姿态发布到 sensors/imu/calibrated。
 // 与线协议解码解耦，只消费已解析的 ImuState，不直接接触串口数据。
+// 初学者导读（underwater_devices / imu_calibration.hpp）
+// 所属：IMU 姿态参考标定的 ROS 封装层。它把“原始姿态 → 相对基准姿态”的换算
+//   打包发布到 sensors/imu/calibrated，并提供标定/清除服务。
+// 谁调用谁：devices_node.cpp 创建 ImuCalibration，并在每帧 IMU 数据到来时调用 process()；
+//   本类的服务回调由 ROS executor 触发。
+// 交互：发布 sensors/imu/calibrated 与 sensors/imu/calibration_status；
+//   提供 sensors/imu/calibrate (CalibrateImu) 与 clear_calibration (Trigger) 服务；
+//   读取参数 calibration_file（标定文件路径）。
+// ROS 2 概念：Service 是一问一答的远程调用，用 send_response 回复；Parameter 是节点可
+//   配置项，用 declare_parameter 声明；Publisher 负责发布话题消息。
+// C++ 概念：std::shared_ptr 是共享所有权的智能指针（ROS 接口对象常用它）；lambda 里的
+//   [this] 捕获当前对象；std::chrono 表示时间长度/时刻。
 #pragma once
 #include "underwater_devices/attitude_reference.hpp"
 #include <chrono>

@@ -1,4 +1,12 @@
 // 伪终端验证关闭/重开时没有终端回显或软件流控，不连接真实硬件。
+// ------------------------------------------------------------------------------
+// 【初学者导读】本文件测试 SerialIo 串口封装的 Linux 行规(termios)设置，属于
+// internal/underwater_mcu_gateway/test。它用“伪终端(PTY)”模拟串口设备：
+// 先人为打开回显与软件流控，再让 SerialIo::open() 打开，验证它确实关闭了
+// ECHO/ICANON 和 IXON/IXOFF/IXANY（否则二进制数据会被改写或阻塞）；
+// 还验证 close 后终端属性被还原，以及只读模式下写串口会被拒绝。
+// 涉及概念：POSIX open/tcgetattr/tcsetattr、poll、文件描述符、异常断言。
+// ------------------------------------------------------------------------------
 #include "underwater_mcu_gateway/serial_io.hpp"
 #include <cstdlib>
 #include <fcntl.h>
@@ -7,9 +15,11 @@
 #include <stdexcept>
 #include <unistd.h>
 
+// require()：本测试的断言，条件为假抛异常，main 统一捕获。
 static void require(bool ok,const char * message) {
   if(!ok) throw std::runtime_error(message);
 }
+// 用 posix_openpt 创建主/从伪终端：主端 master 模拟 MCU，从端 path 交给 SerialIo。
 int main() {
   int master=-1,keeper=-1;
   try {

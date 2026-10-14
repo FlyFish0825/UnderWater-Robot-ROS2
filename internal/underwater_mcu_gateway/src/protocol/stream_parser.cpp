@@ -6,21 +6,30 @@
 // - 仅做帧头同步与长度预判，字段与 CRC 校验交由 codec.cpp 的 decode() 处理
 // - 抛弃的噪声字节计入 counters.discarded，超时残帧记入 shape_errors
 // ==============================================================================
+// 初学者导读：
+// 1) 本文件实现 protocol.hpp 的 Parser：从任意切分的串口字节流中切出完整帧。
+// 2) 交互：网关节点把 SerialIo::read_available() 的字节喂给 feed()，得到 Frame 列表。
+// 3) ROS 2 概念：无 ROS API；解析出的数据稍后在节点里转成 ROS 消息。
+// 4) C++ 概念：std::vector 动态数组；指针/迭代器算术；std::move 转移 Frame；
+//    std::size_t 作游标；结束时一次性 erase 压缩缓冲以保持线性复杂度。
 #include "underwater_mcu_gateway/protocol.hpp"
 
 #include <algorithm>
 
 namespace underwater::wire {
 
+// 清空缓冲与残帧标志（串口重连后应调用）。
 void Parser::reset() {
   buffer_.clear();
   partial_ = false;
 }
 
+// 核心循环：找帧头 -> 判长度 -> 等整包 -> decode() -> 收集结果。
 std::vector<Frame> Parser::feed(const Bytes &bytes, std::uint64_t now) {
   std::vector<Frame> result;
 
   // 缓冲上限 64KiB：超限视为噪声泛洪，整体清空丢弃
+// 防御性上限：缓存超过 64KiB 视为噪声泛洪，丢弃已缓存字节（本次输入本身超限时也会被丢弃）。
   if (buffer_.size() + bytes.size() > 65536) {
     counters_.discarded += buffer_.size();
     buffer_.clear();
@@ -53,9 +62,11 @@ std::vector<Frame> Parser::feed(const Bytes &bytes, std::uint64_t now) {
     if (left >= 3 && head[1] == 0x55) {
       const auto n = head[2];
       bad_length = (n < 8 || n > 76);
+// 0x55 系列用 1 字节长度字段。
       total = n + 6;  // 0x55：第 3 字节即帧体长度，整包 = 帧体 + 6
     } else if (left >= 16) {
       const auto n = u16(buffer_, cursor + 10);
+// 其余 family 用 2 字节长度字段。
       total = n + 20;  // 其余 family 的长度字段在偏移 10，整包 = 载荷 + 20
       bad_length = (head[1] == 0x58 && n != 0 && n != 5) ||
                    (head[1] == 0x5b && n > 58) ||
@@ -76,6 +87,7 @@ std::vector<Frame> Parser::feed(const Bytes &bytes, std::uint64_t now) {
         partial_ = true;
         partial_since_ = now;
       }
+// 残帧等待超过 1s 视为断帧，丢弃该字节继续向后同步。
       if (now - partial_since_ >= 1000) {
         ++counters_.shape_errors;
         ++counters_.discarded;
@@ -91,6 +103,7 @@ std::vector<Frame> Parser::feed(const Bytes &bytes, std::uint64_t now) {
 
     if (!decode(packet, frame)) {
       // 帧尾匹配但 CRC 不符记为 crc_errors，其余结构问题记为 shape_errors
+// 帧尾正确但 CRC 不符 -> 计为 crc_errors；结构性错误 -> shape_errors。
       const bool tail = (packet[total - 2] == packet[1] && packet.back() == 0xaa);
       const bool crc = (packet[1] == 0x55) ?
           (crc8(packet.data() + 2, total - 5) == packet[total - 3]) :
@@ -114,6 +127,7 @@ std::vector<Frame> Parser::feed(const Bytes &bytes, std::uint64_t now) {
   }
 
   // 单次压缩缓冲区，保证线性扫描时间复杂度
+// 扫描结束后一次性丢弃已消费字节，避免反复搬移。
   buffer_.erase(buffer_.begin(), buffer_.begin() + cursor);
   return result;
 }

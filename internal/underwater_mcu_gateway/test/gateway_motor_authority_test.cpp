@@ -1,3 +1,12 @@
+// ==============================================================================
+// internal/underwater_mcu_gateway/test/gateway_motor_authority_test.cpp
+// ==============================================================================
+// 【初学者导读】本文件汇总测试“电机授权链”：ControlOwnership（控制权）+ MotorGate（会话闸门）
+// 组合成 MotorAuthority，决定 ROS 电机指令是否允许下发。属于
+// internal/underwater_mcu_gateway/test，是纯逻辑测试，不需要 ROS 或硬件。
+// 重点验证租约到期边界、抢占后旧会话失效、新模式必须重新握手，避免“旧指令偷偷复活”。
+// 涉及概念：ControllerOwner 枚举、租约(lease)与 generation 授权代号、
+// std::chrono 时间点边界、电机会话(session)与全零握手。
 #include "underwater_mcu_gateway/control_ownership.hpp"
 #include "underwater_mcu_gateway/motor_commands.hpp"
 #include "underwater_mcu_gateway/motor_authority.hpp"
@@ -7,10 +16,12 @@
 using namespace underwater;
 namespace {
 int checks = 0;
+// 断言：失败即抛异常，由 main 捕获。
 void check(bool ok, const char *why) {
   ++checks;
   if (!ok) throw std::runtime_error(why);
 }
+// 专测“499ms/501ms/999ms/1499ms”等时间边界：授权恰好在到期点前后如何变化。
 void renewal_boundary_contract() {
   using namespace std::chrono_literals;
   ControlOwnership owner;
@@ -39,6 +50,7 @@ void renewal_boundary_contract() {
   check(!gate.accept(501, 2, true, 255, 0, {}, 5), "exact-expiry renewal rejects old zero handshake");
 }
 }
+// 先跑边界测试，再逐条验证模式切换、证明(proof)有效期与闸门状态。
 int main() {
   try {
     using namespace std::chrono_literals;

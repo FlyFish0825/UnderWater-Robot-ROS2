@@ -5,16 +5,33 @@
 // 再按线性 RPM 曲线量化成各 CAN 节点的目标转速，并给出死区/饱和标志。
 // 构造阶段会校验几何、极性与 RPM 边界；求解前拒绝 NaN/超大输入，避免输出无意义指令。
 // ==============================================================================
+// ------------------------------------------------------------------------------
+// 【初学者导读】本文件是推力分配算法的实现，配套头文件 allocator.hpp。
+// 所属：internal/underwater_control（水下控制内部库）。
+// 交互：被 control_node.cpp 的 ControlNode 在启动时构造，在收到
+//       control/wrench_request 或 control/manual_request 话题后调用。
+// 内部流程：配置校验 → 注册 8 个推进器几何 → QP 求解推力 → 线性折算 RPM。
+// 涉及的 ROS 2 概念：本文件是纯计算，不直接创建 Node/Publisher；相关话题在
+//       control_node.cpp 中收发，但最终的 RPM 会被打包成 MotorSetpoint 下发。
+// 涉及的 C++ 概念：
+//   std::move＝把对象资源“搬走”而非深拷贝，构造后原对象不再使用；
+//   std::invalid_argument/runtime_error＝标准异常，用 throw 抛出让上层捕获；
+//   std::isfinite＝判断是否为有限正常浮点数（排除 NaN/Inf）。
+// ------------------------------------------------------------------------------
 #include "underwater_control/allocator.hpp"
 
+// 标准库：算法、数学函数、数值极限、异常、move 语义。
 #include <algorithm>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
 #include <utility>
 
+// 实现 underwater::control 命名空间里声明的成员。
 namespace underwater::control {
 
+// 构造函数：接收一份 Config，做完整校验后初始化 QP 求解器。
+// 坑位：参数非法时直接抛异常，节点启动会失败——这是有意的，宁可起不来也不能乱转。
 Allocator::Allocator(Config c)
     : config_(std::move(c)) {
   // 校验电机 RPM 的物理能力范围 (必须在 1000..6000 之间)
@@ -85,6 +102,8 @@ Allocator::Allocator(Config c)
   }
 }
 
+// wrench_of：正向计算，把 8 个推进器推力合成机体六维力/力矩。
+// 力矩使用叉乘 M = r × F，其中 r 是相对几何质心的位置向量。
 Wrench Allocator::wrench_of(const std::array<double, 8> &force) const {
   Wrench w{};
   for (std::size_t i = 0; i < 8; ++i) {
@@ -108,6 +127,7 @@ Wrench Allocator::wrench_of(const std::array<double, 8> &force) const {
   return w;
 }
 
+// solve：物理 wrench 模式。返回 false 表示输入非法或求解失败，调用者必须停机。
 bool Allocator::solve(const Wrench &desired, Result &result) {
   result = {};
 
@@ -137,6 +157,8 @@ bool Allocator::solve(const Wrench &desired, Result &result) {
   return true;
 }
 
+// solve_manual：手动档位模式。输入六轴档位 [-100,100]，求解后按比例缩放，
+// 保证起步时最小的那个通道也能越过电机机械死区。
 bool Allocator::solve_manual(const Wrench &levels, Result &result) {
   result = {};
   double level = 0.0;
@@ -220,6 +242,7 @@ bool Allocator::solve_manual(const Wrench &levels, Result &result) {
   return true;
 }
 
+// finish：所有求解路径的收尾工作——把推力转换成每台电机的 RPM 并回算 wrench。
 void Allocator::finish(Result &result) const {
   std::array<double, 8> modeled{};
 

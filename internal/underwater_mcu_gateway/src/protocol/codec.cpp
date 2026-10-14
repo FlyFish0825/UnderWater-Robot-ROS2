@@ -9,6 +9,12 @@
 // - 0x55: 旧版下行控制与 CAN 透传帧 (CRC8)
 // - 0x58 / 0x59 / 0x5b: 带时间戳的上行传感器/心跳帧 (CRC16)
 // ==============================================================================
+// 初学者导读：
+// 1) 本文件实现 protocol.hpp 声明的字节序读取、CRC 计算与整帧解码 decode()。
+// 2) 交互：stream_parser.cpp 找到候选整帧后调用 decode()；网关节点再用 u16/u32/f32 读取载荷。
+// 3) ROS 2 概念：无 ROS API，是串口线协议的底层实现。
+// 4) C++ 概念：std::memcpy 做"按位重解释"（把 4 字节整数当成 float）；static_assert 是编译期断言；
+//    std::move 转移 Frame；std::size_t 下标；constexpr 常量。
 #include "underwater_mcu_gateway/protocol.hpp"
 
 #include <cstring>
@@ -17,32 +23,38 @@
 namespace underwater::wire {
 
 // 读取 16 位小端序整数
+// 读取 2 字节小端整数；b.at() 越界会抛异常，暴露调用方的偏移错误。
 std::uint16_t u16(const Bytes &b, std::size_t o) {
   return static_cast<std::uint16_t>(b.at(o)) |
          (static_cast<std::uint16_t>(b.at(o + 1)) << 8);
 }
 
 // 读取 32 位小端序整数
+// 读取 4 字节小端整数（由两个 16 位拼成）。
 std::uint32_t u32(const Bytes &b, std::size_t o) {
   return static_cast<std::uint32_t>(u16(b, o)) |
          (static_cast<std::uint32_t>(u16(b, o + 2)) << 16);
 }
 
 // 读取 IEEE 754 32 位单精度浮点数 (小端序)
+// 读取 IEEE 754 单精度浮点（小端）；先取 32 位整数位模式再重解释。
 float f32(const Bytes &b, std::size_t o) {
   const auto bits = u32(b, o);
   float value;
   static_assert(sizeof(value) == sizeof(bits), "binary32 required");
+// 把整数位模式原样拷进 float，避免数值转换改变结果（二进制32位）。
   std::memcpy(&value, &bits, sizeof(value));
   return value;
 }
 
 // CRC-8 校验：初值 0x00，多项式 0x07 (x^8 + x^2 + x + 1)
+// 逐字节异或后逐位左移，最高位为 1 时异或多项式 0x07。
 std::uint8_t crc8(const std::uint8_t *p, std::size_t n) {
   std::uint8_t c = 0;
   for (std::size_t i = 0; i < n; ++i) {
     c ^= p[i];
     for (int j = 0; j < 8; ++j) {
+// 最高位为 1 才异或多项式，这是 CRC 逐位算法的标准写法。
       c = (c & 0x80) ? static_cast<std::uint8_t>((c << 1) ^ 7)
                      : static_cast<std::uint8_t>(c << 1);
     }
@@ -51,6 +63,7 @@ std::uint8_t crc8(const std::uint8_t *p, std::size_t n) {
 }
 
 // CRC-16/CCITT-FALSE 校验：初值 0xFFFF，多项式 0x1021 (x^16 + x^12 + x^5 + 1)
+// 同上，但为 16 位 CRC（初值 0xFFFF、多项式 0x1021）。
 std::uint16_t crc16(const std::uint8_t *p, std::size_t n) {
   std::uint16_t c = 0xffff;
   for (std::size_t i = 0; i < n; ++i) {
@@ -64,6 +77,7 @@ std::uint16_t crc16(const std::uint8_t *p, std::size_t n) {
 }
 
 // 校验帧头、长度、CRC 与各 family 的字段约束，成功时把结果移入 output
+// 本函数不抛异常，"不合法"统一用返回 false 表示，调用方据此丢弃。
 bool decode(const Bytes &p, Frame &output) {
   // 最短合法帧（0x55 空载荷帧）为 14 字节，帧头必须为 0xAA
   if (p.size() < 14 || p[0] != 0xaa) {
@@ -147,6 +161,7 @@ bool decode(const Bytes &p, Frame &output) {
     f.payload.assign(p.begin() + 16, p.begin() + 16 + n);
   }
 
+// 用 move 把局部 Frame 的内部缓冲交给调用方，避免整帧拷贝。
   output = std::move(f);
   return true;
 }

@@ -7,6 +7,27 @@
 // - preview=true 模式下只观察推力分配，不发起底层使能请求；
 // - 退出时先发全零指令再下发 disable，防止后端电机残余运转。
 // ==============================================================================
+// ------------------------------------------------------------------------------
+// 【初学者导读】
+// 所属：sensors_cpp 包，手动控制与实验激励（manual.cpp）。
+// 角色：manual_control＝用键盘按档位驱动推进器；forces_pub＝按预设时间曲线施加物理力。
+// 交互：
+//   发布 <ns>/control/manual_request 或 <ns>/control/wrench_request（geometry_msgs/WrenchStamped）；
+//   发布 /forces（msg_pkg/Forces，兼容旧订阅者）；
+//   订阅 <ns>/control/allocation（AllocationStatus）观察推力分配；
+//   调用服务 <ns>/control/enable（std_srvs/SetBool）申请/释放电机控制权。
+// ROS 2 概念白话：
+//   Client/Service＝请求-应答，异步发送后可用 future 查询结果。
+//   Publisher＝向话题发消息；create_publisher<类型>(话题, QoS)。
+//   Parameter（参数）＝配置项，如 preview、duration_s。
+//   spin_some＝处理当前积压回调后返回，便于自己控制主循环。
+// C++ 概念白话：
+//   struct Terminal / RAII＝构造时改终端模式，析构时自动恢复，异常也不漏。
+//   lambda（[&] 捕获）＝匿名函数，这里用作消息回调与发送函数。
+//   std::optional＝可能为空的容器；std::future＝异步操作的结果占位。
+//   std::clamp(v,a,b)＝把 v 限制在 [a,b] 区间。
+//   十六进制（0x10 等）＝用十六进制写条件码，方便对应协议定义。
+// ------------------------------------------------------------------------------
 #include "sensors_cpp/entry.hpp"
 
 #include <algorithm>
@@ -31,15 +52,20 @@
 
 namespace compatibility {
 
+// 字面量后缀：允许写 20ms、1000ms 等直观的时间常量。
 using namespace std::chrono_literals;
+// Clock＝单调时钟（计时不受系统对时影响）；Enable＝SetBool 服务的类型别名，写起来更短。
 using Clock = std::chrono::steady_clock;
 using Enable = std_srvs::srv::SetBool;
 
+// Terminal：把终端切到“非规范、无回显”模式，这样按一个键无需回车就能被读到；
+// 析构时自动恢复原设置，保证程序退出后终端仍能正常输入（RAII 的典型用法）。
 // RAII 终端设置：配置非规范模式并关闭回显，析构自动恢复
 struct Terminal {
   termios old{};
   bool changed = false;
 
+// 构造函数：needed=false 时什么都不做（力曲线模式不需要键盘）。
   explicit Terminal(bool needed) {
     if (!needed) {
       return;
@@ -57,6 +83,7 @@ struct Terminal {
     changed = true;
   }
 
+// 析构函数：若改过终端设置，就恢复成原来的样子。
   ~Terminal() {
     if (changed) {
       tcsetattr(STDIN_FILENO, TCSANOW, &old);
@@ -64,37 +91,49 @@ struct Terminal {
   }
 };
 
+// manual()：手动控制/力曲线激励的主函数。
+// 输出：向 control/manual_request 或 control/wrench_request 发布 WrenchStamped；
+//       同时发布 /forces；通过 control/enable 服务申请或释放控制权。
 int manual(const std::string &entry, const std::shared_ptr<rclcpp::Node> &node) {
   const bool excitation = (entry == "forces_pub");
   const bool preview = node->get_parameter("preview").as_bool();
   const auto ns = backend_namespace(node);
 
+// 先空转 1 秒给 DDS 发现留时间，否则刚启动时可能误判“没有别的控制源”。
   // 给予 DDS 发现期 1 秒宽限，避免误判控制源
   for (int i = 0; i < 10 && running(); ++i) {
     rclcpp::spin_some(node);
     std::this_thread::sleep_for(100ms);
   }
 
+// 若已有别的进程在发控制请求，就拒绝接管，避免两个来源抢方向盘。
   if (node->count_publishers(ns + "/control/manual_request") ||
       node->count_publishers(ns + "/control/wrench_request")) {
     throw std::runtime_error("Another wrench source is already running; no control takeover was attempted");
   }
 
+// 力曲线模式不需要键盘，故 needed=false。
   Terminal terminal(!excitation);
+// 按命令选择发布话题：manual_control 走 manual_request，forces_pub 走 wrench_request。
   auto pub = node->create_publisher<geometry_msgs::msg::WrenchStamped>(
       ns + (excitation ? "/control/wrench_request" : "/control/manual_request"),
       rclcpp::QoS(1));
 
+// 额外发布兼容话题 /forces（msg_pkg/Forces），供旧订阅者继续使用。
   auto force_pub = node->create_publisher<msg_pkg::msg::Forces>("/forces", 10);
+// 创建服务客户端：稍后用 async_send_request 异步请求“使能/失能”电机控制。
   auto enable = node->create_client<Enable>(ns + "/control/enable");
 
+// desired 保存六个自由度目标值：[Fx,Fy,Fz,roll,pitch,yaw]，按键做累加/累减。
   std::array<double, 6> desired{};
   bool active = false;
   bool seen_armed = false;
   bool wanted = excitation;
   bool quit = false;
+// std::optional：可能还没有结果；这里保存“使能”请求的 future，用于非阻塞查询是否返回。
   std::optional<rclcpp::Client<Enable>::SharedFuture> pending;
 
+// 订阅推力分配状态：预览时打印建议 RPM；控制中若被上层解除武装则清空指令。
   auto state = node->create_subscription<underwater_interfaces::msg::AllocationStatus>(
       ns + "/control/allocation",
       10,
@@ -125,6 +164,7 @@ int manual(const std::string &entry, const std::shared_ptr<rclcpp::Node> &node) 
               m->armed);
         }
 
+// 预览模式或尚未使能时，不处理解除武装逻辑，只观察。
         if (preview || !active) {
           return;
         }
@@ -142,6 +182,7 @@ int manual(const std::string &entry, const std::shared_ptr<rclcpp::Node> &node) 
         }
       });
 
+// send()：把六自由度值填进 WrenchStamped 并发布；力曲线模式再同步发一份 /forces。
   auto send = [&](const std::array<double, 6> &v) {
     geometry_msgs::msg::WrenchStamped w;
     w.header.stamp = node->now();
@@ -165,6 +206,7 @@ int manual(const std::string &entry, const std::shared_ptr<rclcpp::Node> &node) 
     }
   };
 
+// duration_s 控制运行时长；0 表示手动模式一直跑，力曲线模式默认 100 秒。
   const auto start = Clock::now();
   double duration = node->get_parameter("duration_s").as_double();
   if (!std::isfinite(duration) || duration < 0) {
@@ -174,16 +216,19 @@ int manual(const std::string &entry, const std::shared_ptr<rclcpp::Node> &node) 
     duration = 100;
   }
 
+// 提示当前模式与键位：W/S Fx、A/D 偏航、I/J Fz、T/F Fy、Y/G 横滚、U/H 俯仰，Q 退出。
   RCLCPP_INFO(
       node->get_logger(),
       "Mode: %s. W/S Fx, A/D yaw, I/J Fz, T/F Fy, Y/G roll, U/H pitch; Q exits.",
       preview ? "PREVIEW (no enable request)" : "CONTROL (first direction key requests enable)");
 
+// 主循环：spin 处理回调 -> 读键盘 -> 到点发送指令 -> 小睡 20ms 控制节奏。
   while (running() && !quit &&
          (duration == 0 || std::chrono::duration<double>(Clock::now() - start).count() < duration)) {
     rclcpp::spin_some(node);
 
     if (!excitation) {
+// poll 检查标准输入是否有键可读；超时 0 表示不等待。
       pollfd input{STDIN_FILENO, POLLIN, 0};
       if (poll(&input, 1, 0) > 0) {
         if (input.revents & (POLLHUP | POLLERR | POLLNVAL)) {
@@ -193,6 +238,7 @@ int manual(const std::string &entry, const std::shared_ptr<rclcpp::Node> &node) 
         char c = 0;
         if (read(STDIN_FILENO, &c, 1) == 1) {
           bool direction = true;
+// 键位映射：方向键累加/减对应自由度，Q 退出；toupper 让大小写都可用。
           switch (std::toupper(static_cast<unsigned char>(c))) {
             case 'W': desired[0] += 1; break;
             case 'S': desired[0] -= 1; break;
@@ -214,15 +260,18 @@ int manual(const std::string &entry, const std::shared_ptr<rclcpp::Node> &node) 
               }
               break;
           }
+// 把每个自由度限制在 [-100,100] 档位，防止一直按住按键导致数值无限增大。
           for (auto &v : desired) {
             v = std::clamp(v, -100.0, 100.0);
           }
+// 第一次按方向键时登记“想使能”，真正的使能请求在循环后面统一发出。
           if (direction && !active && !pending) {
             wanted = true;
           }
         }
       }
     } else {
+// 力曲线模式：按时间 t 生成预设 Fx 波形（正弦 -> 阶跃 -> 斜坡 -> 反向 -> 归零）。
       const double t = std::chrono::duration<double>(Clock::now() - start).count();
       desired[0] = (t < 25) ? 10 * std::sin(0.5 * t)
                             : (t < 50) ? 2.0
@@ -235,6 +284,7 @@ int manual(const std::string &entry, const std::shared_ptr<rclcpp::Node> &node) 
       break;
     }
 
+// 需要使能且尚未激活/请求中：预览模式直接置激活；否则确认服务就绪后异步请求。
     if (wanted && !active && !pending) {
       wanted = false;
       if (preview) {
@@ -253,6 +303,7 @@ int manual(const std::string &entry, const std::shared_ptr<rclcpp::Node> &node) 
       }
     }
 
+// 非阻塞检查使能结果：wait_for(0ms) 立即返回，看 future 是否已经就绪。
     if (pending && pending->wait_for(0ms) == std::future_status::ready) {
       const auto response = pending->get();
       pending.reset();
@@ -269,6 +320,7 @@ int manual(const std::string &entry, const std::shared_ptr<rclcpp::Node> &node) 
       }
     }
 
+// 只有使能成功后才持续下发指令，保证安全（未授权绝不驱动电机）。
     if (active) {
       send(desired);
       RCLCPP_INFO_THROTTLE(
@@ -283,9 +335,12 @@ int manual(const std::string &entry, const std::shared_ptr<rclcpp::Node> &node) 
     std::this_thread::sleep_for(20ms);
   }
 
+// 退出清理：先发全零指令停桨，再调用 disable 服务释放控制权（1 秒超时）。
   // 退出清理
+// 若还在控制中或使能请求未决，才需要做“停桨 + 失能”。
   if (active || pending) {
     send({});
+// 预览模式没有真正使能，因此不需要发 disable。
     if (!preview && rclcpp::ok() && enable->service_is_ready()) {
       auto req = std::make_shared<Enable::Request>();
       req->data = false;

@@ -6,6 +6,13 @@
 // - 假定由节点主线程单线程调用，内部无锁；
 // - 支持 now 注入以便进行高精度时序单元测试。
 // ==============================================================================
+// 初学者导读：
+// 1) 本文件实现 control_ownership.hpp：控制权仲裁的全部状态迁移。
+// 2) 交互：由 control_protocol.cpp（9002 管理通道）调用；结果影响 TcpSerialBridge 能否写串口，
+//    以及 MotorAuthority 是否放行 ROS 电机话题。
+// 3) ROS 2 概念：本文件无 ROS API，纯 C++；ROS 侧只消费它的状态。
+// 4) C++ 概念：std::random_device 提供随机数用于 token；std::ostringstream 做十六进制格式化；
+//    noexcept 承诺不抛异常；std::chrono 时长比较；Clock::time_point 注入 now 便于测试。
 #include "underwater_mcu_gateway/control_ownership.hpp"
 
 #include <array>
@@ -18,6 +25,7 @@ namespace underwater {
 
 namespace {
 
+// 辅助判断：Gui 与 GuiManual 都算"GUI 持有"。
 bool gui_owner(ControllerOwner owner) {
   return owner == ControllerOwner::Gui || owner == ControllerOwner::GuiManual;
 }
@@ -25,6 +33,7 @@ bool gui_owner(ControllerOwner owner) {
 }  // namespace
 
 // 枚举转协议字符串；未知取值按 NONE 处理
+// 把枚举转成协议字符串（GUI 端直接显示这个字段）。
 const char *controller_name(const ControllerOwner owner) noexcept {
   switch (owner) {
     case ControllerOwner::Nano:      return "NANO";
@@ -35,10 +44,12 @@ const char *controller_name(const ControllerOwner owner) noexcept {
   return "NONE";
 }
 
+// 构造：默认由 Nano(机载 ROS) 持有控制权。
 ControlOwnership::ControlOwnership(const ControllerOwner initial)
     : owner_(initial) {}
 
 // 32 位随机数与递增计数器异或后拼成 32 位十六进制，避免 token 可预测或重复
+// token 由随机数与递增计数器混合生成，既不可预测也不会重复。
 std::string ControlOwnership::new_token() {
   std::random_device random;
   std::ostringstream text;
@@ -53,6 +64,7 @@ std::string ControlOwnership::new_token() {
 }
 
 // 所有权限变更的唯一出口：只有 GUI 会持有 token 与心跳时间
+// 控制权变更的唯一出口：负责生成/清空 token、记录会话与心跳、递增 generation_。
 void ControlOwnership::set_owner(const ControllerOwner owner, const int session) {
   auto next_token = gui_owner(owner) ? new_token() : std::string{};
   owner_ = owner;
@@ -66,6 +78,7 @@ void ControlOwnership::set_owner(const ControllerOwner owner, const int session)
   }
 }
 
+// Nano 申请：若发现被占用且未显式 takeover，则拒绝，让上层提示操作员。
 OwnershipResult ControlOwnership::claim_nano(const bool takeover) {
   if (owner_ == ControllerOwner::Nano) {
     // 幂等：已是 Nano 直接成功
@@ -89,6 +102,7 @@ OwnershipResult ControlOwnership::release_nano() {
 }
 
 // 同一 GUI 会话重复声明是幂等的 (返回原 token)；被占用时需 takeover 抢占；manual=true 获取 GUI_MANUAL 权限
+// GUI 申请：同一会话重复声明是幂等的，会返回原 token。
 OwnershipResult ControlOwnership::claim_gui(const int session, const bool takeover, const bool manual) {
   if (session < 0) {
     return {false, owner_, {}, "Invalid GUI control session"};
@@ -116,6 +130,7 @@ OwnershipResult ControlOwnership::release_gui(const int session) {
 }
 
 // 会话与 token 都匹配才续期；失败说明权限已被抢占或回收
+// 心跳：会话或 token 任一不匹配都返回 false，提示 GUI 权限已被回收/抢占。
 bool ControlOwnership::heartbeat_gui(const int session, const std::string &token) {
   const auto now = Clock::now();
   if (!gui_owner(owner_) || gui_session_ != session || token.empty() || token != token_ ||
@@ -144,6 +159,7 @@ bool ControlOwnership::expire_gui(const Clock::time_point now) {
   return true;
 }
 
+// GUI_MANUAL 是"短租约"：每次校验成功只续 500ms，调用方需持续续期才持续授权。
 std::uint64_t ControlOwnership::validate_manual_lease(
     const std::string &token,
     const Clock::time_point now) {
@@ -156,6 +172,7 @@ std::uint64_t ControlOwnership::validate_manual_lease(
   return generation_;
 }
 
+// 纯查询、不修改状态，所以可以加 const noexcept。
 bool ControlOwnership::manual_authorized(const Clock::time_point now) const noexcept {
   return owner_ == ControllerOwner::GuiManual &&
          gui_session_ >= 0 &&

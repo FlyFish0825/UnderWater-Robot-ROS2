@@ -7,6 +7,14 @@
 // - CRC 校验不覆盖 0xAA 帧头，帧尾回显 family 字节。
 // Frame / Parser 被网关节点与测试共用，修改布局需同步 codec.cpp 与 stream_parser.cpp。
 // ==============================================================================
+// 初学者导读：
+// 1) 所属：internal/underwater_mcu_gateway。这是整个网关的"线协议字典"，
+//    定义串口上字节长什么样（帧结构、CRC、解析器接口），是 codec.cpp 与 stream_parser.cpp 的公共头。
+// 2) 交互：网关节点把串口读到的字节交给 Parser::feed()，拿到 Frame 后再分发给
+//    depth_zero / motor_commands / 传感器解析等消费者；下行帧由各编码函数生成。
+// 3) ROS 2 概念：本文件不涉及 ROS API，是纯字节协议；转成 ROS 消息的工作在网关节点里做。
+// 4) C++ 概念：using 起别名（Bytes 就是 vector<uint8_t>）；struct 聚合数据；
+//    std::size_t 表示大小/下标；const 成员函数不修改对象。
 #pragma once
 
 #include <cstddef>
@@ -15,22 +23,27 @@
 
 namespace underwater::wire {
 
+// 字节缓冲别名：串口/网络里流动的都是这些 0~255 的字节。
 using Bytes = std::vector<std::uint8_t>;
 
 // 字节序与浮点数解码辅助函数 (小端序)
+// 小端序读取工具：从字节流 offset 处取 2/4/4 字节，分别拼成 uint16 / uint32 / float。
 std::uint16_t u16(const Bytes &bytes, std::size_t offset);
 std::uint32_t u32(const Bytes &bytes, std::size_t offset);
 float f32(const Bytes &bytes, std::size_t offset);
 
 // CRC-8 校验：多项式 0x07、初值 0，用于 0x55 旧版下行帧
+// CRC-8（多项式 0x07）用于旧版 0x55 下行帧的完整性校验。
 std::uint8_t crc8(const std::uint8_t *data, std::size_t length);
 
 // CRC-16/CCITT-FALSE 校验：多项式 0x1021、初值 0xFFFF，用于 0x58/0x59/0x5b 帧
+// CRC-16/CCITT-FALSE（多项式 0x1021，初值 0xFFFF）用于带时间戳的上行帧。
 std::uint16_t crc16(const std::uint8_t *data, std::size_t length);
 
 // 校验通过的完整协议帧：
 // - 0x55 系列填充 can_id / flags / command；
 // - 0x58 / 0x59 / 0x5b 系列填充 target / flags / command / timestamp。
+// 解析成功后的统一帧表示：不同 family 只填各自有效的字段。
 struct Frame {
   std::uint8_t family = 0;             // 协议族 (0x55: CAN, 0x58: 心跳, 0x59: 通用, 0x5b: 设备)
   std::uint8_t command = 0;            // 指令字
@@ -44,6 +57,7 @@ struct Frame {
 };
 
 // 协议解析统计计数器
+// 解析统计：排障时用它区分"没数据""CRC 错""格式错""噪声多"。
 struct Counters {
   std::uint64_t valid = 0;             // 成功解析的有效帧数
   std::uint64_t crc_errors = 0;        // CRC 校验错误计数
@@ -52,12 +66,15 @@ struct Counters {
 };
 
 // 增量流解析器：将任意分片到达的字节流喂入，滑窗找头并输出完整且 CRC 正确的帧
+// 增量流解析器：串口数据可能被任意切分，本类负责缓存、找帧头、凑齐整帧再交给 decode()。
 class Parser {
 public:
   // monotonic_ms 用于残帧超时判定 (残帧等待超过 1s 即超时丢弃)
+// 喂入本次读到的字节，返回本次新解析出的全部完整帧（可能为空）。
   std::vector<Frame> feed(const Bytes &bytes, std::uint64_t monotonic_ms);
 
   // 清空接收缓冲区与残帧状态
+// 清空缓冲与残帧状态（例如串口重连后调用）。
   void reset();
 
   // 查询统计指标与当前缓冲区堆积字节量
@@ -72,6 +89,7 @@ private:
 };
 
 // 核心解帧函数：校验帧头、长度、CRC 与各 family 的字段约束，成功时输出至 output
+// 核心解帧函数：校验帧头、长度、CRC 与各 family 字段；成功时把结果移动到 output。
 bool decode(const Bytes &bytes, Frame &output);
 
 }  // namespace underwater::wire

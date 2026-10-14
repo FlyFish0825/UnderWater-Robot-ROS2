@@ -6,6 +6,14 @@
 // - 相对基准参考姿态求解 (reference_attitude)
 // - 静止姿态采集状态机 (ReferenceCapture)：角速度模长门限与姿态离散度双重判据
 // ==============================================================================
+// 初学者导读（underwater_devices / sensors/imu/attitude_reference.cpp）
+// 所属：IMU 姿态参考的纯数学实现，没有任何 ROS 依赖，因此可以独立单元测试。
+// 谁调用谁：imu_calibration.cpp 通过本文件的头文件使用这些函数；测试文件
+//   attitude_reference_test.cpp 也直接调用它们。
+// 文件内容：四元数工具函数 + ReferenceCapture 静止采集状态机。
+// 数学约定：四元数顺序 w,x,y,z；RPY 为右手 ZYX 旋转顺序（先 roll，再 pitch，后 yaw）。
+// C++ 概念：匿名 namespace 里的符号只在本文件可见（类似“私有”）；template 是泛型；
+//   constexpr 是编译期常量；throw/catch 用于错误处理；lambda 可作为算法谓词传入。
 #include "underwater_devices/attitude_reference.hpp"
 
 #include <algorithm>
@@ -14,16 +22,19 @@
 
 namespace underwater::devices {
 
+// 匿名命名空间：下面这些辅助函数只在本 .cpp 内可见，不会污染其它文件。
 namespace {
 
 constexpr double pi = 3.14159265358979323846;
 constexpr double radians = pi / 180.0;  // 角度转弧度系数
 
+// template 泛型函数：可接收任意长度的 std::array，检查元素是否全部是有限数。
 template <std::size_t N>
 bool finite(const std::array<double, N> &a) {
   return std::all_of(a.begin(), a.end(), [](double x) { return std::isfinite(x); });
 }
 
+// 四元数点积，用于求范数/夹角。
 double dot(const Quaternion &a, const Quaternion &b) {
   double value = 0;
   for (std::size_t i = 0; i < 4; ++i) {
@@ -32,6 +43,7 @@ double dot(const Quaternion &a, const Quaternion &b) {
   return value;
 }
 
+// 校验目标姿态角范围（roll/yaw ±180°，pitch ±90°），非法时直接抛异常。
 void validate_target(const Vector3 &target) {
   // 目标以度为单位：roll/yaw ±180°、pitch ±90°，越界或非有限值一律拒绝
   if (!finite(target) || std::abs(target[0]) > 180 || std::abs(target[1]) > 90 ||
@@ -42,6 +54,7 @@ void validate_target(const Vector3 &target) {
 
 }  // namespace
 
+// normalized_quaternion()：把四元数缩放到长度为 1；做旋转运算前通常需要先归一化。
 // 四元数归一化：范数下限 1e-12，避免除零产生坏解
 Quaternion normalized_quaternion(const Quaternion &q) {
   const double norm = std::sqrt(dot(q, q));
@@ -51,6 +64,7 @@ Quaternion normalized_quaternion(const Quaternion &q) {
   return {q[0] / norm, q[1] / norm, q[2] / norm, q[3] / norm};
 }
 
+// quaternion_inverse()：四元数的逆；对单位四元数就是共轭（虚部取反）。
 // 四元数逆运算：q⁻¹ = [w, -x, -y, -z] / |q|²
 Quaternion quaternion_inverse(const Quaternion &q) {
   const double norm_sq = dot(q, q);
@@ -60,6 +74,7 @@ Quaternion quaternion_inverse(const Quaternion &q) {
   return {q[0] / norm_sq, -q[1] / norm_sq, -q[2] / norm_sq, -q[3] / norm_sq};
 }
 
+// quaternion_product()：两个旋转的叠加；乘法顺序影响结果（不满足交换律）。
 // 四元数乘法：Hamilton 约定 (a * b)
 Quaternion quaternion_product(const Quaternion &a, const Quaternion &b) {
   if (!finite(a) || !finite(b)) {
@@ -72,6 +87,7 @@ Quaternion quaternion_product(const Quaternion &a, const Quaternion &b) {
       a[0] * b[3] + a[1] * b[2] - a[2] * b[1] + a[3] * b[0]};
 }
 
+// rpy_quaternion()：欧拉角 (roll,pitch,yaw) → 四元数。
 // 欧拉角 (roll, pitch, yaw) 转四元数 (右手 ZYX 旋转顺序：Rz(yaw) * Ry(pitch) * Rx(roll))
 Quaternion rpy_quaternion(const Vector3 &rpy) {
   if (!finite(rpy)) {
@@ -91,6 +107,7 @@ Quaternion rpy_quaternion(const Vector3 &rpy) {
       cr * cp * sy - sr * sp * cy};
 }
 
+// quaternion_rpy()：四元数 → 欧拉角；注意 pitch 在 ±90° 附近存在奇异点。
 // 四元数转欧拉角 (roll, pitch, yaw)：单位为弧度
 Vector3 quaternion_rpy(const Quaternion &q) {
   const auto n = normalized_quaternion(q);
@@ -114,6 +131,7 @@ Vector3 quaternion_rpy(const Quaternion &q) {
   return {roll, pitch, yaw};
 }
 
+// quaternion_distance()：两个姿态之间的夹角，用来判断“机器人有没有动”。
 // 计算两姿态四元数之间的角距离 (弧度，范围 [0, π])，自动处理 q 与 -q 双重覆盖
 double quaternion_distance(const Quaternion &a, const Quaternion &b) {
   const auto na = normalized_quaternion(a);
@@ -122,6 +140,8 @@ double quaternion_distance(const Quaternion &a, const Quaternion &b) {
   return 2.0 * std::acos(d);
 }
 
+// reference_attitude()：核心换算。先从当前姿态扣除基准姿态，再加上目标姿态，
+// 得到“相对于标定基准”的姿态。
 // 计算相对基准姿态：q_rel = q_target * (q_baseline⁻¹ * q_current)
 Quaternion reference_attitude(const AttitudeReference &reference, const Vector3 &rpy_rad) {
   validate_target(reference.target_rpy_deg);
@@ -139,9 +159,11 @@ Quaternion reference_attitude(const AttitudeReference &reference, const Vector3 
   return normalized_quaternion(quaternion_product(q_target, delta));
 }
 
+// 构造函数：保存静止判据阈值。
 ReferenceCapture::ReferenceCapture(CaptureLimits limits)
     : limits_(limits) {}
 
+// start()：开始一次采集，记录目标姿态、采样数、超时与截止时刻。
 void ReferenceCapture::start(
     const Vector3 &target_deg,
     std::uint32_t samples,
@@ -163,6 +185,7 @@ void ReferenceCapture::start(
   detail_ = "capturing attitude reference; hold the robot stationary";
 }
 
+// accept_connection()：串口连接 ID 变化就取消采集（连接换了，数据不可信）。
 bool ReferenceCapture::accept_connection(std::uint64_t connection) {
   if (!connection_) {
     connection_ = connection;
@@ -175,6 +198,7 @@ bool ReferenceCapture::accept_connection(std::uint64_t connection) {
   return true;
 }
 
+// raw()：喂入一帧原始角速度，用于判断机器人是否静止。
 void ReferenceCapture::raw(const Vector3 &gyro, bool valid, std::uint64_t connection, double now) {
   if (!busy_ || !accept_connection(connection)) {
     return;
@@ -186,6 +210,7 @@ void ReferenceCapture::raw(const Vector3 &gyro, bool valid, std::uint64_t connec
                           : 0.0;
 }
 
+// attitude()：喂入一帧姿态；只有满足全部静止条件才会计入平均。
 void ReferenceCapture::attitude(
     const Vector3 &rpy,
     bool valid,
@@ -205,6 +230,7 @@ void ReferenceCapture::attitude(
   }
   frame_id_ = frame_id;
 
+  // 逐项检查：陀螺数据有效且不陈旧、角速度低于门限、姿态有限且离散度不过大。
   // 陀螺仪角速度有效性与静止门限检查
   if (!raw_valid_ || now - raw_at_ > limits_.raw_timeout_s) {
     cancel("raw gyro data unavailable or stale during capture");
@@ -233,6 +259,7 @@ void ReferenceCapture::attitude(
     }
   }
 
+  // 四元数 q 与 -q 表示同一姿态，求和前先对齐符号，避免正负相互抵消。
   // 四元数平均：对齐符号避免正负半球对冲
   const double sign = (dot(first_, q) >= 0.0) ? 1.0 : -1.0;
   for (std::size_t i = 0; i < 4; ++i) {
@@ -242,6 +269,7 @@ void ReferenceCapture::attitude(
   ++count_;
   last_sample_at_ = now;
 
+  // 采样数达标后生成候选结果，但先不生效，等调用方保存成功后再启用。
   // 达到目标采样数，生成候选结果
   if (count_ >= requested_) {
     busy_ = false;
@@ -255,12 +283,14 @@ void ReferenceCapture::attitude(
   }
 }
 
+// tick()：由调用方周期性调用来检查是否超时。
 void ReferenceCapture::tick(double now) {
   if (busy_ && now >= deadline_) {
     cancel("attitude reference capture timed out");
   }
 }
 
+// cancel()：中止当前采集并记录原因。
 void ReferenceCapture::cancel(const std::string &reason) {
   if (busy_) {
     busy_ = false;
@@ -270,6 +300,7 @@ void ReferenceCapture::cancel(const std::string &reason) {
   }
 }
 
+// take_candidate()：取出候选并清空内部状态；未完成时返回 std::nullopt。
 std::optional<AttitudeReference> ReferenceCapture::take_candidate() {
   auto candidate = candidate_;
   candidate_.reset();

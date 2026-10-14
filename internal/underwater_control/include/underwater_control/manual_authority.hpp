@@ -6,12 +6,29 @@
 // 本地 ROS 计算图具备信任关系；网络控制权则通过 MCU 网关的 9002 租约独立校验。
 // ==============================================================================
 #pragma once
+// ------------------------------------------------------------------------------
+// 【初学者导读】本文件属于 internal/underwater_control 的权限控制子模块，
+// 用来回答两个问题：
+//   1) 当前到底谁有资格下发指令（authorized_source）？
+//   2) 网络侧发来的“我去控制”的租约（lease）是否仍然有效（LeaseProof）？
+// 交互关系：被 control_node.cpp 的 ControlNode 调用；属于纯逻辑代码，不直接收发话题。
+// 名词白话：
+//   控制权(owner)＝当前允许谁操作，例如 "NANO" 板载或 "GUI_MANUAL" 远程手柄；
+//   租约(lease)＝带时间戳的临时授权，必须定期刷新，过期即失效（类似门票）。
+// C++ 概念：
+//   std::string_view＝只读字符串视图，不拷贝内容；
+//   std::uint64_t＝固定 64 位无符号整数；Millis＝毫秒时间别名(来自 remote_manual.hpp)。
+// ------------------------------------------------------------------------------
 
+// 引入远程手动控制的公共类型定义（其中包含 Millis 等时间别名）。
 #include "underwater_control/remote_manual.hpp"
 #include <string_view>
 
+// 命名空间：远程手动控制相关逻辑统一放在 underwater::control::remote。
 namespace underwater::control::remote {
 
+// 授权规则入口：调用者传入控制源 owner、手动/wrench 发布者数量以及是否只有远程链。
+// 返回 true 表示当前控制源合法、可以继续下发指令。
 // 校验控制源的排他合法性：
 // - NANO 模式允许最多 1 个手动或 wrench 发布者；
 // - GUI_MANUAL 模式要求恰好 1 个远程手动发布者、0 个 wrench 发布者，且仅允许专有远程链。
@@ -26,6 +43,8 @@ inline bool authorized_source(
   return owner == "GUI_MANUAL" && manual_count == 1 && wrench_count == 0 && only_remote_manual;
 }
 
+// LeaseProof：维护一次租约校验的“请求序号 / 代际 / 时间”，防止过期或乱序的应答蒙混过关。
+// 典型用法：begin() 发起 → 超时前 complete() 确认 → 之后用 valid() 查询是否仍有效。
 // 租约证明验证器：跟踪请求序列号、租约代际(generation)以及租约有效时长 (400ms 心跳超时)
 class LeaseProof {
 public:
@@ -50,6 +69,7 @@ public:
     confirmed_ = false;
   }
 
+// complete() 里把 request 与 request_ 比对，可丢弃“过期请求的迟到应答”。
   // 完成租约校验：核验序列号、有效性、租约代际一致性以及往返响应时间 (<400ms)
   bool complete(std::uint64_t request, bool valid, std::uint64_t generation, Millis at) {
     if (!pending_ || request != request_) {
@@ -82,6 +102,7 @@ public:
   }
 
 private:
+// 以下为租约内部状态，全部私有，只能通过上面的 begin/cancel/complete/valid 读写。
   std::uint64_t request_ = 0;      // 校验请求序号
   std::uint64_t generation_ = 0;   // 远端下发的租约代际标号
   Millis started_ = 0;             // 本次校验开始时刻 (毫秒)

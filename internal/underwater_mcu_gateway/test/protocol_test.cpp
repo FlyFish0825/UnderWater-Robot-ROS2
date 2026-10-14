@@ -5,6 +5,11 @@
 // - 校验 CRC8 (0x55) 与 CRC16 (0x58/0x59/0x5b) 算法准确性
 // - 校验增量流解析器 (Parser) 的滑窗找头、噪声抗干扰与残帧丢弃
 // ==============================================================================
+// 【初学者导读】本文件测试串口协议编解码，属于 internal/underwater_mcu_gateway/test。
+// 协议帧以 0xaa 0x55/0x58/0x59/0x5b ... 0xaa 为边界：0x55 家族用 1 字节 CRC8，
+// 其余家族用 2 字节 CRC16。Parser 负责从连续字节流里滑窗找帧头、校验长度与 CRC，
+// 并统计丢弃的噪声字节。纯逻辑测试。涉及概念：字节数组 std::vector<uint8_t>、
+// 小端序、CRC 校验、流式解析。
 #include "underwater_mcu_gateway/protocol.hpp"
 
 #include <iostream>
@@ -13,8 +18,10 @@
 
 using namespace underwater::wire;
 
+// 断言计数。
 int checks = 0;
 
+// 断言：失败时报告第几个检查出错。
 void check(bool condition) {
   ++checks;
   if (!condition) {
@@ -22,6 +29,7 @@ void check(bool condition) {
   }
 }
 
+// 依次测试 0x55 帧、0x58 心跳帧和带前置噪声的 Parser 流解析。
 int main() {
   // 1. 0x55 旧版 CAN 帧测试
   Bytes b55{0xaa, 0x55, 8, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0};

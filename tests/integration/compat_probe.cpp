@@ -5,6 +5,18 @@
 // 通过标准：退出码 0，且末行输出 result=PASS；末尾同时打印各子进程 exit 与证据目录。
 // 是否需要真实硬件：不需要。用本进程合成的 ROS 话题 + 伪终端（forkpty）模拟键盘输入，
 //   子进程全部指向 /compat_fixture 命名空间，不接触真机串口与网络。
+//
+// ── 初学者导读 ────────────────────────────────────────────────────────────
+// 这是“兼容性契约”集成测试：不接真机，而是自己合成 ROS 话题，再真的用 ros2 run 拉起
+// 被测节点（imu_py/depth_py/sensors_cpp/manual_control），检查它们发布的字段、CSV 记录、
+// 按键与使能行为是否符合约定。
+// 关键手法：
+//   - forkpty/fork/execvp：创建子进程运行 ros2 命令；pty 让键盘输入像真人按键；
+//   - create_publisher/create_subscription/create_service：合成输入并拦截服务请求；
+//   - waitpid/SIGKILL：等待子进程退出，超时就强杀；
+//   - 命名空间 /compat_fixture：把测试与真机彻底隔离。
+// C++ 概念：std::vector<std::string>、lambda [&] 捕获、std::array、std::filesystem。
+// ─────────────────────────────────────────────────────────────────────────
 #include <rclcpp/rclcpp.hpp>
 #include <std_srvs/srv/set_bool.hpp>
 #include <geometry_msgs/msg/wrench_stamped.hpp>
@@ -54,6 +66,7 @@ Child launch(const std::string &pkg,const std::string &name,const std::vector<st
   }
   return {pid,terminal,name};
 }
+// 测试入口：初始化 ROS 2，合成输入/服务，分四轮拉起子进程并汇总各项契约布尔量。
 int main(int argc,char **argv) {
   rclcpp::init(argc,argv);
   auto n=std::make_shared<rclcpp::Node>("compat_contract_probe");
@@ -99,6 +112,7 @@ int main(int argc,char **argv) {
   });
   std::vector<Child> children;
   // spin：推进本节点回调，并抽空子进程 pty 输出，防止缓冲区写满而阻塞被测进程。
+  // spin：一边推进本节点回调，一边抽空子进程 pty 输出，避免其写满缓冲区卡住。
   auto spin=[&](double seconds){
     auto end=Clock::now()+std::chrono::duration<double>(seconds);
     while(Clock::now()<end){rclcpp::spin_some(n);
@@ -107,6 +121,7 @@ int main(int argc,char **argv) {
     }
   };
   // finish：最多等 5 秒（100 × spin(.05)）收集子进程退出码；超时则 SIGKILL 并判失败。
+  // finish：最多等 5 秒收子进程退出码；超时则 SIGKILL 并判失败。
   auto finish=[&](Child &c){
     int s=0;for(int i=0;i<100;++i){if(waitpid(c.pid,&s,WNOHANG)==c.pid){std::cout<<c.label<<" exit="<<(WIFEXITED(s)?WEXITSTATUS(s):-WTERMSIG(s))<<"\n";if(c.terminal>=0)close(c.terminal);c.pid=-1;c.terminal=-1;return WIFEXITED(s)&&WEXITSTATUS(s)==0;}spin(.05);}
     kill(c.pid,SIGKILL);waitpid(c.pid,&s,0);if(c.terminal>=0)close(c.terminal);c.pid=-1;c.terminal=-1;return false;

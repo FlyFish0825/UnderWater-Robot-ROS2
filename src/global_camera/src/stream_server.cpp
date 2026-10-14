@@ -6,6 +6,24 @@
 // - 每个客户端仅推送最新完整帧，杜绝跨帧拼接；
 // - 客户端连接上限 4 个；单帧发送超时 2 秒主动断开慢客户端，防止阻塞内存。
 // ==============================================================================
+
+// ── 初学者导读 ────────────────────────────────────────────────────────────
+// 本文件实现 StreamServer（TCP 9001 推流）：一个后台线程负责把最新一帧 JPEG 发给 GUI。
+// 它使用 Linux/POSIX 套接字 API（socket/bind/listen/accept/poll），因此只在 Linux 上编译。
+// 会用到的系统调用：
+//   - socket/bind/listen：创建、绑定、监听一个 TCP 端口；
+//   - accept4：取出新连接（非阻塞）；
+//   - poll：等待“可读/可写”，避免忙等；
+//   - send/recv：收发送字节；
+//   - close：关闭文件描述符（套接字也是一种 fd）。
+// 会出现的 C++ 概念：
+//   - std::thread：后台线程；run() 是线程体，析构时 join 等它退出。
+//   - std::atomic：跨线程读写的原子变量（stopping_、clients_ 等），不会读到“半截”值。
+//   - std::mutex + std::lock_guard：RAII 加锁，离开作用域自动解锁。
+//   - std::shared_ptr<const Packet>：多线程共享“最新帧”的所有权，引用计数为 0 自动释放。
+//   - 非阻塞 + 部分写：send 可能只发出去一部分，所以用 offset 记录进度、下次接着发。
+// ─────────────────────────────────────────────────────────────────────────
+
 #include "global_camera/stream_server.hpp"
 #include "global_camera/wire.hpp"
 
@@ -20,6 +38,8 @@
 
 namespace global_camera {
 
+// 构造函数：创建 TCP 监听套接字并 bind/listen，然后启动后台线程 run()。
+// 这里用的是 Linux/POSIX 套接字 API（socket/bind/listen），所以本文件只在 Linux 上编译运行。
 StreamServer::StreamServer(const std::string &address, std::uint16_t port) {
   listener_ = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
   if (listener_ < 0) {
@@ -31,6 +51,7 @@ StreamServer::StreamServer(const std::string &address, std::uint16_t port) {
 
   sockaddr_in a{};
   a.sin_family = AF_INET;
+  // htons：把主机字节序转成网络字节序（大端）
   a.sin_port = htons(port);
 
   if (inet_pton(AF_INET, address.c_str(), &a.sin_addr) != 1 ||
@@ -55,6 +76,7 @@ StreamServer::StreamServer(const std::string &address, std::uint16_t port) {
   }
 }
 
+// 析构：先置 stopping_ 通知线程退出，join 等它结束，再关闭监听套接字（RAII 收尾）。
 StreamServer::~StreamServer() {
   stopping_ = true;
   if (thread_.joinable()) {
@@ -65,6 +87,8 @@ StreamServer::~StreamServer() {
   }
 }
 
+// 发布最新一帧：组装 UWSC 帧头 + JPEG 成 Packet，加锁替换 latest_。
+// 注意：这里只保存“最新一帧”，旧帧会被直接覆盖丢弃。
 void StreamServer::publish(
     std::uint64_t sequence,
     std::uint64_t receipt_ns,
@@ -78,19 +102,24 @@ void StreamServer::publish(
   packet->bytes.insert(packet->bytes.end(), h.begin(), h.end());
   packet->bytes.insert(packet->bytes.end(), jpeg.begin(), jpeg.end());
 
+  // std::lock_guard：RAII 加锁，构造时 lock、离开作用域自动 unlock，绝不忘解锁。
   std::lock_guard<std::mutex> lock(mutex_);
   latest_ = std::move(packet);
 }
 
+// 相机掉线时调用：清空最新帧并让 generation_ 自增，run() 检测到代际变化会断开所有客户端。
 void StreamServer::clear() {
   std::lock_guard<std::mutex> lock(mutex_);
   latest_.reset();
   ++generation_;
 }
 
+// 后台推流线程主体：poll 监听新连接与可写事件，向每个客户端发送最新帧。
+// 采用“非阻塞套接字 + poll”的单线程事件循环，避免多线程逐客户端发送的复杂度。
 void StreamServer::run() {
   using Clock = std::chrono::steady_clock;
 
+  // 每个已连接客户端的状态：fd=套接字；packet=正在发送的帧；offset=已发字节数。
   struct Client {
     int fd = -1;
     std::shared_ptr<const Packet> packet;
@@ -133,6 +162,7 @@ void StreamServer::run() {
       events.push_back({c.fd, static_cast<short>(POLLIN | (c.packet ? POLLOUT : 0)), 0});
     }
 
+    // poll：等待一组套接字就绪（可读/可写），最多等 20ms 后返回，避免空转。
     const int ready = poll(events.data(), events.size(), 20);  // 20ms poll 响应
     if (ready < 0) {
       if (errno == EINTR) {
@@ -187,6 +217,7 @@ void StreamServer::run() {
     // 接入新客户端
     if (events[0].revents & POLLIN) {
       while (true) {
+        // accept4：取出一个已完成三次握手的新连接，并直接设为非阻塞、exec 时自动关闭。
         int fd = accept4(listener_, nullptr, nullptr, SOCK_NONBLOCK | SOCK_CLOEXEC);
         if (fd < 0) {
           break;

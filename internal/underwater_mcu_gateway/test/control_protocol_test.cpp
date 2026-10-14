@@ -5,6 +5,10 @@
 // - 校验 STATE / CLAIM / TAKEOVER / RELEASE / PING 命令字
 // - 校验 GUI 与 GUI_MANUAL 模式的状态互斥与应答格式
 // ==============================================================================
+// 【初学者导读】本文件是 9002 管理通道“文本协议解析”的单元测试，属于
+// internal/underwater_mcu_gateway/test。它直接调用 control_reply(ownership, session, "命令")
+// 这个纯函数，逐条验证 STATE/CLAIM/TAKEOVER/RELEASE/PING 等命令字与 GUI/GUI_MANUAL 两种模式，
+// 不涉及真实网络和 ROS。可以把它当成“协议说明书”来读：每个 check 就是一条协议约定。
 #include "underwater_mcu_gateway/control_ownership.hpp"
 #include "underwater_mcu_gateway/control_protocol.hpp"
 
@@ -16,8 +20,10 @@ using namespace underwater;
 
 namespace {
 
+// 断言计数，方便最后打印一共验证了多少条协议约定。
 int checks = 0;
 
+// check()：条件为假就抛异常，由 main 捕获统一处理。
 void check(bool condition, const std::string &message) {
   ++checks;
   if (!condition) {
@@ -27,6 +33,7 @@ void check(bool condition, const std::string &message) {
 
 }  // namespace
 
+// 按编号依次验证：默认状态、申请、心跳、幂等与冲突、抢占、释放、手动模式、非法命令。
 int main() {
   ControlOwnership ownership;
 

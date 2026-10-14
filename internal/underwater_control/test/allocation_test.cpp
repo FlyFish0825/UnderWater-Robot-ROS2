@@ -7,8 +7,19 @@
 // - 手动档位单轴归一化与平衡起步逻辑校验
 // - 边界条件测试 (极值、NaN、非排列 ID、死区与饱和截断)
 // ==============================================================================
+// ------------------------------------------------------------------------------
+// 【初学者导读】这是推力分配算法的单元测试程序（普通可执行文件，非 ROS 2 节点）。
+// 用途：在真实求解器上验证几何映射、六轴方向、手动起步、死区/饱和与异常防御。
+// 相关文件：被测实现是 allocator.cpp / linear_rpm.cpp；
+//           current_robot_8thruster_config.hpp 提供独立物理参数，用来交叉校验。
+// C++ 概念：
+//   check() 用抛异常的方式表示断言失败，未被捕获时程序以非零码退出；
+//   std::array 比较用 ==，整型转 double 用 static_cast。
+// 阅读顺序：先看 physical_wrench（独立物理模型），再看 main 里的 1~7 组测试。
+// ------------------------------------------------------------------------------
 #include "underwater_control/allocator.hpp"
 #include <current_robot_8thruster_config.hpp>
+// 标准库：算法、数学、输入输出、数值极限、异常。
 
 #include <algorithm>
 #include <cmath>
@@ -16,10 +27,14 @@
 #include <limits>
 #include <stdexcept>
 
+// 直接使用分配器命名空间里的类型。
 using namespace underwater::control;
 
+// 全局计数器：记录一共执行了多少条断言，最后打印总数。
 int checks = 0;
 
+// check：最简断言。失败时抛出异常，程序终止并打印失败序号。
+// 坑位：C++ 的 assert 在发布版可能被禁用，这里用抛异常保证一定生效。
 void check(bool value) {
   ++checks;
   if (!value) {
@@ -28,6 +43,9 @@ void check(bool value) {
 }
 
 // 独立物理校验模型：基于 URDF 实际物理坐标和操作手确认的正向转速推力方向
+// physical_wrench：完全独立于被测代码的“第二套物理模型”，用来反向验证结果。
+// 输入 8 路 RPM，按 URDF 安装位置与正转推力方向正算六维 wrench。
+// 与 allocator 上报的 modeled_rpm 对比，即可发现极性或几何错误。
 Wrench physical_wrench(const std::array<std::int16_t, 8> &rpm) {
   const double diagonal = std::sqrt(0.5);
   const std::array<Vec3, 8> positive_rpm_axes{{
@@ -64,6 +82,8 @@ Wrench physical_wrench(const std::array<std::int16_t, 8> &rpm) {
   return w;
 }
 
+// check_physical_mapping：逐轴比较独立模型结果与分配器上报的 modeled_rpm。
+// 容差 1e-4，用于吸收浮点误差。
 void check_physical_mapping(const Result &result) {
   const auto w = physical_wrench(result.rpm);
   for (std::size_t j = 0; j < 6; ++j) {
@@ -71,6 +91,8 @@ void check_physical_mapping(const Result &result) {
   }
 }
 
+// main：构造一个默认配置的分配器，顺序执行 7 组测试，全部通过后打印成功信息。
+// 任何 check 失败都会抛异常终止程序。
 int main() {
   Allocator allocator(Config{});
   Result r;

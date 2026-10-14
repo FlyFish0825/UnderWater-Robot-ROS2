@@ -6,6 +6,26 @@
 // - 校验 JPEG 解码完整性与拼接尺寸 (2560x720)；
 // - 可选按间隔将左右半幅图像分别保存为对齐的 PNG 图像文件。
 // ==============================================================================
+
+// ── 初学者导读 ────────────────────────────────────────────────────────────
+// 这是 global_camera 里的“检查/保存”入口（可执行文件 data_sub）。它不驱动相机，
+// 而是订阅另一路话题 /underwater_robot/camera/stereo/compressed（双目拼接后的 JPEG），
+// 自己解码确认图像完整，并可选把左、右两半分别存成 PNG，用来做离线核对与实验记录。
+// 会出现的 ROS 2 概念：
+//   - Node：继承 rclcpp::Node 的 StereoReceiver 就是一个节点；构造时传入节点名 "data_sub"
+//     与命名空间 "/underwater_robot"，所以它的话题都落在该命名空间下。
+//   - Parameter（参数）：declare_parameter 声明可在命令行用 --ros-args -p 覆盖的配置项。
+//   - Subscription（订阅）：create_subscription<消息类型>(话题, QoS, 回调)；
+//     每收到一条消息就自动执行一次回调（这里用 lambda）。
+//   - QoS：这里用 SensorDataQoS().keep_last(10)，表示“传感器数据”策略，只缓存最近 10 条。
+//   - spin_some：处理一次当前已到达的回调，然后立刻返回。
+// 会出现的 C++ 概念：
+//   - final：禁止其它类再继承 StereoReceiver。
+//   - lambda：[this](msg){ process(*msg); } 捕获当前对象，把消息交给成员函数处理。
+//   - std::optional：可能“还没有值”的变量（如上次保存时刻），用 has_value/解引用判断。
+//   - std::chrono：时间库；steady_clock 是单调时钟（适合计时），system_clock 是墙上时钟。
+// ─────────────────────────────────────────────────────────────────────────
+
 #include <chrono>
 #include <cmath>
 #include <filesystem>
@@ -22,9 +42,12 @@
 
 namespace {
 
+// StereoReceiver：双目接收节点。构造时声明参数、建立订阅；run() 驱动事件循环。
+// 核心工作流：收到压缩图 → 统计帧率 → 按需解码 → 左右切分 → 存 PNG。
 class StereoReceiver final : public rclcpp::Node {
 public:
   StereoReceiver() : Node("data_sub", "/underwater_robot") {
+    // ParameterDescriptor：描述一个参数的属性；read_only=true 表示运行期不可被外部改动。
     rcl_interfaces::msg::ParameterDescriptor d;
     d.read_only = true;
 
@@ -46,6 +69,7 @@ public:
       RCLCPP_INFO(get_logger(), "Saving paired images to %s (interval %.2f s)", output_.c_str(), interval_);
     }
 
+    // 订阅压缩图像话题；回调里调用 process()。SensorDataQoS 适合高频传感器流。
     sub_ = create_subscription<sensor_msgs::msg::CompressedImage>(
         topic,
         rclcpp::SensorDataQoS().keep_last(10),
@@ -54,6 +78,8 @@ public:
         });
   }
 
+  // 主循环：在 duration_s 时间内反复 spin_some（处理订阅回调）并小睡 10ms；
+  // 达到 max_pairs 或超时、或收到 Ctrl+C（rclcpp::ok() 变 false）就退出。
   void run() {
     const auto start = std::chrono::steady_clock::now();
     while (rclcpp::ok() &&
@@ -62,12 +88,14 @@ public:
       if (limit_ > 0 && pairs_ >= limit_) {
         break;
       }
+      // spin_some：只处理“此刻已排队”的回调，随后立刻返回，适合自己掌控节奏的循环。
       rclcpp::spin_some(shared_from_this());
       std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
   }
 
 private:
+  // 每收到一帧就调用：先算 FPS，再决定是否按间隔保存左右目 PNG。
   void process(const sensor_msgs::msg::CompressedImage &msg) {
     ++frames_;
     const auto now = std::chrono::steady_clock::now();
@@ -102,12 +130,14 @@ private:
       return;
     }
 
+    // 把 JPEG 字节解码成 BGR 图像矩阵；解码失败会得到空 Mat。
     cv::Mat decoded = cv::imdecode(msg.data, cv::IMREAD_COLOR);
     if (decoded.empty() || decoded.cols % 2 != 0) {
       RCLCPP_WARN(get_logger(), "Decoded empty or odd-width stereo frame");
       return;
     }
 
+    // 拼接图左右各占一半；用 cv::Rect 取“感兴趣区域”得到左目/右目子图。
     const int eye_width = decoded.cols / 2;
     cv::Mat left = decoded(cv::Rect(0, 0, eye_width, decoded.rows));
     cv::Mat right = decoded(cv::Rect(eye_width, 0, eye_width, decoded.rows));
@@ -144,6 +174,8 @@ private:
 
 }  // namespace
 
+// 程序入口。先处理 --check / --help（不接触硬件，方便脚本探测）；
+// 否则 rclcpp::init 初始化 ROS 2、创建节点并运行，最后 rclcpp::shutdown。
 int main(int argc, char **argv) {
   for (int i = 1; i < argc; ++i) {
     if (std::string(argv[i]) == "--check") {

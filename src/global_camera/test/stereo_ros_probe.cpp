@@ -6,6 +6,15 @@
 // - 按时间戳对齐校验 1280x720 单目与 2560x720 左右拼接双目；
 // - 校验 optical_frame 坐标系标号与 JPEG 格式有效性。
 // ==============================================================================
+
+// ── 初学者导读 ────────────────────────────────────────────────────────────
+// 这是一个“集成测试/探针”程序，不是机器人运行必需的节点。它自己建一个 ROS 2 节点，
+// 订阅 global_cam_pub 发出的 stereo/left/right 压缩图，按“同一时间戳”把它们配成一组，
+// 连续配到 3 组就判定相机话题链路正常。
+// ROS 2 概念：Node；Subscription + 回调（lambda）；Parameter；spin_some。
+// C++ 概念：std::map（按时间戳聚合）、lambda 捕获引用 [&]、std::chrono 超时。
+// ─────────────────────────────────────────────────────────────────────────
+
 #include <chrono>
 #include <iostream>
 #include <map>
@@ -20,10 +29,12 @@
 
 using namespace std::chrono_literals;
 
+// 程序入口：初始化 ROS 2，建节点，订阅话题并最多等待 12 秒做对齐统计。
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
   auto node = std::make_shared<rclcpp::Node>("stereo_ros_probe");
 
+  // declare_parameter：声明探针自己的参数 expect_raw，决定是否要求 image_raw 话题。
   const bool expect_raw = node->declare_parameter<bool>("expect_raw", false);
   const auto deadline = std::chrono::steady_clock::now() + 12s;
 
@@ -40,6 +51,8 @@ int main(int argc, char **argv) {
 
   auto qos = rclcpp::SensorDataQoS().keep_last(10);
 
+  // 下面分别订阅 stereo/left/right 三路压缩图；用时间戳纳秒当 key 做对齐。
+  // create_subscription<消息类型>(话题, QoS, 回调)：每来一条消息执行一次回调。
   auto sub_stereo = node->create_subscription<sensor_msgs::msg::CompressedImage>(
       "/underwater_robot/camera/stereo/compressed",
       qos,

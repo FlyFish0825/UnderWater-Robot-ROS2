@@ -7,6 +7,24 @@
 // - 驱动 IMU 姿态参考标定组件 (ImuCalibration)；
 // - 对全部测量物理量维护独立的有效性标志与保活定时器，失效或超时后主动置无效并广播。
 // ==============================================================================
+// 初学者导读（underwater_devices / devices_node.cpp）
+// 所属：设备层的核心 ROS 2 节点；可执行文件为 devices_node，ROS 节点名为 devices。
+// 数据链位置：传感器 → STM32 → MCU 串口网关（underwater_mcu_gateway）→ gateway/frames → 【本节点】→
+//   各状态话题 → 控制/推进器。本节点负责把二进制帧翻译成 ROS 消息。
+// 交互：
+//   订阅 gateway/frames (GatewayFrame)；
+//   发布 sensors/imu/raw、sensors/imu/barometer、sensors/depth/state、
+//     actuators/thrusters/state、sensors/status，以及标准话题 sensors/imu/data
+//     (sensor_msgs/Imu)、sensors/imu/pressure、sensors/imu/temperature、
+//     sensors/depth/pressure、sensors/depth/temperature；
+//   ImuCalibration 子组件再发布 sensors/imu/calibrated 并提供标定服务。
+// ROS 2 概念：Node 是能收发话题、调用服务的独立小程序，这里继承 rclcpp::Node；
+//   create_publisher/create_subscription 分别创建发布者/订阅者；订阅回调每来一条消息
+//   执行一次；QoS 决定可靠性与历史深度；Parameter 是节点配置项；create_wall_timer
+//   创建周期定时器；spin 让节点开始处理事件，直到 shutdown。
+// C++ 概念：类继承与私有成员封装；std::unique_ptr 是独占所有权的智能指针；lambda 是
+//   匿名函数，常作为回调传入；std::optional 表示“可有可无”的值；std::map 是按键有序
+//   的字典；std::pair 把两个值打包在一起。
 #include "underwater_devices/adapters.hpp"
 #include "underwater_devices/imu_calibration.hpp"
 #include "underwater_mcu_gateway/protocol.hpp"
@@ -25,19 +43,26 @@
 #include <sensor_msgs/msg/temperature.hpp>
 #include <underwater_interfaces/msg/sensor_status.hpp>
 
+// steady_clock 是单调时钟，不受系统时间被调整的影响，适合测量超时。
 using Clock = std::chrono::steady_clock;
+// 引入 chrono 字面量，之后可以直接写 100ms。
 using namespace std::chrono_literals;
 
+// 给长命名空间起短别名：ui::ImuState 即 underwater_interfaces::msg::ImuState。
 namespace ui = underwater_interfaces::msg;
 namespace adapt = underwater::devices;
 namespace wire = underwater::wire;
 
+// DevicesNode：本文件唯一的节点类；final 表示不允许再被继承。
 class DevicesNode final : public rclcpp::Node {
 public:
+  // 构造函数：节点名为 "devices"；在这里声明参数、创建发布者/订阅者/定时器。
   DevicesNode() : Node("devices") {
+    // ParameterDescriptor 用来描述参数（read_only=true 表示运行时不可修改）。
     rcl_interfaces::msg::ParameterDescriptor d;
     d.read_only = true;
 
+    // declare_parameter<类型>(名字, 默认值, 描述)：声明并读取节点参数。
     imu_frame_ = declare_parameter<std::string>("imu_frame_id", "imu_sensor", d);
     depth_frame_ = declare_parameter<std::string>("depth_frame_id", "pressure_sensor", d);
     timeout_ = std::chrono::milliseconds(declare_parameter<int>("measurement_timeout_ms", 500, d));
@@ -46,6 +71,7 @@ public:
       throw std::invalid_argument("measurement timeout out of range (allowed: 50..10000 ms)");
     }
 
+    // SensorDataQoS：传感器数据常用的 QoS（尽力而为、只保留最新若干条）。
     auto q = rclcpp::SensorDataQoS().keep_last(100);
 
     // 传感器自定义话题发布者
@@ -53,6 +79,7 @@ public:
     imu_baro_ = create_publisher<ui::ImuState>("sensors/imu/barometer", q);
     depth_ = create_publisher<ui::DepthState>("sensors/depth/state", q);
 
+    // 同时把数据转成 ROS 标准 sensor_msgs 消息，方便 RViz/rosbag 等通用工具使用。
     // 标准 sensor_msgs 话题发布者
     imu_ros_ = create_publisher<sensor_msgs::msg::Imu>("sensors/imu/data", q);
     imu_pressure_ = create_publisher<sensor_msgs::msg::FluidPressure>("sensors/imu/pressure", q);
@@ -63,26 +90,32 @@ public:
     motor_ = create_publisher<ui::MotorState>("actuators/thrusters/state", q);
     status_ = create_publisher<ui::SensorStatus>("sensors/status", 10);
 
+    // 标定组件不是节点，只是普通对象，通过构造函数接收本节点引用。
     // 姿态参考标定组件
     calibration_ = std::make_unique<adapt::ImuCalibration>(*this, imu_frame_, timeout_);
 
+    // create_subscription<消息类型>(话题名, QoS, 回调)：收到消息时调用 receive()。
     // 订阅网关原始协议帧
     sub_ = create_subscription<ui::GatewayFrame>(
         "gateway/frames",
         rclcpp::SensorDataQoS().keep_last(100),
         [this](ui::GatewayFrame::ConstSharedPtr f) { receive(*f); });
 
+    // 看门狗定时器：即使没有新数据，也要周期检查是否超时并广播失效。
     // 100ms 周期检查各测量缓存是否超时
     watchdog_ = create_wall_timer(100ms, [this] { expire(); });
   }
 
 private:
+  // receive()：每收到一帧网关数据调用一次，按协议依次尝试各种解码。
   void receive(const ui::GatewayFrame &f) {
+    // 用帧头时间与当前时间比较，丢弃太旧的帧；负的 age 容忍时钟小幅提前。
     const auto age = (now() - rclcpp::Time(f.header.stamp)).nanoseconds();
     if (age > timeout_.count() * 1000000LL || age < -100000000LL) {
       return;  // 丢弃过旧帧，并容忍 100ms 以内的时钟提前容差
     }
 
+    // connection_id 变化表示网关重新打开了串口（MCU 重启 / USB 重新枚举 / 网关重启），旧缓存作废。
     // 检测到串口重连：清空全部缓存并向计算图广播失效
     if (f.connection_id != connection_) {
       invalidate();
@@ -94,6 +127,7 @@ private:
       statuses_.clear();
     }
 
+    // 序号去重：同一 target 的 sequence 必须严格递增，否则视为重复或乱序。
     // 0x5b 传感器管理帧：按 target 进行序号去重与回绕检测
     if (f.family == 0x5b && f.flags == 8) {
       auto it = sequences_.find(f.target);
@@ -108,14 +142,18 @@ private:
 
     const auto t = Clock::now();
 
+    // 依次尝试：IMU → 深度 → 电机反馈 → 心跳 → 状态自检；命中一个就 return。
     // 1. 解码 IMU 报文
     ui::ImuState im;
+    // adapt::imu 返回 true 表示这确实是 IMU 帧。
     if (adapt::imu(f, im)) {
       im.header.frame_id = imu_frame_;
       imu_->publish(im);
       imu_cache_[im.group] = {im, t};
       calibration_->process(im);
 
+      // 再发布一份标准 sensor_msgs/Imu（供通用工具）；orientation_covariance[0] = -1
+      // 是 ROS 惯例，表示“本消息不提供朝向估计”。
       if (im.group == 0x80 && im.raw_valid) {
         sensor_msgs::msg::Imu m;
         m.header = im.header;
@@ -147,6 +185,7 @@ private:
       return;
     }
 
+    // 深度帧处理：发布自定义 DepthState，并另发标准压力/温度消息。
     // 2. 解码深度传感器报文
     ui::DepthState de;
     if (adapt::depth(f, de)) {
@@ -169,6 +208,7 @@ private:
       return;
     }
 
+    // 电机反馈帧：按 node_id 缓存，并判断心跳是否仍在有效期（2500ms）。
     // 3. 解码电机反馈报文
     ui::MotorState mo;
     if (adapt::motor_feedback(f, mo)) {
@@ -180,6 +220,7 @@ private:
       return;
     }
 
+    // 心跳帧：即使反馈缺失，也要更新电机的在线状态。
     // 4. 解码电机心跳报文
     if (adapt::motor_heartbeat(f)) {
       const auto id = static_cast<std::uint8_t>(f.can_id - 0x280);
@@ -204,6 +245,7 @@ private:
       return;
     }
 
+    // 传感器自检帧 (0x83)：设备健康统计，发布到 sensors/status。
     // 5. 解码传感器状态自检帧 (command=0x83)
     if (f.family == 0x5b && f.flags == 8 && f.command == 0x83 && f.payload.size() == 20 &&
         (f.target == 1 || f.target == 2)) {
@@ -226,6 +268,7 @@ private:
     }
   }
 
+  // clear_feedback()：把电机测量值置 NaN 并标记无效，防止下游误用旧值。
   // 清空电机反馈数值 (置 NaN 避免下游误用旧值)
   static void clear_feedback(ui::MotorState &m) {
     m.feedback_valid = false;
@@ -236,6 +279,7 @@ private:
     m.device_timestamp_valid = false;
   }
 
+  // invalidate_imu()：把一帧 IMU 缓存标记失效并重新发布，通知下游“数据没了”。
   void invalidate_imu(ui::ImuState &m) {
     m.fresh = false;
     m.raw_valid = false;
@@ -264,6 +308,7 @@ private:
     }
   }
 
+  // invalidate_depth()：把深度缓存标记失效并重新发布。
   void invalidate_depth(ui::DepthState &m) {
     m.fresh = false;
     m.raw_valid = false;
@@ -283,6 +328,7 @@ private:
     depth_->publish(m);
   }
 
+  // invalidate()：串口重连时把所有缓存一次性作废并广播。
   void invalidate() {
     for (auto &kv : imu_cache_) {
       if (kv.second.first.fresh) {
@@ -307,6 +353,7 @@ private:
     }
   }
 
+  // expire()：看门狗调用的周期性超时检查。
   void expire() {
     const auto t = Clock::now();
 
@@ -348,12 +395,14 @@ private:
     }
   }
 
+  // MotorCache：每个电机节点缓存自己的最新状态和两类时间戳。
   struct MotorCache {
     ui::MotorState message;
     std::optional<Clock::time_point> feedback;
     std::optional<Clock::time_point> heartbeat;
   };
 
+  // ---- 成员变量：参数、缓存、发布者、订阅者、定时器 ----
   std::string imu_frame_;
   std::string depth_frame_;
   std::unique_ptr<adapt::ImuCalibration> calibration_;
@@ -380,6 +429,7 @@ private:
   rclcpp::TimerBase::SharedPtr watchdog_;
 };
 
+// 程序入口：rclcpp::init 初始化，spin 进入事件循环，Ctrl+C 后 shutdown。
 int main(int argc, char **argv) {
   rclcpp::init(argc, argv);
   try {

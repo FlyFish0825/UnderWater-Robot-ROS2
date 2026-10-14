@@ -1,3 +1,16 @@
+// ==============================================================================
+// internal/underwater_mcu_gateway/test/control_ownership_test.cpp
+// ==============================================================================
+// 【初学者导读】本文件是“控制权仲裁”（到底谁有权控制机器人）的端到端测试，属于
+// internal/underwater_mcu_gateway/test。它不依赖 ROS 运行环境，而是直接构造
+// ControlOwnership、TcpControlServer（9002 管理通道）、TcpSerialBridge（9000 原始串口通道）
+// 三个对象，验证“Nano 默认持有 -> GUI 申请/抢占 -> 心跳续租 -> 释放/断线后回归 Nano”的规则。
+// 涉及概念：
+// - 这些类是本项目的普通 C++ 类，不是 ROS 节点，但对应 mcu_gateway 节点内部的组件；
+// - TCP Socket：用 POSIX socket 连到 127.0.0.1 的监听端口，模拟 GUI 客户端；
+// - 所有权令牌(token)/租约(lease)：只有持有效令牌的客户端才能写串口；
+// - 作用域对象/RAII：server、socket 在作用域结束时析构并自动关闭。
+// ==============================================================================
 #include "underwater_mcu_gateway/control_ownership.hpp"
 #include "underwater_mcu_gateway/tcp_serial_bridge.hpp"
 #include "underwater_mcu_gateway/tcp_control_server.hpp"
@@ -15,11 +28,15 @@
 
 using namespace underwater;
 namespace {
+// 简易断言计数：每检查一次 ++checks，失败就抛异常让 main 捕获。
 int checks = 0;
+// check()：本测试自制的断言，ok 为假就抛异常，由 main 统一捕获并打印 FAIL。
 void check(const bool ok, const char *why) {
   ++checks;
   if (!ok) throw std::runtime_error(why);
 }
+// 建立一个连到本地测试服务器的 TCP 客户端，返回文件描述符 fd。
+// setsockopt 设置 SO_RCVTIMEO=1 秒，避免测试永久阻塞。
 int connect_client(const std::uint16_t port) {
   const int fd = ::socket(AF_INET, SOCK_STREAM, 0);
   check(fd >= 0, "create control client");
@@ -33,6 +50,8 @@ int connect_client(const std::uint16_t port) {
         "connect control client");
   return fd;
 }
+// 向管理通道发送一行文本命令，再反复 poll 服务器并尝试 recv 读取应答。
+// 用“循环 + 短睡眠”模拟等待服务器处理，最多重试 10 次，超时抛异常。
 std::string request(TcpControlServer &server, const int fd, const std::string &command) {
   check(::send(fd, command.data(), command.size(), 0) == static_cast<ssize_t>(command.size()),
         "send control request");
@@ -47,6 +66,7 @@ std::string request(TcpControlServer &server, const int fd, const std::string &c
 }
 }
 
+// 主测试流程：先单测仲裁规则，再做“9002 发令牌 + 9000 消费令牌”的端到端联调。
 int main() {
   try {
     ControlOwnership ownership;
@@ -116,6 +136,7 @@ int main() {
     ::close(gui2);
     server.close();
 
+// 下面进入端到端集成：管理通道发放 token，数据通道必须先用 OWNER <token> 认证才能写串口。
     // End-to-end localhost path: 9002 grants a token that 9000 consumes before
     // forwarding the unwrapped bytes, then a Nano takeover revokes the session.
     ControlOwnership integration;

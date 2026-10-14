@@ -6,6 +6,12 @@
 // - 验证 Status -> Pressure -> Zero -> ReadReference -> Verify 完整事务流
 // - 验证超时与非法响应报错机制
 // ==============================================================================
+// 【初学者导读】本文件测试深度计“水面零点标定”状态机（DepthZero），属于
+// internal/underwater_mcu_gateway/test。标定需要网关与 MCU 来回多次：
+// 启动 -> 查询状态 -> 发送去皮(Zero) -> 读取参考值(ReadReference) -> 用新采样验证。
+// 测试用手工构造的 Frame（不接真实硬件）喂养状态机，观察它何时产生要下发的请求帧，
+// 并最终拿到成功结果。涉及概念：协议帧的 family/target/command/flags/payload 字段、
+// 状态机、std::optional（表示“可能有值”）。
 #include "underwater_mcu_gateway/depth_zero.hpp"
 
 #include <cstring>
@@ -16,6 +22,7 @@ using namespace underwater::wire;
 
 int checks = 0;
 
+// 断言：失败时报告是第几个检查出问题。
 void check(bool condition) {
   ++checks;
   if (!condition) {
@@ -24,6 +31,8 @@ void check(bool condition) {
 }
 
 // 辅助组装 32 字节压力传感器数据帧载荷
+// 构造 0x5b 压力传感器帧的 32 字节载荷（小端浮点布局），模拟 MCU 上报数据。
+// 用 memcpy 写到指定偏移，是因为协议规定了各字段的精确字节位置。
 static Bytes make_pressure_payload(float pressure_pa, float raw_depth, float filtered_depth, float p0) {
   Bytes b(32, 0);
   // state = 0x000001d3 (ONLINE | RAW | PROM | COMPENSATED | DEPTH | ZERO_VERIFIED)
@@ -36,6 +45,7 @@ static Bytes make_pressure_payload(float pressure_pa, float raw_depth, float fil
   return b;
 }
 
+// 逐步模拟 MCU 应答并检查状态机每一步产生的请求帧。
 int main() {
   DepthZero dz(0x1000);
   check(!dz.busy());

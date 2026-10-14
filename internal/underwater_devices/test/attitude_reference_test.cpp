@@ -1,3 +1,9 @@
+// 初学者导读（underwater_devices / test/attitude_reference_test.cpp）
+// 所属：姿态参考的单元测试，直接链接纯 C++ 实现，不需要 ROS。
+// 机制：main() 里顺序执行断言，任何一条失败就抛异常并打印 FAIL；全部通过打印 PASS。
+// 测试内容：四元数/RPY 换算与边界、静止采集状态机、标定文件读写与原子替换。
+// C++ 概念：匿名命名空间、模板函数 rejects() 接收 lambda 作为“被测动作”、
+//   check()/near() 是自定义断言辅助；mkdtemp 创建临时目录存放测试文件。
 #include "underwater_devices/attitude_reference.hpp"
 #include <cmath>
 #include <filesystem>
@@ -9,23 +15,33 @@
 
 using namespace underwater::devices;
 namespace fs=std::filesystem;
+// 匿名命名空间：以下辅助函数与计数器仅本文件可见。
 namespace {
+// checks 记录已执行的断言数量，用于最终 PASS 统计。
 int checks=0;
 constexpr double rad=3.14159265358979323846/180;
+// check()：断言 ok 为真，否则抛出带原因的异常。
 void check(bool ok,const std::string &why) { ++checks; if(!ok) throw std::runtime_error(why); }
+// near()：判断两数之差小于 1e-8（浮点数比较不能用 ==）。
 void near(double a,double b,const std::string &why) { check(std::abs(a-b)<1e-8,why); }
+// rejects()：断言 f() 会抛异常，用于测试非法输入被拒绝。
 template<class F> void rejects(F f,const std::string &why) {
   bool threw=false;try { f(); } catch(const std::exception &) { threw=true; } check(threw,why);
 }
+// pose()：模拟一次“原始角速度 + 姿态”输入，便于连续喂样本。
 void pose(ReferenceCapture &c,Vector3 rpy,double time,std::uint64_t connection=4) {
   c.raw({0,0,0},true,connection,time); c.attitude(rpy,true,connection,"imu_sensor",time);
 }
 }
+// main()：测试入口，返回 0 表示全部通过。
 int main() {
+  // 在 /tmp 下创建唯一临时目录，测试文件都放在里面。
   char directory[]="/tmp/underwater-imu-reference-test-XXXXXX";
   if(!mkdtemp(directory)) return 2;
   const fs::path root(directory);
+  // 主测试体放在 try 中，任何异常都会走 catch 打印 FAIL。
   try {
+    // 第一组：相对姿态换算的正确性（已知姿态、目标角、旋转叠加、yaw 回绕）。
     AttitudeReference ref; const Vector3 baseline{.2,-.3,2.9}; ref.baseline=rpy_quaternion(baseline);
     auto output=quaternion_rpy(reference_attitude(ref,baseline));
     for(double v:output) near(v,0,"known pose becomes zero");
@@ -43,6 +59,7 @@ int main() {
     }
     rejects([&]{rpy_quaternion({0,std::numeric_limits<double>::quiet_NaN(),0});},"NaN rejected");
     rejects([&]{normalized_quaternion({0,0,0,0});},"zero quaternion rejected");
+    // 第二组：ReferenceCapture 状态机的各种拒绝/完成路径。
     ReferenceCapture c;
     rejects([&]{c.start({0,91,0},10,5,0);},"invalid target rejected");
     rejects([&]{c.start({},9,5,0);},"too few samples rejected");
@@ -71,6 +88,7 @@ int main() {
     for(int i=0;i<10;++i) pose(wrap,{0,0,(i%2? -179.9:179.9)*rad},i*.12);
     auto average=wrap.take_candidate();check(average.has_value(),"wraparound samples accepted");
     check(quaternion_distance(average->baseline,rpy_quaternion({0,0,180*rad}))<1e-7,"hemisphere average handles yaw wrap");
+    // 第三组：标定文件的保存、读取、原子替换与损坏文件拒绝。
     const auto file=(root/"nested"/"reference.txt").string();
     check(!load_attitude_reference(file,"imu_sensor"),"missing file is uncalibrated");
     candidate->saved_at="2026-10-08T00:00:00Z";
@@ -91,6 +109,7 @@ int main() {
     rejects([&]{load_attitude_reference(file,"imu_sensor");},"corrupt file rejected");
     clear_attitude_reference(file);check(!fs::exists(file),"clear removes active file");
     clear_attitude_reference(file);check(!load_attitude_reference(file,"imu_sensor"),"clear is idempotent");
+    // 清理临时目录并报告结果。
     fs::remove_all(root);
     std::cout<<"PASS "<<checks<<" IMU attitude reference checks\n";return 0;
   } catch(const std::exception &e) {

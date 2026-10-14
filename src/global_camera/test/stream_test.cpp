@@ -7,6 +7,15 @@
 // - 校验“只发最新帧”机制与双客户端并发无交错；
 // - 校验 clear() 掉线断开与慢客户端 2 秒超时淘汰。
 // ==============================================================================
+
+// ── 初学者导读 ────────────────────────────────────────────────────────────
+// 这是一个不依赖 ROS 的端到端测试：真的起一个 StreamServer，用本地 TCP 客户端连上去，
+// 检查 UWSC 帧头的大端字段是否正确、“只发最新帧”“多客户端互不串帧”“掉线断开”
+// “慢客户端 2 秒被踢”等约定是否成立。
+// C++/系统概念：socket/connect/recv/poll、htons 网络字节序、std::thread、
+// 时间字面量 100ms，以及用 throw 表示断言失败。
+// ─────────────────────────────────────────────────────────────────────────
+
 #include "global_camera/stream_server.hpp"
 #include "global_camera/wire.hpp"
 
@@ -25,6 +34,7 @@ using namespace std::chrono_literals;
 
 namespace {
 
+// 断言小工具：条件不成立就抛异常，由 main 的 try/catch 统一报告。
 void require(bool condition, const char *message) {
   if (!condition) {
     throw std::runtime_error(message);
@@ -40,6 +50,7 @@ std::uint64_t get(const std::vector<std::uint8_t> &bytes, std::size_t start, std
   return value;
 }
 
+// 作为客户端连接本地测试服务器，返回套接字 fd（失败抛异常）。
 int connect_to(std::uint16_t port) {
   int fd = socket(AF_INET, SOCK_STREAM, 0);
   require(fd >= 0, "client socket creation failed");
@@ -88,6 +99,7 @@ std::uint64_t read_frame(int fd, const std::vector<std::uint8_t> &expected) {
 
 }  // namespace
 
+// 测试入口：依次验证帧头编码、最新帧语义、离线/重连与慢客户端超时。
 int main() {
   try {
     // 1. JPEG 长度校验测试

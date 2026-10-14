@@ -6,6 +6,18 @@
 //   需先 source install/setup.bash 并已 colcon build。
 // 通过标准：进程退出码 0，末尾打印 "PASS serial control integration"；失败打印 FAIL 并返回 1。
 // 是否需要真实硬件：不需要。用 pty 伪造串口，真机串口不会被打开。
+//
+// ── 初学者导读 ────────────────────────────────────────────────────────────
+// 这是“串口控制链路”的端到端集成测试：用伪终端（pty）假装 MCU 串口，真的跑起
+// manual.launch.xml（网关 + 设备 + 控制），再用 ROS 话题发指令、从 pty 收 CAN 帧，
+// 验证“未使能不动、使能后才动、超时停桨、重连作废、手动/力两路互斥”等安全约定。
+// 关键手法：
+//   - openpty/symlink：把 pty 伪装成串口路径；
+//   - fork + execlp + setsid：在独立会话里启动 launch；
+//   - 用项目自己的 wire::Parser 解 AA55 帧，核对 CAN ID 0x100 与载荷；
+//   - require(...)：断言失败抛异常，main 统一返回非 0。
+// C++ 概念：struct Fixture 的 RAII 析构、lambda [this]、std::array、std::future。
+// ─────────────────────────────────────────────────────────────────────────
 #include "underwater_mcu_gateway/protocol.hpp"
 #include <array>
 #include <cerrno>
@@ -96,6 +108,7 @@ public:
     allocation_sub_=create_subscription<ui::AllocationStatus>("control/allocation",10,
       [this](ui::AllocationStatus::ConstSharedPtr m){ allocation=*m; allocation_seen=true; });
   }
+  // step()：测试的“心跳”，每调用一次推进一小步系统状态。
   // 单步推进：spin 一次、抽干伪串口数据、按周期补发心跳与 wrench。
   void step(bool wrench) {
     rclcpp::spin_some(shared_from_this());
@@ -208,6 +221,7 @@ private:
   rclcpp::Subscription<ui::AllocationStatus>::SharedPtr allocation_sub_;
 };
 // 用例主体：按阶段顺序驱动夹具与探针；任一 require 失败立即进入 catch。
+// 测试入口：初始化 ROS 2、构造探针，按阶段 1..8 逐项断言串口控制安全行为。
 int main(int argc,char ** argv) {
   try {
     Fixture fixture; rclcpp::init(argc,argv); auto node=std::make_shared<Probe>(fixture);
