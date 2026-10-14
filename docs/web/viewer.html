@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>仓库文档 | UnderWater-Robot-ROS2 文档</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 顶部导航条 -->
+  <header class="top-header">
+    <div class="brand-section">
+      <button class="menu-toggle" id="menuToggle" aria-label="切换菜单">☰</button>
+      <div class="brand-logo">ROV</div>
+      <div class="brand-title">
+        <a href="index.html" style="color: inherit; text-decoration: none;">UnderWater-Robot-ROS2</a>
+        <span class="badge badge-version">v1.0.0</span>
+        <span class="badge badge-hardware">Jetson Orin NX 16GB</span>
+        <span class="badge badge-cpp">C++17</span>
+      </div>
+    </div>
+    
+    <div class="header-actions">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" class="search-input" placeholder="搜索本页内容...">
+      </div>
+      <button class="theme-toggle" id="themeToggle" title="切换模式">☀️</button>
+    </div>
+  </header>
+
+  <!-- 主体容器 -->
+  <div class="app-container">
+    
+    <!-- 左侧侧边栏导航 -->
+    <nav class="sidebar" id="sidebar">
+      <div class="nav-group">
+        <div class="nav-group-title">知识体系导航</div>
+        <a href="index.html" class="nav-item"><span class="nav-item-icon">🚀</span> 1. 项目概览与硬件平台</a>
+        <a href="signal-flow.html" class="nav-item"><span class="nav-item-icon">🧭</span> 2. 系统信号流图与项目大纲</a>
+        <a href="architecture.html" class="nav-item"><span class="nav-item-icon">🏛️</span> 3. 系统分层架构与 13 包</a>
+        <a href="nodes.html" class="nav-item"><span class="nav-item-icon">⚙️</span> 4. 核心节点（Nodes）详解</a>
+        <a href="interfaces.html" class="nav-item"><span class="nav-item-icon">📡</span> 5. 话题、服务与消息总线</a>
+        <a href="algorithms.html" class="nav-item"><span class="nav-item-icon">📐</span> 6. 算法原理与底层协议</a>
+        <a href="tutorials.html" class="nav-item"><span class="nav-item-icon">🛠️</span> 7. 初学者分步实操教程</a>
+        <a href="troubleshooting.html" class="nav-item"><span class="nav-item-icon">🚨</span> 8. 实机排障与推力模拟器</a>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-title">快捷外部资源</div>
+        <a href="viewer.html?doc=README.md" class="nav-item"><span class="nav-item-icon">📄</span> 仓库 README</a>
+        <a href="viewer.html?doc=CHANGELOG.md" class="nav-item"><span class="nav-item-icon">📝</span> 更新发布日志</a>
+      </div>
+    </nav>
+
+    <!-- 中间主体内容区 -->
+    <main class="main-content md-main">
+      <div class="md-meta">
+        <span class="md-meta-icon">📄</span>
+        <span>仓库 Markdown 文档</span>
+        <code id="mdPath">README.md</code>
+      </div>
+
+      <section class="doc-section" id="md-doc">
+        <article class="md-body" id="md-content">
+          <p>正在加载文档…</p>
+        </article>
+      </section>
+
+      <div class="page-nav">
+        <div></div>
+        <a href="index.html" class="page-nav-card next">
+          <span class="page-nav-label">返回</span>
+          <span class="page-nav-title">1. 项目概览与硬件平台 ➔</span>
+        </a>
+      </div>
+    </main>
+
+    <!-- 右侧页面目录（TOC） -->
+    <aside class="toc-panel" id="tocPanel">
+      <div class="toc-title">本页内容</div>
+    </aside>
+
+  </div>
+
+  <script src="md-data.js"></script>
+  <script src="md-viewer.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

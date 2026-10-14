@@ -38,18 +38,19 @@
       <div class="nav-group">
         <div class="nav-group-title">知识体系导航</div>
         <a href="index.html" class="nav-item active"><span class="nav-item-icon">🚀</span> 1. 项目概览与硬件平台</a>
-        <a href="architecture.html" class="nav-item"><span class="nav-item-icon">🏛️</span> 2. 系统分层架构与 13 包</a>
-        <a href="nodes.html" class="nav-item"><span class="nav-item-icon">⚙️</span> 3. 核心节点（Nodes）详解</a>
-        <a href="interfaces.html" class="nav-item"><span class="nav-item-icon">📡</span> 4. 话题、服务与消息总线</a>
-        <a href="algorithms.html" class="nav-item"><span class="nav-item-icon">📐</span> 5. 算法原理与底层协议</a>
-        <a href="tutorials.html" class="nav-item"><span class="nav-item-icon">🛠️</span> 6. 初学者分步实操教程</a>
-        <a href="troubleshooting.html" class="nav-item"><span class="nav-item-icon">🚨</span> 7. 实机排障与推力模拟器</a>
+        <a href="signal-flow.html" class="nav-item"><span class="nav-item-icon">🧭</span> 2. 系统信号流图与项目大纲</a>
+        <a href="architecture.html" class="nav-item"><span class="nav-item-icon">🏛️</span> 3. 系统分层架构与 13 包</a>
+        <a href="nodes.html" class="nav-item"><span class="nav-item-icon">⚙️</span> 4. 核心节点（Nodes）详解</a>
+        <a href="interfaces.html" class="nav-item"><span class="nav-item-icon">📡</span> 5. 话题、服务与消息总线</a>
+        <a href="algorithms.html" class="nav-item"><span class="nav-item-icon">📐</span> 6. 算法原理与底层协议</a>
+        <a href="tutorials.html" class="nav-item"><span class="nav-item-icon">🛠️</span> 7. 初学者分步实操教程</a>
+        <a href="troubleshooting.html" class="nav-item"><span class="nav-item-icon">🚨</span> 8. 实机排障与推力模拟器</a>
       </div>
 
       <div class="nav-group">
         <div class="nav-group-title">快捷外部资源</div>
-        <a href="../README.md" class="nav-item"><span class="nav-item-icon">📄</span> 仓库 README</a>
-        <a href="../CHANGELOG.md" class="nav-item"><span class="nav-item-icon">📝</span> 更新发布日志</a>
+        <a href="viewer.html?doc=README.md" class="nav-item"><span class="nav-item-icon">📄</span> 仓库 README</a>
+        <a href="viewer.html?doc=CHANGELOG.md" class="nav-item"><span class="nav-item-icon">📝</span> 更新发布日志</a>
       </div>
     </nav>
 
@@ -113,43 +114,45 @@
 
         <h2>分篇章节导读</h2>
         <div class="card-grid">
+          <a href="signal-flow.html" class="card" style="text-decoration: none;">
+            <div class="card-title">🧭 2. 系统信号流图与项目大纲 ➔</div>
+            <div class="card-desc">一图掌握从传感器到推进器的端到端信号流、ROS 话题链、控制权仲裁，以及全项目大纲结构。</div>
+          </a>
           <a href="architecture.html" class="card" style="text-decoration: none;">
-            <div class="card-title">🏛️ 2. 系统分层架构与 13 包 ➔</div>
+            <div class="card-title">🏛️ 3. 系统分层架构与 13 包 ➔</div>
             <div class="card-desc">浏览 5 层分层架构视觉流向图，以及 13 个 ROS 2 源码包全景矩阵与职责定位。</div>
           </a>
           <a href="nodes.html" class="card" style="text-decoration: none;">
-            <div class="card-title">⚙️ 3. 核心节点详解 ➔</div>
+            <div class="card-title">⚙️ 4. 核心节点详解 ➔</div>
             <div class="card-desc">深入 10 大核心节点（网关、设备、控制分配、双目视觉、键盘交互等）的详细参数与底层机制。</div>
           </a>
           <a href="interfaces.html" class="card" style="text-decoration: none;">
-            <div class="card-title">📡 4. 话题、服务与消息总线 ➔</div>
+            <div class="card-title">📡 5. 话题、服务与消息总线 ➔</div>
             <div class="card-desc">查阅全系统话题矩阵、自定义 IDL 消息字段（ImuState、DepthState 等）及核心服务。</div>
           </a>
           <a href="algorithms.html" class="card" style="text-decoration: none;">
-            <div class="card-title">📐 5. 算法原理与底层协议 ➔</div>
+            <div class="card-title">📐 6. 算法原理与底层协议 ➔</div>
             <div class="card-desc">探究八推进器 OSQP 推力分配、几何中心力矩消除、底层 AA55/58/5B 串口增量解包。</div>
           </a>
           <a href="tutorials.html" class="card" style="text-decoration: none;">
-            <div class="card-title">🛠️ 6. 初学者分步实操教程 ➔</div>
+            <div class="card-title">🛠️ 7. 初学者分步实操教程 ➔</div>
             <div class="card-desc">从零开始的环境编译、传感器监视、双目推流、键盘操控、上位机 GUI 协同与数据落盘。</div>
           </a>
           <a href="troubleshooting.html" class="card" style="text-decoration: none;">
-            <div class="card-title">🚨 7. 实机排障与推力模拟器 ➔</div>
+            <div class="card-title">🚨 8. 实机排障与推力模拟器 ➔</div>
             <div class="card-desc">实机避坑指南（WCH-Link 干扰、电机死区）与交互式推进器转速实时模拟器。</div>
           </a>
         </div>
       </section>
 
       <!-- 页面翻页器 -->
-      <div class="page-nav">
+            <div class="page-nav">
         <div></div>
-        <a href="architecture.html" class="page-nav-card next">
+        <a href="signal-flow.html" class="page-nav-card next">
           <span class="page-nav-label">下一篇</span>
-          <span class="page-nav-title">2. 系统分层架构与 13 包 ➔</span>
+          <span class="page-nav-title">2. 系统信号流图与项目大纲 ➔</span>
         </a>
       </div>
-
-    </main>
 
     <!-- 右侧页面目录（TOC） -->
     <aside class="toc-panel">

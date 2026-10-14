@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UnderWater-Robot-ROS2 水下机器人开发全景指南 | 系统信号流图与项目大纲</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- 顶部导航条 -->
+  <header class="top-header">
+    <div class="brand-section">
+      <button class="menu-toggle" id="menuToggle" aria-label="切换菜单">☰</button>
+      <div class="brand-logo">ROV</div>
+      <div class="brand-title">
+        <a href="index.html" style="color: inherit; text-decoration: none;">UnderWater-Robot-ROS2</a>
+        <span class="badge badge-version">v1.0.0</span>
+        <span class="badge badge-hardware">Jetson Orin NX 16GB</span>
+        <span class="badge badge-cpp">C++17</span>
+      </div>
+    </div>
+    
+    <div class="header-actions">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" class="search-input" placeholder="搜索本页内容...">
+      </div>
+      <button class="theme-toggle" id="themeToggle" title="切换模式">☀️</button>
+    </div>
+  </header>
+
+  <!-- 主体容器 -->
+  <div class="app-container">
+    
+    <!-- 左侧侧边栏导航 -->
+    <nav class="sidebar" id="sidebar">
+      <div class="nav-group">
+        <div class="nav-group-title">知识体系导航</div>
+        <a href="index.html" class="nav-item"><span class="nav-item-icon">🚀</span> 1. 项目概览与硬件平台</a>
+        <a href="signal-flow.html" class="nav-item active"><span class="nav-item-icon">🧭</span> 2. 系统信号流图与项目大纲</a>
+        <a href="architecture.html" class="nav-item"><span class="nav-item-icon">🏛️</span> 3. 系统分层架构与 13 包</a>
+        <a href="nodes.html" class="nav-item"><span class="nav-item-icon">⚙️</span> 4. 核心节点（Nodes）详解</a>
+        <a href="interfaces.html" class="nav-item"><span class="nav-item-icon">📡</span> 5. 话题、服务与消息总线</a>
+        <a href="algorithms.html" class="nav-item"><span class="nav-item-icon">📐</span> 6. 算法原理与底层协议</a>
+        <a href="tutorials.html" class="nav-item"><span class="nav-item-icon">🛠️</span> 7. 初学者分步实操教程</a>
+        <a href="troubleshooting.html" class="nav-item"><span class="nav-item-icon">🚨</span> 8. 实机排障与推力模拟器</a>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-title">快捷外部资源</div>
+        <a href="viewer.html?doc=README.md" class="nav-item"><span class="nav-item-icon">📄</span> 仓库 README</a>
+        <a href="viewer.html?doc=CHANGELOG.md" class="nav-item"><span class="nav-item-icon">📝</span> 更新发布日志</a>
+      </div>
+    </nav>
+
+    <!-- 中间主体内容区 -->
+    <main class="main-content">
+      
+      <!-- 2. 系统信号流图与项目大纲 -->
+      <section id="outline" class="doc-section">
+        <h1 class="doc-title">系统信号流图与项目大纲</h1>
+        <p class="lead-p">
+          本页是整份文档的<strong>“总骨架”</strong>：上半部分用一棵大纲树交代<strong>项目由哪些包与目录构成</strong>，下半部分用一张<strong>端到端信号流图（Signal Flow Diagram）</strong>说明<strong>数据如何在传感器、下位机、串口网关、ROS 2 话题与推进器之间流动</strong>。建议先看懂本页，再进入分层架构（3）与核心节点（4）的细节。
+        </p>
+
+        <div class="callout tip">
+          <div class="callout-icon">💡</div>
+          <div class="callout-content">
+            <div class="callout-title">一句话抓住主线</div>
+            <p>
+              物理传感器 <strong>→</strong> STM32H750 组帧 <strong>→</strong> USB CDC 串口 <strong>→</strong>
+              <code>underwater_mcu_gateway</code> 解包 <strong>→</strong> <code>underwater_devices</code> 语义化 <strong>→</strong>
+              ROS 2 话题 <strong>→</strong> <code>underwater_control</code> 六自由度 QP 分配 <strong>→</strong>
+              <code>actuators/thrusters/setpoint</code> <strong>→</strong> CAN 总线下发 8 台推进器。图像与遥测则通过 TCP 旁路直达上位机 GUI。
+            </p>
+          </div>
+        </div>
+
+        <h2>一、项目大纲结构（Outline）</h2>
+        <p>工作空间按<strong>“对外开放业务入口（<code>src/</code>）”</strong>与<strong>“核心底层实现（<code>internal/</code>）”</strong>分区，合计 13 个实际可编译 ROS 2 包：</p>
+
+        <div class="outline-grid">
+          <div class="outline-card">
+            <div class="outline-card-header">
+              <span class="outline-card-title">📦 src/ · 业务与外设入口包</span>
+              <span class="outline-card-badge">6 包</span>
+            </div>
+            <ul class="outline-tree">
+              <li>
+                <span class="ot-name">sensors_cpp</span>
+                <span class="ot-desc">兼容层核心：复刻 14 个原命令，<code>sensors_sub</code> 汇总查看、<code>sensors_sub_jilushuju</code> 10Hz CSV 落盘</span>
+              </li>
+              <li>
+                <span class="ot-name">manual_control</span>
+                <span class="ot-desc">终端键盘六轴档位输入、<code>forces_pub</code> 时序激励、<code>preview</code> 隔离预览安全门禁</span>
+              </li>
+              <li>
+                <span class="ot-name">global_camera</span>
+                <span class="ot-desc">V4L2 双目采集、左右目拆分发布、内置 TCP 9001 JPEG 推流服务</span>
+              </li>
+              <li>
+                <span class="ot-name">msg_pkg</span>
+                <span class="ot-desc">历史消息接口兼容：<code>ImuData</code> / <code>DepthSensor</code> / <code>Forces</code> / <code>Globalcam</code> / <code>CamPose</code></span>
+              </li>
+              <li>
+                <span class="ot-name">imu_py</span>
+                <span class="ot-desc">保留原 <code>imu_publisher</code> 命名与使用习惯的轻量入口</span>
+              </li>
+              <li>
+                <span class="ot-name">depth_py</span>
+                <span class="ot-desc">保留原 <code>depth_publisher</code> 命名与使用习惯的轻量入口</span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="outline-card">
+            <div class="outline-card-header">
+              <span class="outline-card-title">🧠 internal/ · 核心 ROS 包</span>
+              <span class="outline-card-badge">7 包</span>
+            </div>
+            <ul class="outline-tree">
+              <li>
+                <span class="ot-name">underwater_mcu_gateway</span>
+                <span class="ot-desc">唯一串口所有者：CDC 驱动、AA55/58/5B 增量解包、TCP 9000 转发、TCP 9002 控制权仲裁</span>
+              </li>
+              <li>
+                <span class="ot-name">underwater_devices</span>
+                <span class="ot-desc">设备语义建模：IMU 姿态基准、深度/压力解码、电机反馈解码、SI 换算与过期失效</span>
+              </li>
+              <li>
+                <span class="ot-name">underwater_control</span>
+                <span class="ot-desc">OSQP 六轴动力分配、<code>thruster_center</code> 力矩、手动/远程控制权、显式启停与超时保护</span>
+              </li>
+              <li>
+                <span class="ot-name">underwater_description</span>
+                <span class="ot-desc">URDF 刚体模型与 <code>base_link → thruster_center</code> 静态 TF</span>
+              </li>
+              <li>
+                <span class="ot-name">underwater_bringup</span>
+                <span class="ot-desc">顶层 Launch：<code>base</code> / <code>manual</code> / <code>monitor</code> / <code>remote_manual</code> / <code>robot</code> / <code>tcp</code> 与记录话题表</span>
+              </li>
+              <li>
+                <span class="ot-name">underwater_interfaces</span>
+                <span class="ot-desc">10 种自定义消息 + 控制权 / IMU 基准服务 IDL</span>
+              </li>
+              <li>
+                <span class="ot-name">underwater_robot</span>
+                <span class="ot-desc">兼容前一版的 C++ 软件心跳节点 <code>robot_node</code></span>
+              </li>
+            </ul>
+          </div>
+
+          <div class="outline-card">
+            <div class="outline-card-header">
+              <span class="outline-card-title">🗂️ 仓库其他目录</span>
+              <span class="outline-card-badge">Support</span>
+            </div>
+            <ul class="outline-tree">
+              <li><span class="ot-name">docs/</span><span class="ot-desc">Markdown 文档：architecture / interfaces / usage / protocols / hardware / experiments</span></li>
+              <li><span class="ot-name">docs/web/</span><span class="ot-desc">本网页版全景说明文档（多页面 HTML 站点，支持离线双击打开）</span></li>
+              <li><span class="ot-name">tests/</span><span class="ot-desc">顶级测试中枢索引与一键统一执行脚本</span></li>
+              <li><span class="ot-name">tools/ · deploy/</span><span class="ot-desc">辅助脚本与部署文件</span></li>
+              <li><span class="ot-name">third_party/</span><span class="ot-desc">第三方依赖（如 OSQP 求解器等）</span></li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <!-- 端到端信号流 -->
+      <section id="signal-flow" class="doc-section">
+        <h2>二、端到端信号流图（Signal Flow）</h2>
+        <p>下图按<strong>“由物理到算力、再由算力回到执行”</strong>的顺序，逐级标注每个环节的载体、通道与关键信号名。左侧为<strong>主干控制闭环</strong>，右侧为<strong>图像与遥测旁路</strong>：</p>
+
+        <div class="flow-split">
+          <div class="flow-pipeline">
+            <div class="flow-node kind-sensor">
+              <div class="flow-node-head">🛰️ 物理感知层</div>
+              <div class="flow-pills">
+                <span class="flow-pill">MS5837 深度 / 水温（I²C ~25Hz）</span>
+                <span class="flow-pill">九轴 IMU 原始 / 姿态 / 气压</span>
+                <span class="flow-pill">720P 双目全局快门相机</span>
+              </div>
+            </div>
+            <div class="flow-arrow"><span class="flow-arrow-label">I²C · UART · USB 采集与组帧</span></div>
+
+            <div class="flow-node kind-mcu">
+              <div class="flow-node-head">⚙️ STM32H750 下位机 MCU</div>
+              <div class="flow-node-sub">高频硬件中断、深度计驱动、IMU 数据组装、8 路 CAN 主机、看门狗安全定时器；封装 AA55 / AA58 / AA5B 协议帧。</div>
+            </div>
+            <div class="flow-arrow"><span class="flow-arrow-label">USB CDC 虚拟串口 · 921600 Baud · /dev/ttyACM0</span></div>
+
+            <div class="flow-node kind-gateway">
+              <div class="flow-node-head">🔌 underwater_mcu_gateway（唯一串口所有者）</div>
+              <div class="flow-node-sub">SerialIo 读写与重连 → Parser 增量解包 → CRC/结构校验 → GatewayFrame；单调滑动重同步与旧帧过滤。</div>
+              <div class="flow-signal">gateway/frames · gateway/status · gateway/raw_rx（可选，默认关闭）</div>
+            </div>
+            <div class="flow-arrow"><span class="flow-arrow-label">解码帧分发（ROS 话题总线，命名空间 /underwater_robot）</span></div>
+
+            <div class="flow-node kind-device">
+              <div class="flow-node-head">🧩 underwater_devices 设备语义层</div>
+              <div class="flow-node-sub">将字节帧翻译为标准语义：IMU 三组独立有效、深度/压力 SI 换算、电机反馈去重与过期失效。</div>
+              <div class="flow-signal">sensors/imu/state · sensors/depth/state · sensors/* · actuators/thrusters/state</div>
+            </div>
+            <div class="flow-arrow"><span class="flow-arrow-label">上行测量 + 下行指令汇聚至控制层</span></div>
+
+            <div class="flow-node kind-control">
+              <div class="flow-node-head">🧠 underwater_control 六自由度分配</div>
+              <div class="flow-node-sub">接收 <code>control/manual_request</code> 或 <code>control/wrench_request</code>，经 OSQP 二次规划分配为 8 推进器推力，叠加死区与极性映射。</div>
+              <div class="flow-signal">control/allocation（QP 推力 / 建议 RPM / 预测六轴量 / 启停状态）</div>
+            </div>
+            <div class="flow-arrow"><span class="flow-arrow-label">受限内部命令 · 绑定当前串口连接与 enable 会话</span></div>
+
+            <div class="flow-node kind-actuator">
+              <div class="flow-node-head">🚀 执行机构</div>
+              <div class="flow-node-sub">actuators/thrusters/setpoint → MCU 校验 0x100 速度向量 → CAN 总线节点 1..8。</div>
+              <div class="flow-signal">8 台无刷推进器 fan1~fan8 · 1000~6000 RPM（含 1000 RPM 死区保护）</div>
+            </div>
+            <div class="flow-arrow flow-arrow-feedback"><span class="flow-arrow-label">◀ 闭环回程：CAN 0x201..0x208 转速/电压/电流/温度反馈回到 gateway → devices</span></div>
+          </div>
+
+          <aside class="flow-sidepanel">
+            <div class="flow-side-title">🖥️ 旁路：图像与遥测</div>
+
+            <div class="flow-side-card kind-camera">
+              <div class="flow-side-name">双目视觉推流</div>
+              <div class="flow-side-desc"><code>global_camera</code> 独立打开相机，左右目拆分发布并经 <strong>TCP 9001</strong> 传输拼接 JPEG，与 MCU 串口相互独立。</div>
+            </div>
+
+            <div class="flow-side-card kind-tcp">
+              <div class="flow-side-name">原始串口透明桥</div>
+              <div class="flow-side-desc"><strong>TCP 9000</strong> 共享唯一串口所有者，向已授权 GUI 透传原始字节（配置/升级协议）。</div>
+            </div>
+
+            <div class="flow-side-card kind-lease">
+              <div class="flow-side-name">控制权仲裁</div>
+              <div class="flow-side-desc"><strong>TCP 9002</strong> 令牌握手与 <code>gateway/status.control_owner</code>（NONE / NANO / GUI / GUI_MANUAL）互斥仲裁，禁止并行电机输出。</div>
+            </div>
+
+            <div class="flow-side-card kind-record">
+              <div class="flow-side-name">数据落盘</div>
+              <div class="flow-side-desc"><code>sensors_cpp</code> 的 <code>sensors_sub_jilushuju</code> 以 10Hz 订阅遥测并写 CSV；<code>underwater_bringup</code> 提供记录话题表。</div>
+            </div>
+
+            <div class="flow-side-card kind-manual">
+              <div class="flow-side-name">手动控制入口</div>
+              <div class="flow-side-desc"><code>manual_control</code> 解析键盘六轴档位（-100..100）发布 <code>control/manual_request</code>，0 停机、1 档起步。</div>
+            </div>
+          </aside>
+        </div>
+
+        <div class="callout info">
+          <div class="callout-icon">🔁</div>
+          <div class="callout-content">
+            <div class="callout-title">上行与下行不是两条独立总线</div>
+            <p>
+              上行（传感器遥测）与下行（电机指令）复用<strong>同一条 USB CDC 物理链路与同一个网关节点</strong>。因此网关是<strong>唯一串口所有者</strong>：ROS 电机发送、深度命令或 TCP 9000 任一启用时才以读写模式打开串口，三者都关闭时退化为只读；<code>header.stamp</code> 统一表示<strong>接收时刻</strong>，不是 MCU 采样时刻。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 关键话题信号链 -->
+      <section id="topic-chain" class="doc-section">
+        <h2>三、关键话题信号链（Topic Chain）</h2>
+        <p>默认命名空间 <code>/underwater_robot</code>。下表按信号在系统中的流动顺序列出核心话题、消息类型与下游消费者：</p>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>阶段</th>
+                <th>来源 → 话题</th>
+                <th>消息类型</th>
+                <th>下游 / 语义</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>1</td><td>串口分帧</td><td><code>mcu_gateway_node → gateway/frames</code></td><td>GatewayFrame</td><td>CRC/结构校验后的 AA55/58/5B，设备适配器内部入口</td></tr>
+              <tr><td>2</td><td>网关遥测</td><td><code>mcu_gateway_node → gateway/status</code></td><td>GatewayStatus</td><td>约 1Hz；连接、收发/错误统计、队列占用率、control_owner</td></tr>
+              <tr><td>3</td><td>IMU 原始</td><td><code>devices_node → sensors/imu/state</code></td><td>ImuState</td><td>0x80 原始 / 0x81 姿态 / 0x85 气压分组独立有效</td></tr>
+              <tr><td>4</td><td>IMU 基准姿态</td><td><code>devices_node → sensors/imu/calibrated</code></td><td>ImuState</td><td>0x81 为相对已保存基准的姿态；无基准时姿态无效</td></tr>
+              <tr><td>5</td><td>标准 IMU</td><td><code>devices_node → sensors/imu/data_raw</code></td><td>sensor_msgs/Imu</td><td>仅加速度 / 角速度；姿态不可用（协方差置零）</td></tr>
+              <tr><td>6</td><td>深度</td><td><code>devices_node → sensors/depth/state</code></td><td>DepthState</td><td>原始 ADC、压力、温度、深度、零点与型号有效位</td></tr>
+              <tr><td>7</td><td>标准压力 / 温度</td><td><code>devices_node → sensors/pressure/*</code></td><td>FluidPressure / Temperature</td><td>仅在对应测量有效时发布，单位 Pa / °C</td></tr>
+              <tr><td>8</td><td>电机反馈</td><td><code>devices_node → actuators/thrusters/state</code></td><td>MotorState</td><td>节点 1..8；heartbeat_valid 与 feedback_valid 独立</td></tr>
+              <tr><td>9</td><td>手动档位</td><td><code>manual_control → control/manual_request</code></td><td>geometry_msgs/WrenchStamped</td><td>终端或已授权 GUI 的六轴档位；0 停机、1 档起步</td></tr>
+              <tr><td>10</td><td>力请求</td><td><code>外部/自动化 → control/wrench_request</code></td><td>geometry_msgs/WrenchStamped</td><td>base_link 六轴模型输入；与 manual_request 合计只能一个发布者</td></tr>
+              <tr><td>11</td><td>分配结果</td><td><code>control_node → control/allocation</code></td><td>AllocationStatus</td><td>QP 推力、建议 RPM、死区后预测六轴量与启停状态</td></tr>
+              <tr><td>12</td><td>电机设定</td><td><code>control_node → actuators/thrusters/setpoint</code></td><td>MotorSetpoint</td><td>绑定当前串口连接与 enable 会话的受限内部命令</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout warning">
+          <div class="callout-icon">⚠️</div>
+          <div class="callout-content">
+            <div class="callout-title">关于时间戳与“新鲜度”</div>
+            <p>
+              所有 <code>header.stamp</code> 均为<strong>接收时刻</strong>，并非绝对采样时刻。消费方必须检查 <code>fresh / valid / online</code>，不得把历史状态位当作新鲜测量；同时对标准话题设置超时。测量默认 500 ms 过期，心跳 / 状态 2.5 s 过期。
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <!-- 控制权与安全信号 -->
+      <section id="safety" class="doc-section">
+        <h2>四、控制权与安全信号</h2>
+        <p>信号流的“闸门”由控制权状态与显式启停服务共同把守，确保任意时刻只有一条电机指令来源：</p>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>control_owner</th>
+                <th>含义</th>
+                <th>允许的电机信号路径</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td><code>NONE</code></td><td>无人持有操作权</td><td>仅只读监视；任何写串口路径关闭</td></tr>
+              <tr><td><code>NANO</code></td><td>Nano 侧 ROS 控制链持有</td><td>ROS 电机命令（需 <code>manual.launch.xml</code> 且 <code>motor_tx:=true</code>）</td></tr>
+              <tr><td><code>GUI</code></td><td>GUI 原始串口独占写入</td><td>禁止并行 ROS 电机输出，仅受独占令牌约束</td></tr>
+              <tr><td><code>GUI_MANUAL</code></td><td>GUI 持有操作权、Nano 执行原控制链</td><td>Nano 按原控制链下发，权限不要求改回 NANO</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3>关键服务</h3>
+        <ul>
+          <li><code>control/enable</code>（<code>std_srvs/SetBool</code>）— 显式启停；启动先停机，每次 enable 必须建立零输出会话，重连后需重新 enable。</li>
+          <li><code>sensors/depth/zero</code>（<code>std_srvs/Trigger</code>）— 记录空气 / 水面为零点，需 Nano 持有控制权且收到新的有效深度测量。</li>
+          <li><code>sensors/imu/calibrate</code> / <code>sensors/imu/clear_calibration</code> — 采集或清除已知静止姿态基准，只改主机参考，不向 MCU 发标定命令。</li>
+          <li><code>gateway/validate_manual_lease</code> — 仅供 9003 适配节点内部校验控制权租约令牌；属可信 ROS 网络内部服务。</li>
+        </ul>
+
+        <h3>安全与失效边界</h3>
+        <ul>
+          <li>ROS 电机路径只接受已校验的 <code>0x100</code> 速度 / 运行向量；输入或命令超时自动停止。</li>
+          <li>主机停机依赖链路仍可写，<strong>不能替代 MCU 端通信看门狗</strong>。</li>
+          <li>设备数据采用 <code>SensorDataQoS</code>；状态消息使用可靠 QoS；无效数值以 <code>NaN</code> 与 <code>false</code> 有效标志表达。</li>
+          <li>IMU 世界参考系与安装姿态尚未确认，因此未发布设备到 <code>base_link</code> 的 TF，也未启动虚构的定位 / 控制算法。</li>
+        </ul>
+      </section>
+
+      <!-- 页面翻页器 -->
+            <div class="page-nav">
+        <a href="index.html" class="page-nav-card prev">
+          <span class="page-nav-label">上一篇</span>
+          <span class="page-nav-title">⏮ 1. 项目概览与硬件平台</span>
+        </a>
+        <a href="architecture.html" class="page-nav-card next">
+          <span class="page-nav-label">下一篇</span>
+          <span class="page-nav-title">3. 系统分层架构与 13 包 ➔</span>
+        </a>
+      </div>
+
+    <!-- 右侧页面目录（TOC） -->
+    <aside class="toc-panel">
+      <div class="toc-title">本页内容目录</div>
+      <a href="#outline" class="toc-link active">项目大纲结构</a>
+      <a href="#signal-flow" class="toc-link">端到端信号流图</a>
+      <a href="#topic-chain" class="toc-link">关键话题信号链</a>
+      <a href="#safety" class="toc-link">控制权与安全信号</a>
+    </aside>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
