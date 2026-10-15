@@ -1,0 +1,25 @@
+CompileFlags:
+  CompilationDatabase: build
+  Add:
+    - "-std=c++17"
+    - "-I/usr/lib/gcc/x86_64-linux-gnu/11/include"
+    - "-I/usr/local/include"
+    - "-I/usr/include/x86_64-linux-gnu"
+    - "-I/usr/include"
+    - "-I/opt/ros/humble/include"
+    - "-Wno-unknown-warning-option"
+    - "-Wno-unused-command-line-argument"
+
+Index:
+  Background: Build
+
+Diagnostics:
+  Suppress:
+    - "-Wunknown-warning-option"
+    - "-Wunused-command-line-argument"
+
+InlayHints:
+  Designators: Yes
+  Enabled: Yes
+  ParameterNames: Yes
+  DeducedTypes: Yes

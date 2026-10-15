@@ -5,7 +5,10 @@ build:
   base-paths: [src, internal] # 只从这两个目录收集包，排除 third_party/ 等外部源码
   executor: sequential # 串行构建：占用内存更低、日志更易读，代价是总耗时更长
   symlink-install: true # 用符号链接安装（Python/脚本改完无需重新构建），C++ 需重编仍要重新 build
-  cmake-args: [-DCMAKE_BUILD_TYPE=RelWithDebInfo] # 优化 + 调试符号，兼顾实机性能与崩溃回溯
+  cmake-args:
+    - -DCMAKE_BUILD_TYPE=RelWithDebInfo # 优化 + 调试符号，兼顾实机性能与崩溃回溯
+    - -DCMAKE_EXPORT_COMPILE_COMMANDS=ON # 导出编译数据库供 clangd 索引
+    - -DCMAKE_CXX_STANDARD=17 # 统一采用 C++17 标准
 
 # Keep discovery consistent for inspection and testing; exclude vendor sources and backups.
 list:
